@@ -12,21 +12,35 @@ bool *running;
 GameContext *ctx;
 
 bool is_collision(GameContext *ctx) {
-    float sx, sy; // Centro da nave
-    blasteroids_spaceship_get_center(&sx, &sy, ctx->ship);
-    AsteroidNode *this;
-    this = ctx->asteroids;
-    float ax, ay;
+#ifndef ASTEROID_SIZE_X
+    error("Constantes não definidas em teste de colisão");
+#endif
+    float sx, sy; // Apenas as coordenadas
+    sx = ctx->ship->sx;
+    sy = ctx->ship->sy;
+    AsteroidNode *this = ctx->asteroids;
     while (this != NULL) {
-        blasteroids_asteroid_get_center(&ax, &ay, this->this); // Tem que estar perto suficiente para dar dano
-        if (get_distance(sx, sy, ax, ay) < ((ASTEROID_SIZE_X + ASTEROID_SIZE_Y)/2 + (SPACESHIP_SIZE_X + SPACESHIP_SIZE_Y)/2))
+        float ax, ay;
+        float min_distance, cur_distance;
+        min_distance = get_distance(0, 0, ASTEROID_SIZE_X/2, ASTEROID_SIZE_Y/2)*this->this->scale + get_distance(0, 0, SPACESHIP_SIZE_X, SPACESHIP_SIZE_Y); // Se a distancia for menor que essa então temos uma colisão, no final das contas o trigger vai ser um círculo mesmo. Se alguém tiver um jeito melhor de calcular as triggers usando um quadrado ou retángulo com a orientação da nave manda um PR ai que a gente aprende junto :p
+        ax = this->this->sx;
+        ay = this->this->sy;
+        cur_distance = get_distance(sx, sy, ax, ay);
+        // debug
+        ALLEGRO_TRANSFORM t; // Vamos converter para a base canônica
+        al_identity_transform(&t);
+        al_use_transform(&t);
+        al_draw_line(sx, sy, ax, ay, al_map_rgb(255, 255, 255), 1); // Linha da distancia
+        if (cur_distance < min_distance) {
+            debug("collision (%f, %f) vs (%f, %f) md: %f cd: %f", sx, sy, ax, ay, min_distance, cur_distance);
             return true;
+        }
         this = this->next;
     }
     return false;
 }
 
-void update_states() {
+void update_states(GameContext *ctx) {
     blasteroids_AsteroidNode_update_all(ctx->asteroids);
 }
 
@@ -47,7 +61,7 @@ int main() {
     // Queue
     ctx->event_queue = al_create_event_queue();
     // Timer
-    ctx->timer = al_create_timer(1);
+    ctx->timer = al_create_timer(1); // Tick a cada 1s
     if (!ctx->timer)
         error("Não foi possível iniciar o timer");
     al_start_timer(ctx->timer);
@@ -84,7 +98,7 @@ int main() {
     as->heading = 230.0;
     as->speed = 12.0;
     as->rot_velocity = 5.0;
-    as->scale = 1.5;
+    as->scale = 3.4;
     as->gone = false;
     as->color = al_map_rgb(15, 135, 88);
     // Event loop in main thread
@@ -95,6 +109,7 @@ int main() {
         al_clear_to_color(al_map_rgb(0, 0, 0));
         blasteroids_ship_draw(ctx->ship);
         blasteroids_AsteroidNode_draw_all(ctx->asteroids);
+        is_collision(ctx);
         event_loop_once(ctx, &event);
     }
     // ============= SAINDO ===========

@@ -7,8 +7,8 @@
 
 // Caixas de colisão
 // NÃO ESQUECE DE MULTIPLICAR PELO SCALE
-#define ASTEROID_SIZE_X 55
-#define ASTEROID_SIZE_Y 40
+#define ASTEROID_SIZE_X 35 // -20
+#define ASTEROID_SIZE_Y 26 // -10
 
 typedef struct Asteroid {
     float sx;
@@ -23,8 +23,8 @@ typedef struct Asteroid {
 
 // =========== SPACESHIP ===========
 
-#define SPACESHIP_SIZE_X 16
-#define SPACESHIP_SIZE_Y 20
+#define SPACESHIP_SIZE_X 8 // -8
+#define SPACESHIP_SIZE_Y 10 // -10
 typedef struct Spaceship {
     float sx;
     float sy;

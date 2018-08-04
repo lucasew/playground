@@ -22,10 +22,7 @@ void blasteroids_ship_draw(Spaceship *s) {
 }
 
 void _log_spaceship(char *direction, Spaceship *s) {
-    char *dummy = malloc(sizeof(char)*300);
-    sprintf(dummy, "spaceship %s sx:%f sy:%f heading:%f speed:%f gone:%i", direction, s->sx, s->sy, s->heading, s->speed, s->gone);
-    debug(dummy);
-    free(dummy);
+    debug("spaceship %s (%f, %f) heading:%f speed:%f gone:%i", direction, s->sx, s->sy, s->heading, s->speed, s->gone);
 }
 
 void blasteroids_ship_get_delta(float *deltax, float *deltay, Spaceship *s) {
@@ -67,8 +64,14 @@ void blasteroids_ship_down(Spaceship *s) {
 }
 
 void blasteroids_spaceship_get_center(float *cx, float *cy, Spaceship *s) {
+#ifndef SPACESHIP_SIZE_X
+    error("spaceship_get_center: Constantes não definidas");
+#endif
     float dummy; // Lixo
     blasteroids_get_delta(cx, &dummy, (float)SPACESHIP_SIZE_X, s->heading);
     blasteroids_get_delta(&dummy, cy, (float)SPACESHIP_SIZE_Y, s->heading);
+    *cy = *cy * -1;
+    *cx = *cx + s->sx;
+    *cy = *cy + s->sy;
 }
 

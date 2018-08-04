@@ -15,5 +15,5 @@ float get_distance(float ax, float ay, float bx, float by) {
     float x, y;
     x = ax - bx; // Não temos distancia negativa
     y = ay - by;
-    return sqrtf(x*x + y*y); // Vi va pitágoras :p
+    float dist = sqrtf(x*x + y*y); // Vi va pitágoras :p
 }
