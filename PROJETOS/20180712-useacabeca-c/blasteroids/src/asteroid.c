@@ -2,9 +2,9 @@
 #include <stdio.h>
 #include <allegro5/allegro.h>
 #include <allegro5/allegro_primitives.h>
-#include "asteroid.h"
-#include "draw_utils.h"
-#include "log_utils.h"
+
+#include <blasteroids/asteroid.h>
+#include <blasteroids.h>
 
 void _log_asteroid(char *reason, Asteroid *a) {
     char *text = malloc(sizeof(char)*300);
@@ -85,3 +85,8 @@ void blasteroids_AsteroidNode_gc(AsteroidNode *node) {
     }
 }
 
+void blasteroids_asteroid_get_center(float *cx, float *cy, Asteroid *a) {
+    float dummy; // Lixo
+    blasteroids_get_delta(cx, &dummy, ASTEROID_SIZE_X*a->scale, a->heading); // Ponto no eixo x
+    blasteroids_get_delta(&dummy, cy, ASTEROID_SIZE_Y*a->scale, a->heading); // Ponto no eixo y
+}

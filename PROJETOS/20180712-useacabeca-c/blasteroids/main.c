@@ -1,23 +1,29 @@
 #define DISPLAY_ALTURA 600
 #define DISPLAY_LARGURA 600
 
-#include <allegro5/allegro.h>
-#include <allegro5/allegro_primitives.h>
+#include <blasteroids/main.h>
+#include <blasteroids/utils.h>
+#include <blasteroids.h>
 #include <signal.h>
 #include <stdio.h>
-#include "spaceship.h"
-#include "asteroid.h"
-#include "main.h"
-#include "event.h"
-#include "log_utils.h"
-#include "signal_utils.h"
 
 const char *WindowTitle = "BLASTEROIDS by Lucas59356";
 bool *running;
 GameContext *ctx;
 
-bool isCollision(GameContext *ctx) {
-    
+bool is_collision(GameContext *ctx) {
+    float sx, sy; // Centro da nave
+    blasteroids_spaceship_get_center(&sx, &sy, ctx->ship);
+    AsteroidNode *this;
+    this = ctx->asteroids;
+    float ax, ay;
+    while (this != NULL) {
+        blasteroids_asteroid_get_center(&ax, &ay, this->this); // Tem que estar perto suficiente para dar dano
+        if (get_distance(sx, sy, ax, ay) < ((ASTEROID_SIZE_X + ASTEROID_SIZE_Y)/2 + (SPACESHIP_SIZE_X + SPACESHIP_SIZE_Y)/2))
+            return true;
+        this = this->next;
+    }
+    return false;
 }
 
 void update_states() {

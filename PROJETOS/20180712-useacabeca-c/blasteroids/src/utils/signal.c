@@ -1,5 +1,5 @@
-#include "log_utils.h"
 #include <signal.h>
+#include <blasteroids/utils/signal.h>
 
 #define NULL 0
 

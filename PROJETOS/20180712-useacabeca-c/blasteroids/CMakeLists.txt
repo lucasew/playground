@@ -2,8 +2,20 @@ cmake_minimum_required(VERSION 3.10)
 
 project(blasteroids C)
 
-add_library(utils log_utils.c draw_utils.c signal_utils.c)
-target_link_libraries(utils -lm)
+include_directories(include/)
 
-add_executable(game main.c event.c spaceship.c asteroid.c)
-target_link_libraries(game -lallegro_primitives -lallegro utils)
+add_library(blasteroids STATIC
+    src/asteroid.c
+    src/event.c
+    src/spaceship.c)
+target_link_libraries(blasteroids -lallegro -lallegro_primitives)
+
+add_library(blasteroids-utils 
+    src/utils/draw.c
+    src/utils/log.c
+    src/utils/signal.c
+)
+target_link_libraries(blasteroids-utils -lm)
+
+add_executable(game main.c)
+target_link_libraries(game blasteroids blasteroids-utils)

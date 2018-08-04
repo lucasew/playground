@@ -1,5 +1,5 @@
-#ifndef BLASTEROIDS_UTILS
-#define BASTEROIDS_UTILS
+#ifndef BLASTEROIDS_UTILS_LOG
+#define BASTEROIDS_UTILS_LOG
 
 void debug(char *msg);
 

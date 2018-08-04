@@ -3,9 +3,9 @@
 #include <allegro5/transformations.h>
 #include <stdio.h>
 #include <math.h>
-#include "spaceship.h"
-#include "log_utils.h"
-#include "draw_utils.h"
+
+#include <blasteroids/spaceship.h>
+#include <blasteroids.h>
 
 #define HEADING_STEP 10
 
@@ -64,5 +64,11 @@ void blasteroids_ship_down(Spaceship *s) {
     s->sx = s->sx - deltax;
     s->sy = s->sy - deltay;
     _log_spaceship("down", s);
+}
+
+void blasteroids_spaceship_get_center(float *cx, float *cy, Spaceship *s) {
+    float dummy; // Lixo
+    blasteroids_get_delta(cx, &dummy, (float)SPACESHIP_SIZE_X, s->heading);
+    blasteroids_get_delta(&dummy, cy, (float)SPACESHIP_SIZE_Y, s->heading);
 }
 

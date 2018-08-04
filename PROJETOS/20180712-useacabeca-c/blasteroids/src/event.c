@@ -1,9 +1,5 @@
-#include <allegro5/allegro.h>
-#include "spaceship.h"
-#include "asteroid.h"
-#include "log_utils.h"
-#include "main.h"
-#include "event.h"
+#include <blasteroids/event.h>
+#include <blasteroids.h>
 
 void event_loop_once(GameContext *ctx, ALLEGRO_EVENT *event) {
     al_wait_for_event(ctx->event_queue, event);
