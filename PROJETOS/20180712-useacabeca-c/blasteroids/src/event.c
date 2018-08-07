@@ -32,6 +32,7 @@ void handle_event(ALLEGRO_EVENT *ev, GameContext *ctx) {
     if(ev->type == ALLEGRO_EVENT_TIMER) {
         ctx->HearthBeat = ctx->HearthBeat + 1;
         update_states(ctx);
+        if (ctx->HearthBeat%10 == 0) blasteroids_asteroid_gc(ctx->asteroids);
     }
     if(ev->type == ALLEGRO_EVENT_DISPLAY_CLOSE) {
         stop(0);

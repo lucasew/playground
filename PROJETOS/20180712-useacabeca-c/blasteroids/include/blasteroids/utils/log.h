@@ -13,10 +13,11 @@
 
    void error(char *msg);
    */
-#define _print(prefix, ...) \
+#define _print(prefix, ...) do { \
     fprintf(stderr, "%s: ", prefix); \
     fprintf(stderr, __VA_ARGS__); \
-    fprintf(stderr, "\n")
+    fprintf(stderr, "\n"); \
+} while(0)
 
 #define debug(...) \
     _print("DEBG", __VA_ARGS__)

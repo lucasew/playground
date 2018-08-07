@@ -7,9 +7,9 @@
 
 // Caixas de colisão
 // NÃO ESQUECE DE MULTIPLICAR PELO SCALE
-#define ASTEROID_SIZE_X 35 // -20
-#define ASTEROID_SIZE_Y 26 // -10
-
+#define ASTEROID_SAFE_DISTANCE 55
+#define ASTEROID_SEGMENTS 12
+const float asteroid_points[ASTEROID_SEGMENTS][2]; // Pontos do asteroide
 typedef struct Asteroid {
     float sx;
     float sy;
@@ -17,8 +17,9 @@ typedef struct Asteroid {
     float speed; // velocidade
     float rot_velocity; // rotação por frame
     float scale; //tamanho * constante
-    bool gone; // Destruído?
+    int health; // Pontos de vida/hp
     ALLEGRO_COLOR color;
+    struct Asteroid *next;
 } Asteroid;
 
 // =========== SPACESHIP ===========
@@ -30,15 +31,15 @@ typedef struct Spaceship {
     float sy;
     float heading;
     float speed;
-    bool gone;
+    int health; // Pontos de vida/hp
     ALLEGRO_COLOR color;
 } Spaceship;
-
+/*
 typedef struct AsteroidNode {
     Asteroid *this;
     struct AsteroidNode *next;
 } AsteroidNode;
-
+*/
 // ========== BLAST ============
 
 typedef struct Blast {
@@ -58,7 +59,7 @@ typedef struct GameContext {
     ALLEGRO_TIMER *timer;
     ALLEGRO_MUTEX *mutex;
     Spaceship *ship;
-    AsteroidNode *asteroids;
+    Asteroid *asteroids;
     short lifes;
     int HearthBeat;
 } GameContext;

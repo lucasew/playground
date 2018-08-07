@@ -2,6 +2,7 @@
 #define DISPLAY_LARGURA 600
 
 #include <blasteroids/main.h>
+#include <blasteroids/config.h>
 #include <blasteroids/utils.h>
 #include <blasteroids.h>
 #include <signal.h>
@@ -11,37 +12,43 @@ const char *WindowTitle = "BLASTEROIDS by Lucas59356";
 bool *running;
 GameContext *ctx;
 
-bool is_collision(GameContext *ctx) {
-#ifndef ASTEROID_SIZE_X
+int is_collision(GameContext *ctx) {
+#ifndef ASTEROID_SEGMENTS
     error("Constantes não definidas em teste de colisão");
 #endif
-    float sx, sy; // Apenas as coordenadas
+    float sx, sy; // Centro da nave
+    float ax, ay; // Centro do asteroide
     sx = ctx->ship->sx;
     sy = ctx->ship->sy;
-    AsteroidNode *this = ctx->asteroids;
-    while (this != NULL) {
-        float ax, ay;
-        float min_distance, cur_distance;
-        min_distance = get_distance(0, 0, ASTEROID_SIZE_X/2, ASTEROID_SIZE_Y/2)*this->this->scale + get_distance(0, 0, SPACESHIP_SIZE_X, SPACESHIP_SIZE_Y); // Se a distancia for menor que essa então temos uma colisão, no final das contas o trigger vai ser um círculo mesmo. Se alguém tiver um jeito melhor de calcular as triggers usando um quadrado ou retángulo com a orientação da nave manda um PR ai que a gente aprende junto :p
-        ax = this->this->sx;
-        ay = this->this->sy;
+    float cur_distance, min_distance;
+    Asteroid *this = ctx->asteroids->next;
+    for(;;) {
+        if(this == NULL) break; // Para o continue não criar um loop infinito
+        assert(this != NULL);
+        ax = this->sx;
+        ay = this->sy;
         cur_distance = get_distance(sx, sy, ax, ay);
-        // debug
+        min_distance = 10 + 22*this->scale;
+#ifdef DEBUG
+        // debug, apenas uma linha que é traçada entre o asteroide e a nave
         ALLEGRO_TRANSFORM t; // Vamos converter para a base canônica
         al_identity_transform(&t);
         al_use_transform(&t);
         al_draw_line(sx, sy, ax, ay, al_map_rgb(255, 255, 255), 1); // Linha da distancia
-        if (cur_distance < min_distance) {
-            debug("collision (%f, %f) vs (%f, %f) md: %f cd: %f", sx, sy, ax, ay, min_distance, cur_distance);
-            return true;
+        debug("collision: cur_distance:%f min_distance:%f", cur_distance, min_distance);
+#endif
+        if (!(cur_distance > min_distance)) {
+            ctx->ship->health = ctx->ship->health - 1;
+            this->health = this->health - 1;
+            return 1;
         }
         this = this->next;
     }
-    return false;
+    return 0;
 }
 
 void update_states(GameContext *ctx) {
-    blasteroids_AsteroidNode_update_all(ctx->asteroids);
+    blasteroids_asteroid_update_all(ctx->asteroids->next);
 }
 
 int main() {
@@ -85,36 +92,48 @@ int main() {
     sp->sy = 200;
     sp->heading = 20;
     sp->speed = 10;
-    sp->gone = false;
     sp->color = al_map_rgb(255, 255, 0);
+    sp->health = 100;
     ctx->ship = sp;
-    // Criando asteroide de exemplo
-    ctx->asteroids = malloc(sizeof(AsteroidNode));
-    Asteroid *as = malloc(sizeof(Asteroid));
-    ctx->asteroids->this = as;
+    // Criando asteroide genesis, para facilitar o trabalho
+    ctx->asteroids = malloc(sizeof(Asteroid)); // Esse precisa ficar fora do radar
+    ctx->asteroids->sx = 0;
+    ctx->asteroids->sy = 0;
+    ctx->asteroids->heading = 0;
+    ctx->asteroids->speed = 0;
+    ctx->asteroids->rot_velocity = 0;
+    ctx->asteroids->scale = 0;
+    ctx->asteroids->health = 9999;
+    ctx->asteroids->color = al_map_rgb(0, 0, 0);
     ctx->asteroids->next = NULL;
-    as->sx = 300.0;
-    as->sy = 350.0;
-    as->heading = 230.0;
-    as->speed = 12.0;
-    as->rot_velocity = 5.0;
-    as->scale = 3.4;
-    as->gone = false;
-    as->color = al_map_rgb(15, 135, 88);
+    // Asteroide de exemplo
+    Asteroid as;
+    as.sx = 300.0;
+    as.sy = 350.0;
+    as.heading = 230.0;
+    as.speed = 12.0;
+    as.rot_velocity = 5.0;
+    as.scale = 1;
+    as.health = 100;
+    as.color = al_map_rgb(15, 135, 88);
+    as.next = NULL;
+    blasteroids_asteroid_append(ctx->asteroids, as);
     // Event loop in main thread
-    ALLEGRO_EVENT event;
+    ALLEGRO_EVENT event; // Apenas para não ter de redeclarar a cada iteração
     while(1) {
         if (!*running) break;
         al_flip_display();
         al_clear_to_color(al_map_rgb(0, 0, 0));
         blasteroids_ship_draw(ctx->ship);
-        blasteroids_AsteroidNode_draw_all(ctx->asteroids);
-        is_collision(ctx);
+        blasteroids_asteroid_draw_all(ctx->asteroids->next);
+        if (is_collision(ctx)) 
+            debug("COLISÃO"); // debug é uma macro
         event_loop_once(ctx, &event);
     }
     // ============= SAINDO ===========
     handle_shutdown(SIGINT);
 }
+
 void handle_shutdown() {
     info("Saindo....");
     /*debug("Destroy timer");
@@ -131,7 +150,7 @@ void handle_shutdown() {
     debug("Free running");
     free(running);
     debug("Free node");
-    blasteroids_destroy_AsteroidNode(ctx->asteroids);
+    blasteroids_destroy_asteroid(ctx->asteroids);
     debug("Destroy display");
     al_destroy_display(ctx->display);
     debug("Free ctx");

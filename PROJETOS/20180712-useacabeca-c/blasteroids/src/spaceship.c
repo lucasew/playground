@@ -7,6 +7,7 @@
 #include <blasteroids/spaceship.h>
 #include <blasteroids.h>
 
+// Quantos graus a nave vai virar a cada vez que apertamos direita ou esquerda
 #define HEADING_STEP 10
 
 void blasteroids_ship_draw(Spaceship *s) {
@@ -22,21 +23,21 @@ void blasteroids_ship_draw(Spaceship *s) {
 }
 
 void _log_spaceship(char *direction, Spaceship *s) {
-    debug("spaceship %s (%f, %f) heading:%f speed:%f gone:%i", direction, s->sx, s->sy, s->heading, s->speed, s->gone);
+    debug("spaceship %s (%f, %f) heading:%f speed:%f health:%i", direction, s->sx, s->sy, s->heading, s->speed, s->health);
 }
 
 void blasteroids_ship_get_delta(float *deltax, float *deltay, Spaceship *s) {
-    blasteroids_get_delta(deltax, deltay, s->speed, s->heading);
     // debug
     Spaceship sp;
-    sp.sx = *deltax;
-    sp.sy = *deltay;
+    sp.sx = blasteroids_get_delta_x(s->speed, s->heading);
+    sp.sy = blasteroids_get_delta_y(s->speed, s->heading);
     sp.heading = s->heading;
     sp.speed = s->speed;
-    sp.gone = false;
+    sp.health = 1;
     _log_spaceship("delta", &sp);
+    *deltax = sp.sx;
+    *deltay = sp.sy;
 }
-
 void blasteroids_ship_left(Spaceship *s) {
     s->heading = s->heading - HEADING_STEP;
    _log_spaceship("left", s);
@@ -61,17 +62,5 @@ void blasteroids_ship_down(Spaceship *s) {
     s->sx = s->sx - deltax;
     s->sy = s->sy - deltay;
     _log_spaceship("down", s);
-}
-
-void blasteroids_spaceship_get_center(float *cx, float *cy, Spaceship *s) {
-#ifndef SPACESHIP_SIZE_X
-    error("spaceship_get_center: Constantes não definidas");
-#endif
-    float dummy; // Lixo
-    blasteroids_get_delta(cx, &dummy, (float)SPACESHIP_SIZE_X, s->heading);
-    blasteroids_get_delta(&dummy, cy, (float)SPACESHIP_SIZE_Y, s->heading);
-    *cy = *cy * -1;
-    *cx = *cx + s->sx;
-    *cy = *cy + s->sy;
 }
 

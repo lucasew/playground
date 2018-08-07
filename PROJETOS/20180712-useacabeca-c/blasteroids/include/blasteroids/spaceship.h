@@ -13,6 +13,4 @@ void blasteroids_ship_down(Spaceship *s);
 
 void blasteroids_ship_up(Spaceship *s);
 
-void blasteroids_spaceship_get_center(float *cx, float *cy, Spaceship *s);
-
 #endif
