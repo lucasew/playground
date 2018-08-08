@@ -2,6 +2,7 @@
 #define BLASTEROIDS_TYPES
 
 #include <allegro5/allegro.h>
+#include <allegro5/allegro_ttf.h>
 
 // =========== ASTEROID ============
 
@@ -58,6 +59,7 @@ typedef struct GameContext {
     ALLEGRO_EVENT_QUEUE *event_queue;
     ALLEGRO_TIMER *timer;
     ALLEGRO_MUTEX *mutex;
+    ALLEGRO_FONT *font;
     Spaceship *ship;
     Asteroid *asteroids;
     short lifes;

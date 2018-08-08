@@ -91,7 +91,7 @@ void blasteroids_destroy_asteroid(Asteroid *a) {
 }
 
 void blasteroids_asteroid_gc(Asteroid *a) {
-    debug("GCing...");
+    debug("Removendo asteroides destruidos da memória...");
     Asteroid *previous = a;
     a = a->next;
     for (;;) {

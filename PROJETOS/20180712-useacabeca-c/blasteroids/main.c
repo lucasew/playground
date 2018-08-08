@@ -3,6 +3,8 @@
 
 #include <blasteroids/main.h>
 #include <blasteroids/config.h>
+#include <blasteroids/collision.h>
+#include <blasteroids/text.h>
 #include <blasteroids/utils.h>
 #include <blasteroids.h>
 #include <signal.h>
@@ -12,44 +14,10 @@ const char *WindowTitle = "BLASTEROIDS by Lucas59356";
 bool *running;
 GameContext *ctx;
 
-int is_collision(GameContext *ctx) {
-#ifndef ASTEROID_SEGMENTS
-    error("Constantes não definidas em teste de colisão");
-#endif
-    float sx, sy; // Centro da nave
-    float ax, ay; // Centro do asteroide
-    sx = ctx->ship->sx;
-    sy = ctx->ship->sy;
-    float cur_distance, min_distance;
-    Asteroid *this = ctx->asteroids->next;
-    for(;;) {
-        if(this == NULL) break; // Para o continue não criar um loop infinito
-        assert(this != NULL);
-        ax = this->sx;
-        ay = this->sy;
-        cur_distance = get_distance(sx, sy, ax, ay);
-        min_distance = 10 + 22*this->scale;
-#ifdef DEBUG
-        // debug, apenas uma linha que é traçada entre o asteroide e a nave
-        ALLEGRO_TRANSFORM t; // Vamos converter para a base canônica
-        al_identity_transform(&t);
-        al_use_transform(&t);
-        al_draw_line(sx, sy, ax, ay, al_map_rgb(255, 255, 255), 1); // Linha da distancia
-        debug("collision: cur_distance:%f min_distance:%f", cur_distance, min_distance);
-#endif
-        if (!(cur_distance > min_distance)) {
-            ctx->ship->health = ctx->ship->health - 1;
-            this->health = this->health - 1;
-            return 1;
-        }
-        this = this->next;
-    }
-    return 0;
-}
-
 void update_states(GameContext *ctx) {
     blasteroids_asteroid_update_all(ctx->asteroids->next);
 }
+
 
 int main() {
     info("Iniciando...");
@@ -65,6 +33,10 @@ int main() {
         error("Não foi possível inicializar biblioteca de suporte!");
     if(!al_init_primitives_addon())
         error("Não foi possível inicializar a primitives addon");
+    if(!al_init_font_addon())
+        error("Não foi possível iniciar o módulo de fontes");
+    if(!al_init_ttf_addon())
+        error("Falha ao iniciar esquema de texto");
     // Queue
     ctx->event_queue = al_create_event_queue();
     // Timer
@@ -86,6 +58,8 @@ int main() {
     ctx->display = al_create_display(DISPLAY_ALTURA, DISPLAY_LARGURA);
     al_set_window_title(ctx->display, WindowTitle); // Título da janela
     al_register_event_source(ctx->event_queue, al_get_display_event_source(ctx->display));
+    // Fonte
+    ctx->font = al_load_font("font.ttf", 48, 0);
     // Criando spaceship de exemplo
     Spaceship *sp = malloc(sizeof(Spaceship));
     sp->sx = 200;
@@ -129,6 +103,7 @@ int main() {
         if (is_collision(ctx)) 
             debug("COLISÃO"); // debug é uma macro
         event_loop_once(ctx, &event);
+        draw_life(ctx);
     }
     // ============= SAINDO ===========
     handle_shutdown(SIGINT);
@@ -153,6 +128,8 @@ void handle_shutdown() {
     blasteroids_destroy_asteroid(ctx->asteroids);
     debug("Destroy display");
     al_destroy_display(ctx->display);
+    debug("Destroy font");
+    al_destroy_font(ctx->font);
     debug("Free ctx");
     free(ctx);
     //raise(SIGKILL);
