@@ -1,5 +1,5 @@
-#ifndef BLASTEROIDS_COLLISION
-#define BLASTEROIDS_COLLISION
+#ifndef _BLASTEROIDS_COLLISION
+#define _BLASTEROIDS_COLLISION
 
 int is_collision(GameContext *ctx);
 

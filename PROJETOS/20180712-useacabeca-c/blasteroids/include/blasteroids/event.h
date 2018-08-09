@@ -1,5 +1,5 @@
-#ifndef BLASTEROIDS_EVENT
-#define BLASTEROIDS_EVENT
+#ifndef _BLASTEROIDS_EVENT
+#define _BLASTEROIDS_EVENT
 
 #include <blasteroids/blasteroids_types.h>
 

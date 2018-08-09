@@ -1,5 +1,5 @@
-#ifndef BLASTEROIDS_UTILS_LOG
-#define BASTEROIDS_UTILS_LOG
+#ifndef _BLASTEROIDS_UTILS_LOG
+#define _BASTEROIDS_UTILS_LOG
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>

@@ -1,5 +1,5 @@
-#ifndef BLASTEROIDS_MAIN
-#define BLASTEROIDS_MAIN
+#ifndef _BLASTEROIDS_MAIN
+#define _BLASTEROIDS_MAIN
 #include <stdbool.h>
 #include <blasteroids/blasteroids_types.h>
 

@@ -1,5 +1,5 @@
-#ifndef BLASTEROIDS_SPACESHIP
-#define BLASTEROIDS_SPACESHIP
+#ifndef _BLASTEROIDS_SPACESHIP
+#define _BLASTEROIDS_SPACESHIP
 
 #include <blasteroids/blasteroids_types.h>
 

@@ -1,5 +1,5 @@
-#ifndef BLASTEROIDS_UTILS_DRAW
-#define BLASTEROIDS_UTILS_DRAW
+#ifndef _BLASTEROIDS_UTILS_DRAW
+#define _BLASTEROIDS_UTILS_DRAW
 
 #include <allegro5/allegro.h>
 

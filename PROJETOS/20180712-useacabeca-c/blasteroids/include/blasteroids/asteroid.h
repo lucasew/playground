@@ -1,5 +1,5 @@
-#ifndef BLASTEROIDS_ASTEROID
-#define BLASTEROIDS_ASTEROID
+#ifndef _BLASTEROIDS_ASTEROID
+#define _BLASTEROIDS_ASTEROID
 
 #include <blasteroids/blasteroids_types.h>
 
@@ -8,6 +8,8 @@ const float asteroid_points[ASTEROID_SEGMENTS][2];
 void blasteroids_asteroid_draw(Asteroid *a);
 
 void blasteroids_asteroid_draw_all(Asteroid *a);
+
+void blasteroids_asteroid_draw_life(GameContext *ctx);
 
 void blasteroids_asteroid_update(Asteroid *a);
 

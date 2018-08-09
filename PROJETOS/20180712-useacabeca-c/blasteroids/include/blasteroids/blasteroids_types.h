@@ -1,5 +1,5 @@
-#ifndef BLASTEROIDS_TYPES
-#define BLASTEROIDS_TYPES
+#ifndef _BLASTEROIDS_TYPES
+#define _BLASTEROIDS_TYPES
 
 #include <allegro5/allegro.h>
 #include <allegro5/allegro_ttf.h>

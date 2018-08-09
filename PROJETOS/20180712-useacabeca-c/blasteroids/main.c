@@ -1,6 +1,3 @@
-#define DISPLAY_ALTURA 600
-#define DISPLAY_LARGURA 600
-
 #include <blasteroids/main.h>
 #include <blasteroids/config.h>
 #include <blasteroids/collision.h>
@@ -17,7 +14,6 @@ GameContext *ctx;
 void update_states(GameContext *ctx) {
     blasteroids_asteroid_update_all(ctx->asteroids->next);
 }
-
 
 int main() {
     info("Iniciando...");
@@ -59,7 +55,7 @@ int main() {
     al_set_window_title(ctx->display, WindowTitle); // Título da janela
     al_register_event_source(ctx->event_queue, al_get_display_event_source(ctx->display));
     // Fonte
-    ctx->font = al_load_font("font.ttf", 48, 0);
+    ctx->font = al_load_font("font.ttf", 24, 0);
     // Criando spaceship de exemplo
     Spaceship *sp = malloc(sizeof(Spaceship));
     sp->sx = 200;
@@ -104,6 +100,10 @@ int main() {
             debug("COLISÃO"); // debug é uma macro
         event_loop_once(ctx, &event);
         draw_life(ctx);
+        blasteroids_fix_positions(ctx);
+#ifdef DEBUG
+        blasteroids_asteroid_draw_life(ctx);
+#endif
     }
     // ============= SAINDO ===========
     handle_shutdown(SIGINT);
@@ -124,7 +124,7 @@ void handle_shutdown() {
     free(ctx->ship);
     debug("Free running");
     free(running);
-    debug("Free node");
+    debug("Free asteroids");
     blasteroids_destroy_asteroid(ctx->asteroids);
     debug("Destroy display");
     al_destroy_display(ctx->display);

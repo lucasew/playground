@@ -9,6 +9,8 @@ add_library(blasteroids STATIC
     src/collision.c
     src/event.c
     src/spaceship.c
+    src/aspawner.c
+    src/pos_fixer.c
     src/text.c)
 target_link_libraries(blasteroids -lallegro -lallegro_ttf -lallegro_font -lallegro_primitives)
 

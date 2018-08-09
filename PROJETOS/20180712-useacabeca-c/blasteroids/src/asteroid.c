@@ -8,7 +8,9 @@
 #include <blasteroids/asteroid.h>
 
 void _log_asteroid(char *reason, Asteroid *a) {
+#ifdef DEBUG_ASTEROID
     debug("asteroid %s (%f, %f) heading:%f speed:%f rot_velocity:%f scale:%f health:%i", reason, a->sx, a->sy, a->heading, a->speed, a->rot_velocity, a->scale, a->health);
+#endif
 }
 
 const float asteroid_points[ASTEROID_SEGMENTS][2] = {
@@ -54,6 +56,19 @@ void blasteroids_asteroid_draw_all(Asteroid *a) {
     }
 }
 
+void blasteroids_asteroid_draw_life(GameContext *ctx) {
+    Asteroid *a = ctx->asteroids->next; // O primeiro só tá lá pra facilitar
+    for (;;) {
+        if (a == NULL) break;
+        ALLEGRO_TRANSFORM t;
+        al_identity_transform(&t);
+        al_translate_transform(&t, a->sx, a->sy);
+        al_use_transform(&t);
+        al_draw_textf(ctx->font, al_map_rgb(255, 0, 0), 0, 0, ALLEGRO_ALIGN_CENTER, "%i", a->health);
+        a = a->next;
+    }
+}
+
 void blasteroids_asteroid_update(Asteroid *a) {
     float deltax, deltay;
     _log_asteroid("before", a);
@@ -82,11 +97,12 @@ void blasteroids_asteroid_append(Asteroid *old, Asteroid new) {//  Não é neces
 }
 
 void blasteroids_destroy_asteroid(Asteroid *a) {
+    Asteroid *dummy;
     for(;;) {
         if (a == NULL) return;
-        blasteroids_destroy_asteroid(a->next);
-        free(a);
+        dummy = a;
         a = a->next;
+        free(dummy);
     }
 }
 
