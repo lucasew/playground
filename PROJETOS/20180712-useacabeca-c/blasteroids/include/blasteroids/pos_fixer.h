@@ -7,16 +7,16 @@
 #define INSIDE_SCREEN(obj, w, h) \
     do { \
         if(obj->sx > w) { \
-        obj->sx = w; \
+        obj->sx = 0; \
         }; \
         if (obj->sy > h) { \
-            obj->sy = h; \
+            obj->sy = 0; \
         }; \
         if(obj->sx < 0) { \
-            obj->sx = 0; \
+            obj->sx = w; \
         }; \
         if(obj->sy < 0) {  \
-            obj->sy = 0; \
+            obj->sy = h; \
         }; \
     } while (0);
 
