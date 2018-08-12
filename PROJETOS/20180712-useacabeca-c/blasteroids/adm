@@ -19,6 +19,9 @@ run)
     ./build.sh build
     ./build/game
 ;;
+clean)
+    rm build -rf
+;;
 *)
     echo "Comando inválido"
 ;;
