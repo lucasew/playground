@@ -1,6 +1,1 @@
-*.a
-CMakeCache.txt
-CMakeFiles
-cmake_install.cmake
-game
-Makefile
+build

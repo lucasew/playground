@@ -1,0 +1,25 @@
+#! /usr/bin/env bash
+setup_dir() {
+    mkdir -p build
+}
+
+setup_dir
+
+case $1 in
+gen-debug)
+        cd build; cmake .. -G Ninja -DCMAKE_BUILD=Debug
+    ;;
+gen-release)
+        cd build; cmake .. -G Ninja
+;;
+build)
+        cd build; ninja
+;;
+run)
+    ./build.sh build
+    ./build/game
+;;
+*)
+    echo "Comando inválido"
+;;
+esac
