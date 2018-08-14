@@ -1,4 +1,8 @@
-#include <blasteroids.h>
+#include <allegro5/allegro.h>
+#include <allegro5/allegro_ttf.h>
+#include <blasteroids/context.h>
+#include <blasteroids/text.h>
+#include <blasteroids/spaceship.h>
 
 void draw_life(GameContext *ctx) {
     ALLEGRO_TRANSFORM t;

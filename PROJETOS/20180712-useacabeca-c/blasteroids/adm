@@ -16,7 +16,7 @@ build)
         cd build; ninja
 ;;
 run)
-    ./build.sh build
+    ./adm build
     ./build/game
 ;;
 clean)

@@ -1,9 +1,13 @@
 #include <allegro5/allegro.h>
 #include <allegro5/allegro_primitives.h>
+
 #include <blasteroids/config.h>
-#include <blasteroids/blasteroids_types.h>
+#include <blasteroids/main.h>
+#include <blasteroids/asteroid.h>
+#include <blasteroids/spaceship.h>
 #include <blasteroids/utils/draw.h>
-#include <blasteroids/utils/log.h>
+#include <blasteroids/context.h>
+#include <blasteroids/collision.h>
 
 int is_collision(GameContext *ctx) {
 #ifndef ASTEROID_SEGMENTS

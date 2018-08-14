@@ -1,5 +1,9 @@
+#include <blasteroids/context.h>
+#include <blasteroids/spaceship.h>
+#include <blasteroids/asteroid.h>
+#include <blasteroids/utils.h>
+#include <blasteroids/main.h> // Função stop
 #include <blasteroids/event.h>
-#include <blasteroids.h>
 
 void event_loop_once(GameContext *ctx, ALLEGRO_EVENT *event) {
     al_wait_for_event(ctx->event_queue, event);

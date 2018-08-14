@@ -1,5 +1,7 @@
-#include <blasteroids.h>
 #include <blasteroids/pos_fixer.h>
+#include <blasteroids/context.h>
+#include <blasteroids/spaceship.h>
+#include <blasteroids/asteroid.h>
 
 void blasteroids_fix_positions(GameContext *ctx) {
     int h = al_get_display_height(ctx->display);

@@ -1,5 +1,8 @@
 #include <stdlib.h>
-#include <blasteroids.h>
+#include <blasteroids/main.h>
+#include <blasteroids/context.h>
+#include <blasteroids/asteroid.h>
+#include <blasteroids/spaceship.h>
 #include <blasteroids/aspawner.h>
 #include <time.h>
 

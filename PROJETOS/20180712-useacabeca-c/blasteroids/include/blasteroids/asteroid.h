@@ -1,8 +1,27 @@
 #ifndef _BLASTEROIDS_ASTEROID
 #define _BLASTEROIDS_ASTEROID
+#include <blasteroids/context.h>
 
-#include <blasteroids/blasteroids_types.h>
+// Estrutura
+typedef struct Asteroid Asteroid;
 
+struct Asteroid {
+    float sx;
+    float sy;
+    float heading;
+    float speed;
+    float rot_velocity;
+    float scale;
+    int health;
+    ALLEGRO_COLOR color;
+    struct Asteroid *next;
+};
+
+// Colisão
+#define ASTEROID_SAFE_DISTANCE 55
+#define ASTEROID_SEGMENTS 12
+
+// Pontos
 const float asteroid_points[ASTEROID_SEGMENTS][2];
 
 void blasteroids_asteroid_draw(Asteroid *a);

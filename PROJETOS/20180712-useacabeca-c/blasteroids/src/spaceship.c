@@ -1,14 +1,11 @@
+#include <stdio.h>
+#include <math.h>
 #include <allegro5/allegro.h>
 #include <allegro5/allegro_primitives.h>
 #include <allegro5/transformations.h>
-#include <stdio.h>
-#include <math.h>
 
+#include <blasteroids/utils.h>
 #include <blasteroids/spaceship.h>
-#include <blasteroids.h>
-
-// Quantos graus a nave vai virar a cada vez que apertamos direita ou esquerda
-#define HEADING_STEP 10
 
 void blasteroids_ship_draw(Spaceship *s) {
     ALLEGRO_TRANSFORM transform;

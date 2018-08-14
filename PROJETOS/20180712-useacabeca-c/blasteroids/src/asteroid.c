@@ -3,11 +3,11 @@
 #include <allegro5/allegro.h>
 #include <allegro5/allegro_primitives.h>
 
-#include <blasteroids/blasteroids_types.h>
-#include <blasteroids.h>
+#include <blasteroids/main.h>
 #include <blasteroids/asteroid.h>
+#include <blasteroids/utils.h>
 
-void _log_asteroid(char *reason, Asteroid *a) {
+void _log_asteroid(char *reason, struct Asteroid *a) {
 #ifdef DEBUG_ASTEROID
     debug("asteroid %s (%f, %f) heading:%f speed:%f rot_velocity:%f scale:%f health:%i", reason, a->sx, a->sy, a->heading, a->speed, a->rot_velocity, a->scale, a->health);
 #endif
@@ -28,7 +28,7 @@ const float asteroid_points[ASTEROID_SEGMENTS][2] = {
     {0, 15}
 };
 
-void blasteroids_asteroid_draw(Asteroid *a) {
+void blasteroids_asteroid_draw(struct Asteroid *a) {
     if (a->sx > 0 && a->sy > 0) {
         ALLEGRO_TRANSFORM transform;
         al_identity_transform(&transform);
@@ -47,8 +47,8 @@ void blasteroids_asteroid_draw(Asteroid *a) {
     }
 }
 
-void blasteroids_asteroid_draw_all(Asteroid *a) {
-    Asteroid *tmp = a;
+void blasteroids_asteroid_draw_all(struct Asteroid *a) {
+    struct Asteroid *tmp = a;
     for (;;) {
         if (tmp == NULL) return;
         blasteroids_asteroid_draw(tmp);
@@ -57,7 +57,7 @@ void blasteroids_asteroid_draw_all(Asteroid *a) {
 }
 
 void blasteroids_asteroid_draw_life(GameContext *ctx) {
-    Asteroid *a = ctx->asteroids->next; // O primeiro só tá lá pra facilitar
+    struct Asteroid *a = ctx->asteroids->next; // O primeiro só tá lá pra facilitar
     for (;;) {
         if (a == NULL) break;
         ALLEGRO_TRANSFORM t;
@@ -69,7 +69,7 @@ void blasteroids_asteroid_draw_life(GameContext *ctx) {
     }
 }
 
-void blasteroids_asteroid_update(Asteroid *a) {
+void blasteroids_asteroid_update(struct Asteroid *a) {
     float deltax, deltay;
     _log_asteroid("before", a);
     a->heading = a->heading + a->rot_velocity;
@@ -78,8 +78,8 @@ void blasteroids_asteroid_update(Asteroid *a) {
     _log_asteroid("after", a);
 }
 
-void blasteroids_asteroid_update_all(Asteroid *a) {
-    Asteroid *this = a;
+void blasteroids_asteroid_update_all(struct Asteroid *a) {
+    struct Asteroid *this = a;
     for (;;) {
         if(this == NULL) return;
         blasteroids_asteroid_update(this);
@@ -87,8 +87,8 @@ void blasteroids_asteroid_update_all(Asteroid *a) {
     }
 }
 
-void blasteroids_asteroid_append(Asteroid *old, Asteroid new) {//  Não é necessário dar malloc
-    Asteroid *tmp = malloc(sizeof(Asteroid));
+void blasteroids_asteroid_append(struct Asteroid *old, struct Asteroid new) {//  Não é necessário dar malloc
+    struct Asteroid *tmp = malloc(sizeof(struct Asteroid));
     *tmp = new;
     if (old->next != NULL) {
         tmp->next = old->next;
@@ -96,8 +96,8 @@ void blasteroids_asteroid_append(Asteroid *old, Asteroid new) {//  Não é neces
     old->next = tmp;
 }
 
-void blasteroids_destroy_asteroid(Asteroid *a) {
-    Asteroid *dummy;
+void blasteroids_destroy_asteroid(struct Asteroid *a) {
+    struct Asteroid *dummy;
     for(;;) {
         if (a == NULL) return;
         dummy = a;
@@ -106,9 +106,9 @@ void blasteroids_destroy_asteroid(Asteroid *a) {
     }
 }
 
-void blasteroids_asteroid_gc(Asteroid *a) {
+void blasteroids_asteroid_gc(struct Asteroid *a) {
     debug("Removendo asteroides destruidos da memória...");
-    Asteroid *previous = a;
+    struct Asteroid *previous = a;
     a = a->next;
     for (;;) {
         if (a == NULL) break;

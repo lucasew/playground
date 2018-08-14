@@ -1,7 +1,7 @@
 #ifndef _BLASTEROIDS_MAIN
 #define _BLASTEROIDS_MAIN
 #include <stdbool.h>
-#include <blasteroids/blasteroids_types.h>
+#include <blasteroids/context.h>
 
 int is_collision(GameContext *ctx);
 

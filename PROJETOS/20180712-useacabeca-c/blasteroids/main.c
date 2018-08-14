@@ -1,12 +1,20 @@
-#include <blasteroids/main.h>
-#include <blasteroids/config.h>
-#include <blasteroids/collision.h>
-#include <blasteroids/text.h>
-#include <blasteroids/utils.h>
-#include <blasteroids.h>
 #include <signal.h>
 #include <stdio.h>
+#include <allegro5/allegro.h>
+#include <allegro5/allegro_primitives.h>
+#include <allegro5/allegro_ttf.h>
 
+#include <blasteroids/config.h>
+
+#include <blasteroids/context.h>
+#include <blasteroids/asteroid.h>
+#include <blasteroids/spaceship.h>
+#include <blasteroids/utils.h>
+#include <blasteroids/event.h>
+#include <blasteroids/text.h>
+#include <blasteroids/pos_fixer.h>
+
+#include <blasteroids/main.h>
 const char *WindowTitle = "BLASTEROIDS by Lucas59356";
 bool *running;
 GameContext *ctx;
