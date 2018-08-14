@@ -16,7 +16,6 @@ target_link_libraries(blasteroids -lallegro -lallegro_ttf -lallegro_font -lalleg
 
 add_library(blasteroids-utils 
     src/utils/draw.c
-    src/utils/log.c
     src/utils/signal.c
 )
 target_link_libraries(blasteroids-utils -lm)

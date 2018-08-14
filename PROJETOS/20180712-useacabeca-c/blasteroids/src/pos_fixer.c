@@ -8,8 +8,7 @@ void blasteroids_fix_positions(GameContext *ctx) {
     int w = al_get_display_width(ctx->display);
     INSIDE_SCREEN(ctx->ship, w, h);
     Asteroid *dummy = ctx->asteroids->next;
-    for(;;) {
-        if (dummy == NULL) break;
+    while (dummy != NULL) {
         INSIDE_SCREEN(dummy, w, h);
         dummy = dummy->next;
     }

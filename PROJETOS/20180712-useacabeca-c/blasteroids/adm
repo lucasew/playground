@@ -16,8 +16,8 @@ build)
         cd build; ninja
 ;;
 run)
-    ./adm build
-    ./build/game
+    # Rodar o binário apenas se for compilado com sucesso
+    ./adm build && ./build/game
 ;;
 clean)
     rm build -rf

@@ -98,8 +98,7 @@ int main() {
     blasteroids_asteroid_append(ctx->asteroids, as);
     // Event loop in main thread
     ALLEGRO_EVENT event; // Apenas para não ter de redeclarar a cada iteração
-    while(1) {
-        if (!*running) break;
+    while(*running) {
         al_flip_display();
         al_clear_to_color(al_map_rgb(0, 0, 0));
         blasteroids_ship_draw(ctx->ship);

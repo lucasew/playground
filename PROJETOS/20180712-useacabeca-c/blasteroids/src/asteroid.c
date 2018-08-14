@@ -49,8 +49,7 @@ void blasteroids_asteroid_draw(struct Asteroid *a) {
 
 void blasteroids_asteroid_draw_all(struct Asteroid *a) {
     struct Asteroid *tmp = a;
-    for (;;) {
-        if (tmp == NULL) return;
+    while (tmp != NULL) {
         blasteroids_asteroid_draw(tmp);
         tmp = tmp->next;
     }
@@ -58,8 +57,7 @@ void blasteroids_asteroid_draw_all(struct Asteroid *a) {
 
 void blasteroids_asteroid_draw_life(GameContext *ctx) {
     struct Asteroid *a = ctx->asteroids->next; // O primeiro só tá lá pra facilitar
-    for (;;) {
-        if (a == NULL) break;
+    while (a != NULL) {
         ALLEGRO_TRANSFORM t;
         al_identity_transform(&t);
         al_translate_transform(&t, a->sx, a->sy);
@@ -80,8 +78,7 @@ void blasteroids_asteroid_update(struct Asteroid *a) {
 
 void blasteroids_asteroid_update_all(struct Asteroid *a) {
     struct Asteroid *this = a;
-    for (;;) {
-        if(this == NULL) return;
+    while (this != NULL) {
         blasteroids_asteroid_update(this);
         this = this->next;
     }
@@ -98,8 +95,7 @@ void blasteroids_asteroid_append(struct Asteroid *old, struct Asteroid new) {// 
 
 void blasteroids_destroy_asteroid(struct Asteroid *a) {
     struct Asteroid *dummy;
-    for(;;) {
-        if (a == NULL) return;
+    while (a != NULL) {
         dummy = a;
         a = a->next;
         free(dummy);
@@ -110,8 +106,7 @@ void blasteroids_asteroid_gc(struct Asteroid *a) {
     debug("Removendo asteroides destruidos da memória...");
     struct Asteroid *previous = a;
     a = a->next;
-    for (;;) {
-        if (a == NULL) break;
+    while (a != NULL) {
         if (a->health <= 0) {
             previous->next = a->next;
             free(a);

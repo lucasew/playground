@@ -19,9 +19,7 @@ int is_collision(GameContext *ctx) {
     sy = ctx->ship->sy;
     float cur_distance, min_distance;
     Asteroid *this = ctx->asteroids->next;
-    for(;;) {
-        if(this == NULL) break; // Para o continue não criar um loop infinito
-        assert(this != NULL);
+    while (this != NULL) {
         ax = this->sx;
         ay = this->sy;
         cur_distance = get_distance(sx, sy, ax, ay);
