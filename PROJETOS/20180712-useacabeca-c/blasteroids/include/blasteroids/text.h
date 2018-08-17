@@ -5,6 +5,8 @@
 
 void draw_life(GameContext *ctx);
 
+void draw_score(GameContext *ctx);
+
 void draw_counter(GameContext *ctx);
 
 #endif

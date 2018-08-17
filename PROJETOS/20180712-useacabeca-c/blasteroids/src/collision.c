@@ -37,6 +37,7 @@ int blasteroids_check_collision_asteroid_spaceship(GameContext *ctx) {
             ctx->ship->health = ctx->ship->health - 1;
             this->health = this->health - 1;
             collisions++;
+            ctx->score = ctx->score + 1;
         }
         this = this->next;
     }
@@ -54,6 +55,7 @@ int blasteroids_check_collision_asteroid_bullet(GameContext *ctx) {
         while (bu != NULL) {
             distancia = get_distance(as->sx, as->sy, bu->sx, bu->sy);
             if (distancia < (22*as->scale)) {
+                ctx->score = ctx->score + bu->power;
                 as->health = as->health - bu->power;
                 bu->health = 0;
                 collisions++;

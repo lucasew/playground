@@ -31,6 +31,7 @@ void blasteroids_context_draw(GameContext *ctx) {
     blasteroids_asteroid_draw_all(ctx->asteroids->next);
     blasteroids_bullet_draw_all(ctx->bullets);
     draw_life(ctx);
+    draw_score(ctx);
     blasteroids_asteroid_draw_life(ctx);
 #ifdef DEBUG_DRAW_COUNTER
     draw_counter(ctx);
