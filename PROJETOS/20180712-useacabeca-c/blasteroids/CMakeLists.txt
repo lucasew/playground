@@ -6,12 +6,14 @@ include_directories(include/)
 
 add_library(blasteroids STATIC
     src/asteroid.c
+    src/bullet.c
     src/collision.c
+    src/context.c
     src/event.c
     src/spaceship.c
-    src/aspawner.c
     src/pos_fixer.c
-    src/text.c)
+    src/text.c
+)
 target_link_libraries(blasteroids -lallegro -lallegro_ttf -lallegro_font -lallegro_primitives)
 
 add_library(blasteroids-utils 

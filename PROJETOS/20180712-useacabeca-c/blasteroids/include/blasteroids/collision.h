@@ -1,6 +1,6 @@
 #ifndef _BLASTEROIDS_COLLISION
 #define _BLASTEROIDS_COLLISION
 
-int is_collision(GameContext *ctx);
+int blasteroids_is_collision(GameContext *ctx);
 
 #endif

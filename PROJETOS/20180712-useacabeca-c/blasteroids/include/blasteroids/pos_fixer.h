@@ -2,7 +2,6 @@
 #define _BLASTEROIDS_POS_FIXER
 
 #include <blasteroids/context.h>
-#include <blasteroids/spaceship.h>
 
 // Deixa os elementos dentro da janela
 #define INSIDE_SCREEN(obj, w, h) \

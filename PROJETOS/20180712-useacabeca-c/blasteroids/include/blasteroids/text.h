@@ -5,4 +5,6 @@
 
 void draw_life(GameContext *ctx);
 
+void draw_counter(GameContext *ctx);
+
 #endif

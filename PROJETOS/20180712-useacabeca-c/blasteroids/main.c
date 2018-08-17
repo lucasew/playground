@@ -11,17 +11,16 @@
 #include <blasteroids/spaceship.h>
 #include <blasteroids/utils.h>
 #include <blasteroids/event.h>
+#include <blasteroids/collision.h>
 #include <blasteroids/text.h>
 #include <blasteroids/pos_fixer.h>
+#include <blasteroids/bullet.h>
 
 #include <blasteroids/main.h>
+
 const char *WindowTitle = "BLASTEROIDS by Lucas59356";
 bool *running;
 GameContext *ctx;
-
-void update_states(GameContext *ctx) {
-    blasteroids_asteroid_update_all(ctx->asteroids->next);
-}
 
 int main() {
     info("Iniciando...");
@@ -96,21 +95,22 @@ int main() {
     as.color = al_map_rgb(15, 135, 88);
     as.next = NULL;
     blasteroids_asteroid_append(ctx->asteroids, as);
+    // Bullet (genesis, para facilitar)
+    Bullet *bt = malloc(sizeof(Bullet));
+    bt->sx = -100;
+    bt->sy = -100;
+    bt->heading = 0;
+    bt->speed = 0;
+    bt->power = 0;
+    bt->health = 1;
+    bt->color = al_map_rgb(255, 255, 255);
+    bt->next = NULL;
+    ctx->bullets = bt;
     // Event loop in main thread
     ALLEGRO_EVENT event; // Apenas para não ter de redeclarar a cada iteração
     while(*running) {
-        al_flip_display();
-        al_clear_to_color(al_map_rgb(0, 0, 0));
-        blasteroids_ship_draw(ctx->ship);
-        blasteroids_asteroid_draw_all(ctx->asteroids->next);
-        if (is_collision(ctx)) 
-            debug("COLISÃO"); // debug é uma macro
         event_loop_once(ctx, &event);
-        draw_life(ctx);
-        blasteroids_fix_positions(ctx);
-#ifdef DEBUG
-        blasteroids_asteroid_draw_life(ctx);
-#endif
+        blasteroids_context_draw(ctx);
     }
     // ============= SAINDO ===========
     handle_shutdown(SIGINT);
@@ -133,6 +133,8 @@ void handle_shutdown() {
     free(running);
     debug("Free asteroids");
     blasteroids_destroy_asteroid(ctx->asteroids);
+    debug("Free bullets");
+    blasteroids_destroy_bullet(ctx->bullets);
     debug("Destroy display");
     al_destroy_display(ctx->display);
     debug("Destroy font");

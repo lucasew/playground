@@ -40,4 +40,9 @@ void blasteroids_destroy_asteroid(Asteroid *a);
 
 void blasteroids_asteroid_gc(Asteroid *a);
 
+// Spawner
+#define RAND_COLOR rand()%200 + 55
+
+void blasteroids_asteroid_generate(GameContext *ctx);
+
 #endif

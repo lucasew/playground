@@ -12,10 +12,18 @@ struct GameContext {
     ALLEGRO_FONT *font;
     struct Spaceship *ship;
     struct Asteroid *asteroids;
+    struct Bullet *bullets;
     short lifes;
     int HearthBeat;
+    int score;
 };
 
 typedef struct GameContext GameContext;
+
+void blasteroids_context_tick(GameContext *ctx);
+
+void blasteroids_context_update(GameContext *ctx);
+
+void blasteroids_context_draw(GameContext *ctx);
 
 #endif

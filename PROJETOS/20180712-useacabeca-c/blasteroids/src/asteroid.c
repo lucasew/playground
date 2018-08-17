@@ -6,6 +6,7 @@
 #include <blasteroids/main.h>
 #include <blasteroids/asteroid.h>
 #include <blasteroids/utils.h>
+#include <blasteroids/config.h>
 
 void _log_asteroid(char *reason, struct Asteroid *a) {
 #ifdef DEBUG_ASTEROID
@@ -29,21 +30,19 @@ const float asteroid_points[ASTEROID_SEGMENTS][2] = {
 };
 
 void blasteroids_asteroid_draw(struct Asteroid *a) {
-    if (a->sx > 0 && a->sy > 0) {
-        ALLEGRO_TRANSFORM transform;
-        al_identity_transform(&transform);
-        al_rotate_transform(&transform, deg2rad(a->heading));
-        al_translate_transform(&transform, a->sx, a->sy);
-        al_use_transform(&transform);
-        int i;
-        for (i = 0; i < (ASTEROID_SEGMENTS); i++) {
-            al_draw_line_scaled(
-                    asteroid_points[i][0],
-                    asteroid_points[i][1],
-                    asteroid_points[(i + 1)%ASTEROID_SEGMENTS][0], // O módulo é para quando ele chegar no final da lista
-                    asteroid_points[(i + 1)%ASTEROID_SEGMENTS][1],
-                    a->color, 2.0f, a->scale);
-        }
+    ALLEGRO_TRANSFORM transform;
+    al_identity_transform(&transform);
+    al_rotate_transform(&transform, deg2rad(a->heading));
+    al_translate_transform(&transform, a->sx, a->sy);
+    al_use_transform(&transform);
+    int i;
+    for (i = 0; i < (ASTEROID_SEGMENTS); i++) {
+        al_draw_line_scaled(
+                asteroid_points[i][0],
+                asteroid_points[i][1],
+                asteroid_points[(i + 1)%ASTEROID_SEGMENTS][0], // O módulo é para quando ele chegar no final da lista
+                asteroid_points[(i + 1)%ASTEROID_SEGMENTS][1],
+                a->color, 2.0f, a->scale);
     }
 }
 
@@ -56,6 +55,7 @@ void blasteroids_asteroid_draw_all(struct Asteroid *a) {
 }
 
 void blasteroids_asteroid_draw_life(GameContext *ctx) {
+    if (ctx->asteroids->next == NULL) return;
     struct Asteroid *a = ctx->asteroids->next; // O primeiro só tá lá pra facilitar
     while (a != NULL) {
         ALLEGRO_TRANSFORM t;
@@ -68,7 +68,6 @@ void blasteroids_asteroid_draw_life(GameContext *ctx) {
 }
 
 void blasteroids_asteroid_update(struct Asteroid *a) {
-    float deltax, deltay;
     _log_asteroid("before", a);
     a->heading = a->heading + a->rot_velocity;
     a->sx = a->sx + blasteroids_get_delta_x(a->speed, a->heading);
@@ -85,6 +84,7 @@ void blasteroids_asteroid_update_all(struct Asteroid *a) {
 }
 
 void blasteroids_asteroid_append(struct Asteroid *old, struct Asteroid new) {//  Não é necessário dar malloc
+    if (old == NULL) return;
     struct Asteroid *tmp = malloc(sizeof(struct Asteroid));
     *tmp = new;
     if (old->next != NULL) {
@@ -104,6 +104,7 @@ void blasteroids_destroy_asteroid(struct Asteroid *a) {
 
 void blasteroids_asteroid_gc(struct Asteroid *a) {
     debug("Removendo asteroides destruidos da memória...");
+    if (a == NULL) return;
     struct Asteroid *previous = a;
     a = a->next;
     while (a != NULL) {
@@ -116,3 +117,16 @@ void blasteroids_asteroid_gc(struct Asteroid *a) {
     }
 }
 
+void blasteroids_asteroid_generate(GameContext *ctx) {
+    srand(time(NULL));
+    Asteroid as;
+    as.sx = rand() % DISPLAY_LARGURA;
+    as.sx = rand() % DISPLAY_ALTURA;
+    as.heading = rand() % 360;
+    as.speed = (float)((rand() % 200)/10.0);
+    as.rot_velocity = (float)(rand()%20);
+    as.scale = (float)((rand()%40)/10) + 0.5;
+    as.health = rand() % 200;
+    as.color = al_map_rgb(RAND_COLOR, RAND_COLOR, RAND_COLOR);
+    blasteroids_asteroid_append(ctx->asteroids, as);
+}
