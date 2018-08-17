@@ -58,6 +58,7 @@ int blasteroids_check_collision_asteroid_bullet(GameContext *ctx) {
                 ctx->score = ctx->score + bu->power;
                 as->health = as->health - bu->power;
                 bu->power = 0;
+                blasteroids_bullet_gc(ctx->bullets);
                 collisions++;
             }
             bu = bu->next;

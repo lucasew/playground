@@ -19,7 +19,6 @@ void blasteroids_context_update(GameContext *ctx) {
     if (blasteroids_is_collision(ctx)) {
         blasteroids_asteroid_gc(ctx->asteroids);
         blasteroids_bullet_gc(ctx->bullets);
-        debug("COLISÂO");
     }
     blasteroids_fix_positions(ctx);
 }

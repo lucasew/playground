@@ -105,15 +105,16 @@ void blasteroids_destroy_asteroid(struct Asteroid *a) {
 void blasteroids_asteroid_gc(struct Asteroid *a) {
     debug("Removendo asteroides destruidos da memória...");
     if (a == NULL) return;
-    struct Asteroid *previous = a;
-    a = a->next;
-    while (a != NULL) {
-        if (a->health <= 0) {
-            previous->next = a->next;
-            free(a);
+    struct Asteroid *previous = a, *this = a->next;
+    struct Asteroid *dummy;
+    while (this != NULL) {
+        if (this->health <= 0) {
+            dummy = this;
+            previous->next = this->next;
+            free(dummy);
         }
-        previous = a;
-        a = a->next;
+        previous = this;
+        this = this->next;
     }
 }
 

@@ -81,15 +81,15 @@ void blasteroids_destroy_bullet(struct Bullet *b) {
 void blasteroids_bullet_gc(struct Bullet *b) {
     debug("Removendo tiros destruidos da memória...");
     if (b == NULL) return;
-    struct Bullet *previous = b;
-    b = b->next;
-    while (b != NULL) {
-        if (b->power <= 0) {
-            previous->next = b->next;
-            free(b);
+    struct Bullet *dummy, *previous = b, *this = b->next;
+    while (this != NULL) {
+        if (this->power <= 0) {
+            dummy = this;
+            previous->next = this->next;
+            free(dummy);
             return;
         }
-        previous = b;
-        b = b->next;
+        previous = this;
+        this = this->next;
     }
 }
