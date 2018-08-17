@@ -102,7 +102,6 @@ int main() {
     bt->heading = 0;
     bt->speed = 0;
     bt->power = 0;
-    bt->health = 1;
     bt->color = al_map_rgb(255, 255, 255);
     bt->next = NULL;
     ctx->bullets = bt;

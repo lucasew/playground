@@ -57,7 +57,7 @@ int blasteroids_check_collision_asteroid_bullet(GameContext *ctx) {
             if (distancia < (22*as->scale)) {
                 ctx->score = ctx->score + bu->power;
                 as->health = as->health - bu->power;
-                bu->health = 0;
+                bu->power = 0;
                 collisions++;
             }
             bu = bu->next;

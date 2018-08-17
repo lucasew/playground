@@ -9,7 +9,6 @@ struct Bullet {
     float heading;
     float speed;
     int power;
-    int health;
     ALLEGRO_COLOR color;
     struct Bullet *next;
 };

@@ -9,7 +9,7 @@
 #include <blasteroids/bullet.h>
 
 void _log_bullet(char *reason, struct Bullet *b) {
-    debug("bullet %s (%f, %f) h:%f s:%f pw:%i h:%i", reason, b->sx, b->sy, b->heading, b->speed, b->power, b->health);
+    debug("bullet %s (%f, %f) h:%f s:%f pw:%i", reason, b->sx, b->sy, b->heading, b->speed, b->power);
 }
 
 void blasteroids_bullet_draw(struct Bullet *b) {
@@ -36,6 +36,7 @@ void blasteroids_bullet_draw_all(struct Bullet *b) {
 void blasteroids_bullet_update(struct Bullet *b) {
     b->sx = b->sx + blasteroids_get_delta_x(b->speed, b->heading);
     b->sy = b->sy + blasteroids_get_delta_y(b->speed, b->heading);
+    b->power--;
 }
 
 void blasteroids_bullet_update_all(struct Bullet *b) {
@@ -63,7 +64,6 @@ void blasteroids_bullet_shot(struct GameContext *ctx) {
     bt.heading = ctx->ship->heading;
     bt.speed = 1 + rand()%100;
     bt.power = 1 + rand()%50;
-    bt.health = 1;
     bt.color = al_map_rgb(rand()%255, rand()%255, rand()%255);
     bt.next = NULL;
     blasteroids_bullet_append(ctx->bullets, bt);   
@@ -84,7 +84,7 @@ void blasteroids_bullet_gc(struct Bullet *b) {
     struct Bullet *previous = b;
     b = b->next;
     while (b != NULL) {
-        if (b->health <= 0) {
+        if (b->power <= 0) {
             previous->next = b->next;
             free(b);
             return;
