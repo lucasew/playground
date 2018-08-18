@@ -111,7 +111,7 @@ void blasteroids_asteroid_gc(struct Asteroid *a) {
         if (this->health <= 0) {
             dummy = this;
             previous->next = this->next;
-            free(dummy);
+            if (dummy != NULL) free(dummy);
         }
         previous = this;
         this = this->next;
