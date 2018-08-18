@@ -37,4 +37,10 @@ void blasteroids_context_draw(GameContext *ctx) {
 #endif
 }
 
+int blasteroids_display_w(GameContext *ctx) {
+    return al_get_display_width(ctx->display);
+}
 
+int blasteroids_display_h(GameContext *ctx) {
+    return al_get_display_height(ctx->display);
+}

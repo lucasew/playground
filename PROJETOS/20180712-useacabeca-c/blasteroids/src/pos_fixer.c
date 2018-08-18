@@ -5,8 +5,8 @@
 #include <blasteroids/bullet.h>
 
 void blasteroids_fix_positions(GameContext *ctx) {
-    int h = al_get_display_height(ctx->display);
-    int w = al_get_display_width(ctx->display);
+    int h = blasteroids_display_h(ctx);
+    int w = blasteroids_display_w(ctx);
     INSIDE_SCREEN(ctx->ship, w, h);
     Asteroid *adummy = ctx->asteroids->next;
     while (adummy != NULL) {

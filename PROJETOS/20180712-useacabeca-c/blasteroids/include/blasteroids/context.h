@@ -26,4 +26,8 @@ void blasteroids_context_update(GameContext *ctx);
 
 void blasteroids_context_draw(GameContext *ctx);
 
+int blasteroids_display_w(GameContext *ctx);
+
+int blasteroids_display_h(GameContext *ctx);
+
 #endif

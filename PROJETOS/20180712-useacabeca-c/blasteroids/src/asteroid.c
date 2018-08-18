@@ -121,8 +121,8 @@ void blasteroids_asteroid_gc(struct Asteroid *a) {
 void blasteroids_asteroid_generate(GameContext *ctx) {
     srand(time(NULL));
     Asteroid as;
-    as.sx = rand() % DISPLAY_LARGURA;
-    as.sx = rand() % DISPLAY_ALTURA;
+    as.sx = rand() % blasteroids_display_w(ctx);
+    as.sx = rand() % blasteroids_display_h(ctx);
     as.heading = rand() % 360;
     as.speed = (float)((rand() % 200)/10.0);
     as.rot_velocity = (float)(rand()%20);

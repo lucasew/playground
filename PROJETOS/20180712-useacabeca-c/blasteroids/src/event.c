@@ -52,4 +52,8 @@ void handle_event(ALLEGRO_EVENT *ev, GameContext *ctx) {
         stop(0);
         return;
     }
+    if(ev->type == ALLEGRO_EVENT_DISPLAY_RESIZE) {
+        if (!al_acknowledge_resize(ctx->display))
+            error("Não foi possível redimensionar o display");
+    }
 }

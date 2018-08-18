@@ -57,8 +57,8 @@ int main() {
         error("Não foi possível conectar-se ao teclado");
     al_register_event_source(ctx->event_queue, al_get_keyboard_event_source());
     // Display
-    //al_set_new_display_flags(ALLEGRO_FULLSCREEN_WINDOW);
-    ctx->display = al_create_display(DISPLAY_ALTURA, DISPLAY_LARGURA);
+    al_set_new_display_flags(ALLEGRO_RESIZABLE);
+    ctx->display = al_create_display(600, 600);
     al_set_window_title(ctx->display, WindowTitle); // Título da janela
     al_register_event_source(ctx->event_queue, al_get_display_event_source(ctx->display));
     // Fonte
