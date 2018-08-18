@@ -9,12 +9,24 @@
 
 void event_loop_once(GameContext *ctx, ALLEGRO_EVENT *event) {
     al_wait_for_event(ctx->event_queue, event);
-    al_lock_mutex(ctx->mutex);
     handle_event(event, ctx);
-    al_unlock_mutex(ctx->mutex);
 }
 
+void game_over(GameContext *ctx) {
+    printf("========== GAME OVER ==========\n");
+    printf("Você morreu :c.\n");
+    printf("Você conseguiu %i pontos.\n", ctx->score);
+    printf("Tempo de jogo: %i min %i s\n", ctx->HearthBeat/60, ctx->HearthBeat%60);
+    printf("===============================\n");
+    fflush(stdout);
+    handle_shutdown(SIGINT); // Finalizando o jogo
+}
+
+
 void handle_event(ALLEGRO_EVENT *ev, GameContext *ctx) {
+    if (ctx->ship->health <= 0) {
+        game_over(ctx);
+    }
     Bullet bt;
     if(ev->type == ALLEGRO_EVENT_KEY_DOWN) {
         switch (ev->keyboard.keycode) {
@@ -57,3 +69,5 @@ void handle_event(ALLEGRO_EVENT *ev, GameContext *ctx) {
             error("Não foi possível redimensionar o display");
     }
 }
+
+

@@ -48,10 +48,6 @@ int main() {
         error("Não foi possível iniciar o timer");
     al_start_timer(ctx->timer);
     al_register_event_source(ctx->event_queue, al_get_timer_event_source(ctx->timer));
-    // Mutex
-    ctx->mutex = al_create_mutex();
-    if (!ctx->mutex)
-        error("Não foi possível criar o mutex");
     // Teclado
     if(!al_install_keyboard())
         error("Não foi possível conectar-se ao teclado");
@@ -114,13 +110,10 @@ int main() {
     // ============= SAINDO ===========
     handle_shutdown(SIGINT);
 }
-
 void handle_shutdown() {
     info("Saindo....");
     /*debug("Destroy timer");
       al_destroy_timer(ctx->timer);*/
-    debug("Destroy mutex");
-    al_destroy_mutex(ctx->mutex);
     debug("Destroy timer");
     al_destroy_timer(ctx->timer);
     // Queue

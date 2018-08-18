@@ -8,7 +8,6 @@ struct GameContext {
     ALLEGRO_DISPLAY *display;
     ALLEGRO_EVENT_QUEUE *event_queue;
     ALLEGRO_TIMER *timer;
-    ALLEGRO_MUTEX *mutex;
     ALLEGRO_FONT *font;
     struct Spaceship *ship;
     struct Asteroid *asteroids;
