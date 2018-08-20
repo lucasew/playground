@@ -19,7 +19,7 @@ void game_over(GameContext *ctx) {
     printf("========== GAME OVER ==========\n");
     printf("Você morreu :c.\n");
     printf("Você conseguiu %i pontos.\n", ctx->score);
-    printf("Tempo de jogo: %i min %i s\n", ctx->HearthBeat/60, ctx->HearthBeat%60);
+    printf("Tempo de jogo: %i min %i s\n", ctx->HearthBeat/(60*FPS), (ctx->HearthBeat/FPS)%60);
     printf("===============================\n");
     fflush(stdout);
     handle_shutdown(SIGINT); // Finalizando o jogo
