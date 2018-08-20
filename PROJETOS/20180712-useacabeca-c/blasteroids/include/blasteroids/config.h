@@ -8,4 +8,6 @@
 //#define DEBUG_COLLISION_LOG
 #define DEBUG_DRAW_COUNTER
 
+#define FPS 60
+
 #endif

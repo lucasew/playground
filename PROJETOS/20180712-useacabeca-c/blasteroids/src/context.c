@@ -11,8 +11,9 @@
 #include <blasteroids/context.h>
 void blasteroids_context_tick(GameContext *ctx) {
     blasteroids_asteroid_update_all(ctx->asteroids->next);
-    blasteroids_bullet_update_all(ctx->bullets);
+    blasteroids_bullet_update_all(ctx->bullets, ctx->HearthBeat);
     blasteroids_context_update(ctx);
+    blasteroids_context_draw(ctx);
 }
 
 void blasteroids_context_update(GameContext *ctx) {
@@ -27,7 +28,7 @@ void blasteroids_context_draw(GameContext *ctx) {
     al_flip_display();
     al_clear_to_color(al_map_rgb(0, 0, 0));
     blasteroids_ship_draw(ctx->ship);
-    blasteroids_asteroid_draw_all(ctx->asteroids->next);
+    blasteroids_asteroid_draw_all(ctx->asteroids);
     blasteroids_bullet_draw_all(ctx->bullets);
     draw_life(ctx);
     draw_score(ctx);

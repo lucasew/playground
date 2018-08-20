@@ -43,7 +43,7 @@ int main() {
     // Queue
     ctx->event_queue = al_create_event_queue();
     // Timer
-    ctx->timer = al_create_timer(1); // Tick a cada 1s
+    ctx->timer = al_create_timer(1.0/FPS); // Tick a cada frame
     if (!ctx->timer)
         error("Não foi possível iniciar o timer");
     al_start_timer(ctx->timer);
@@ -58,7 +58,7 @@ int main() {
     al_set_window_title(ctx->display, WindowTitle); // Título da janela
     al_register_event_source(ctx->event_queue, al_get_display_event_source(ctx->display));
     // Fonte
-    ctx->font = al_load_font("font.ttf", 24, 0);
+    ctx->font = al_load_font("./font.ttf", 24, 0);
     // Criando spaceship de exemplo
     Spaceship *sp = malloc(sizeof(Spaceship));
     sp->sx = 200;
@@ -105,7 +105,6 @@ int main() {
     ALLEGRO_EVENT event; // Apenas para não ter de redeclarar a cada iteração
     while(*running) {
         event_loop_once(ctx, &event);
-        blasteroids_context_draw(ctx);
     }
     // ============= SAINDO ===========
     handle_shutdown(SIGINT);

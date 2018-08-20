@@ -34,10 +34,12 @@ int blasteroids_check_collision_asteroid_spaceship(GameContext *ctx) {
         al_draw_line(sx, sy, ax, ay, al_map_rgb(255, 255, 255), 1);
 #endif
         if (!(cur_distance > min_distance)) {
-            ctx->ship->health = ctx->ship->health - 1;
-            this->health = this->health - 1;
-            collisions++;
-            ctx->score = ctx->score + 1;
+            if ((ctx->HearthBeat%(FPS/4)) == 0) {
+                ctx->ship->health = ctx->ship->health - 1;
+                this->health = this->health - 1;
+                collisions++;
+                ctx->score = ctx->score + 1;
+            }
         }
         this = this->next;
     }
@@ -76,6 +78,7 @@ int blasteroids_is_collision(GameContext *ctx) {
     int collisions = 0;
     collisions += blasteroids_check_collision_asteroid_bullet(ctx);
     collisions += blasteroids_check_collision_asteroid_spaceship(ctx);
-    debug("Collisions %i", collisions);
+    if (collisions)
+        debug("Collisions %i", collisions);
     return collisions;
 }

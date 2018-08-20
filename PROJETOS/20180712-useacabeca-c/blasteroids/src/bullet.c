@@ -13,7 +13,6 @@ void _log_bullet(char *reason, struct Bullet *b) {
 }
 
 void blasteroids_bullet_draw(struct Bullet *b) {
-    _log_bullet("draw", b);
     ALLEGRO_TRANSFORM t;
     al_identity_transform(&t);
     al_rotate_transform(&t, deg2rad(b->heading));
@@ -33,16 +32,19 @@ void blasteroids_bullet_draw_all(struct Bullet *b) {
     }
 }
 
-void blasteroids_bullet_update(struct Bullet *b) {
-    b->sx = b->sx + blasteroids_get_delta_x(b->speed, b->heading);
-    b->sy = b->sy + blasteroids_get_delta_y(b->speed, b->heading);
-    b->power--;
+void blasteroids_bullet_update(struct Bullet *b, int HearthBeat) {
+    b->sx = b->sx + blasteroids_get_delta_x(b->speed, b->heading)/FPS;
+    b->sy = b->sy + blasteroids_get_delta_y(b->speed, b->heading)/FPS;
+    if(!(HearthBeat%60)) {
+        b->power--;
+        _log_bullet("update", b);
+    }
 }
 
-void blasteroids_bullet_update_all(struct Bullet *b) {
-    struct Bullet *this = b;
+void blasteroids_bullet_update_all(struct Bullet *b, int HearthBeat) {
+    struct Bullet *this = b->next; // Next ignora aquele bullet genesis
     while (this != NULL) {
-        blasteroids_bullet_update(this);
+        blasteroids_bullet_update(this, HearthBeat);
         this = this->next;
     }
 }

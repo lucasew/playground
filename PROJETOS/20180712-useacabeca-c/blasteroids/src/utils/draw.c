@@ -1,4 +1,5 @@
 #include <math.h>
+#include <blasteroids/config.h>
 #include <blasteroids/utils/draw.h>
 
 float deg2rad(float deg) {

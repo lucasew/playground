@@ -69,9 +69,9 @@ void blasteroids_asteroid_draw_life(GameContext *ctx) {
 
 void blasteroids_asteroid_update(struct Asteroid *a) {
     _log_asteroid("before", a);
-    a->heading = a->heading + a->rot_velocity;
-    a->sx = a->sx + blasteroids_get_delta_x(a->speed, a->heading);
-    a->sy = a->sy + blasteroids_get_delta_y(a->speed, a->heading);
+    a->heading = a->heading + a->rot_velocity/FPS;
+    a->sx = a->sx + blasteroids_get_delta_x(a->speed, a->heading)/FPS;
+    a->sy = a->sy + blasteroids_get_delta_y(a->speed, a->heading)/FPS;
     _log_asteroid("after", a);
 }
 

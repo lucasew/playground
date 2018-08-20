@@ -19,9 +19,9 @@ void blasteroids_bullet_draw(struct Bullet *b);
 
 void blasteroids_bullet_draw_all(struct Bullet *b);
 
-void blasteroids_bullet_update(struct Bullet *b);
+void blasteroids_bullet_update(struct Bullet *b, int HearthBeat);
 
-void blasteroids_bullet_update_all(struct Bullet *b);
+void blasteroids_bullet_update_all(struct Bullet *b, int HearthBeat);
 
 void blasteroids_bullet_append(struct Bullet *old, struct Bullet new);
 

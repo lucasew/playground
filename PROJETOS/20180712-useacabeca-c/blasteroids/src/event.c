@@ -1,8 +1,11 @@
+#include <stdlib.h>
+
+#include <blasteroids/config.h>
+
 #include <blasteroids/context.h>
 #include <blasteroids/spaceship.h>
 #include <blasteroids/asteroid.h>
 #include <blasteroids/bullet.h>
-#include <stdlib.h>
 #include <blasteroids/utils.h>
 #include <blasteroids/main.h> // Função stop
 #include <blasteroids/event.h>
@@ -58,7 +61,7 @@ void handle_event(ALLEGRO_EVENT *ev, GameContext *ctx) {
     if(ev->type == ALLEGRO_EVENT_TIMER) {
         ctx->HearthBeat = ctx->HearthBeat + 1;
         blasteroids_context_tick(ctx);
-        if (!(ctx->HearthBeat%10)) blasteroids_asteroid_generate(ctx);
+        if (!(ctx->HearthBeat%(10*FPS))) blasteroids_asteroid_generate(ctx);
     }
     if(ev->type == ALLEGRO_EVENT_DISPLAY_CLOSE) {
         stop(0);
