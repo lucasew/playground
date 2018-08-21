@@ -76,7 +76,7 @@ void blasteroids_asteroid_update(struct Asteroid *a) {
 }
 
 void blasteroids_asteroid_update_all(struct Asteroid *a) {
-    struct Asteroid *this = a;
+    struct Asteroid *this = a->next; // Não quero computar o estado do genesis
     while (this != NULL) {
         blasteroids_asteroid_update(this);
         this = this->next;
@@ -84,13 +84,11 @@ void blasteroids_asteroid_update_all(struct Asteroid *a) {
 }
 
 void blasteroids_asteroid_append(struct Asteroid *old, struct Asteroid new) {//  Não é necessário dar malloc
-    if (old == NULL) return;
-    struct Asteroid *tmp = malloc(sizeof(struct Asteroid));
-    *tmp = new;
-    if (old->next != NULL) {
-        tmp->next = old->next;
-    }
-    old->next = tmp;
+    struct Asteroid *newp = malloc(sizeof(struct Asteroid));
+    *newp = new;
+    newp->next = old->next;
+    debug("append");
+    old->next = newp;
 }
 
 void blasteroids_destroy_asteroid(struct Asteroid *a) {
@@ -105,13 +103,12 @@ void blasteroids_destroy_asteroid(struct Asteroid *a) {
 // TODO: Resolver algumas corrupções de memória ocorrendo por aqui
 void blasteroids_asteroid_gc(struct Asteroid *a) {
     debug("Removendo asteroides destruidos da memória...");
-    if (a == NULL) return;
+    if (a->next == NULL) return;
     struct Asteroid *previous = a, *this = a->next;
     while (this != NULL) {
         if (this->health <= 0) {
-            struct Asteroid *dummy = this;
             previous->next = this->next;
-            if (dummy != NULL) free(dummy);
+            free(this);
         }
         previous = this;
         this = this->next;
@@ -122,12 +119,13 @@ void blasteroids_asteroid_generate(GameContext *ctx) {
     srand(time(NULL));
     Asteroid as;
     as.sx = rand() % blasteroids_display_w(ctx);
-    as.sx = rand() % blasteroids_display_h(ctx);
+    as.sy = rand() % blasteroids_display_h(ctx);
     as.heading = rand() % 360;
     as.speed = (float)((rand() % 200)/10.0);
     as.rot_velocity = (float)(rand()%20);
     as.scale = (float)((rand()%40)/10) + 0.5;
     as.health = rand() % 200;
     as.color = al_map_rgb(RAND_COLOR, RAND_COLOR, RAND_COLOR);
+    as.next = NULL;
     blasteroids_asteroid_append(ctx->asteroids, as);
 }

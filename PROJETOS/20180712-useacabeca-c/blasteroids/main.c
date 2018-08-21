@@ -79,18 +79,6 @@ int main() {
     ctx->asteroids->health = 9999;
     ctx->asteroids->color = al_map_rgb(0, 0, 0);
     ctx->asteroids->next = NULL;
-    // Asteroide de exemplo
-    Asteroid as;
-    as.sx = 300.0;
-    as.sy = 350.0;
-    as.heading = 230.0;
-    as.speed = 12.0;
-    as.rot_velocity = 5.0;
-    as.scale = 1;
-    as.health = 100;
-    as.color = al_map_rgb(15, 135, 88);
-    as.next = NULL;
-    blasteroids_asteroid_append(ctx->asteroids, as);
     // Bullet (genesis, para facilitar)
     Bullet *bt = malloc(sizeof(Bullet));
     bt->sx = -100;

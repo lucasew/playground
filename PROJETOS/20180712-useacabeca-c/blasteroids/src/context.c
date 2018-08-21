@@ -10,7 +10,7 @@
 
 #include <blasteroids/context.h>
 void blasteroids_context_tick(GameContext *ctx) {
-    blasteroids_asteroid_update_all(ctx->asteroids->next);
+    blasteroids_asteroid_update_all(ctx->asteroids);
     blasteroids_bullet_update_all(ctx->bullets, ctx->HearthBeat);
     blasteroids_context_update(ctx);
     blasteroids_context_draw(ctx);
