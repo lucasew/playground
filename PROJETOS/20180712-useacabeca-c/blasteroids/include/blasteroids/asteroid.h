@@ -38,7 +38,7 @@ void blasteroids_asteroid_append(Asteroid *old, Asteroid new); // Sem malloc no 
 
 void blasteroids_destroy_asteroid(Asteroid *a);
 
-void blasteroids_asteroid_gc(Asteroid *a);
+int blasteroids_asteroid_gc(Asteroid *a);
 
 // Spawner
 #define RAND_COLOR rand()%200 + 55

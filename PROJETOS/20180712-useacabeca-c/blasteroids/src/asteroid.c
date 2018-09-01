@@ -100,19 +100,21 @@ void blasteroids_destroy_asteroid(struct Asteroid *a) {
     }
 }
 
-// TODO: Resolver algumas corrupções de memória ocorrendo por aqui
-void blasteroids_asteroid_gc(struct Asteroid *a) {
+int blasteroids_asteroid_gc(struct Asteroid *a) {
+    int destroyed = 0;
     debug("Removendo asteroides destruidos da memória...");
-    if (a->next == NULL) return;
+    if (a->next == NULL) return destroyed;
     struct Asteroid *previous = a, *this = a->next;
     while (this != NULL) {
         if (this->health <= 0) {
             previous->next = this->next;
             free(this);
+            destroyed++;
         }
         previous = this;
         this = this->next;
     }
+    return destroyed;
 }
 
 void blasteroids_asteroid_generate(GameContext *ctx) {

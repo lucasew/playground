@@ -18,7 +18,8 @@ void blasteroids_context_tick(GameContext *ctx) {
 
 void blasteroids_context_update(GameContext *ctx) {
     if (blasteroids_is_collision(ctx)) {
-        blasteroids_asteroid_gc(ctx->asteroids);
+        if(0 != blasteroids_asteroid_gc(ctx->asteroids)) // Ao matar um asteroide gerar outro, para dar mais emoção
+            blasteroids_asteroid_generate(ctx);
         blasteroids_bullet_gc(ctx->bullets);
     }
     blasteroids_fix_positions(ctx);
