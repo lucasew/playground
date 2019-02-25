@@ -1,9 +1,10 @@
 package position
 
 import (
-    "testing"
-    "math"
+	"math"
+	"testing"
 )
+
 type DegRadCase struct {
 	Deg float64
 	Rad float64
@@ -46,4 +47,3 @@ func TestRadToDeg(t *testing.T) {
 		}
 	}
 }
-

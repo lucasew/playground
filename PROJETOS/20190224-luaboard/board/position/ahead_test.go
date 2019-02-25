@@ -1,8 +1,8 @@
 package position
 
 import (
-    "math"
-    "testing"
+	"math"
+	"testing"
 )
 
 func TestPositionGoAhead(t *testing.T) {

@@ -28,8 +28,8 @@ func TestPositionGetDistance(t *testing.T) {
 
 func TestPositionGetHeading(t *testing.T) {
 	cases := []struct {
-		Req Position;
-		Res Angle;
+		Req Position
+		Res Angle
 	}{
 		{
 			Req: Position{Heading: NewAngleRadian(3.0 * math.Pi)},
@@ -46,9 +46,8 @@ func TestPositionGetHeading(t *testing.T) {
 	}
 	for _, cse := range cases {
 		get := cse.Req.GetHeading().Radian()
-		if math.Abs(get - cse.Res.Radian()) > ErrorMargin {
+		if math.Abs(get-cse.Res.Radian()) > ErrorMargin {
 			t.Errorf("Expected: %f Get: %f", cse.Res.Radian(), get)
 		}
 	}
 }
-

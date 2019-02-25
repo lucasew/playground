@@ -1,8 +1,8 @@
 package position
 
 import (
+	"log"
 	"math"
-    "log"
 )
 
 func (p Position) PureGoAhead(distance float64) Position {
@@ -14,11 +14,11 @@ func (p Position) PureGoAhead(distance float64) Position {
 }
 
 func (p *Position) DOGoAhead(distance float64) Position {
-    log.Printf("CALL: DOGoAhead(%v)\n", distance)
+	log.Printf("CALL: DOGoAhead(%v)\n", distance)
 	*p = p.PureGoAhead(distance)
-    return *p
+	return *p
 }
 
 func (p Position) IsCanGoTowards(q Position, viewAngle Angle) bool {
-    return math.Abs(p.GetAngleTowards(q).Radian() - p.GetHeading().Radian()) < viewAngle.Radian() /2
+	return math.Abs(p.GetAngleTowards(q).Radian()-p.GetHeading().Radian()) < viewAngle.Radian()/2
 }

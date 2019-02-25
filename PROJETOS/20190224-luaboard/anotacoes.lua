@@ -1,0 +1,17 @@
+-- SPECIFICATION
+-- player:get_x() -> number
+-- player:get_y() -> number
+-- player:get_heading() -> deg:number
+-- player:get_pos() -> number, number
+-- player:turn_relative(deg:number) turned:number #MANA
+-- player:turn_absolute(deg:number) relative_turned:number #MANA
+-- player:go_ahead(distance:number) walked:number #MANA
+-- player:get_mana() mana:number
+-- position:get_distance_to(x:number, y:number) distance:number #MANA (usa as funcs da linguagem)
+-- board:get_view_angle() deg:number
+-- board:get_size_x() number
+-- board:get_size_y() number
+-- board:get_size() x:number, y:number
+-- board:count_enemies() n:number #MANA
+-- battle:is_enemy_near() distance:number or nil #MANA
+-- battle:seen_enemy() bool

@@ -1,29 +1,30 @@
 package position
 
-import (
-)
+import ()
+
 // Sempre será salvo como radiano
 type Angle struct {
-    Value float64
+	Value float64
 }
+
 func (a Angle) Radian() float64 {
-    return a.Value
+	return a.Value
 }
 
 func (a Angle) Degree() float64 {
-    return RadToDeg(a.Value)
+	return RadToDeg(a.Value)
 }
 
 func NewAngleDegree(angle float64) Angle {
-    return Angle {
-        Value: DegToRad(angle),
-    }
+	return Angle{
+		Value: DegToRad(angle),
+	}
 }
 
 func NewAngleRadian(angle float64) Angle {
-    return Angle {
-        Value: angle,
-    }
+	return Angle{
+		Value: angle,
+	}
 }
 
 // DegToRad Converte os graus para radianos
