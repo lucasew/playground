@@ -1,3 +1,5 @@
+#! /usr/bin/env lua
+
 local iterutils = require 'iterutils'
 local test = require 'u-test'
 
@@ -8,6 +10,7 @@ test.iterutils_new = function()
     test.equal(iter.next(), 3)
     test.equal(iter.next(), 4)
     test.equal(iter.next(), 5)
+    test.is_nil(iter.next())
 end
 
 test.iterutils_map_double = function()
@@ -18,6 +21,7 @@ test.iterutils_map_double = function()
     test.equal(iter.next(), 6)
     test.equal(iter.next(), 8)
     test.equal(iter.next(), 10)
+    test.is_nil(iter.next())
 end
 
 test.iterutils_map_pow2 = function()
@@ -28,6 +32,7 @@ test.iterutils_map_pow2 = function()
     test.equal(iter.next(), 9)
     test.equal(iter.next(), 16)
     test.equal(iter.next(), 25)
+    test.is_nil(iter.next())
 end
 
 test.iterutils_map_div2 = function()
@@ -38,6 +43,7 @@ test.iterutils_map_div2 = function()
     test.equal(iter.next(), 1.5)
     test.equal(iter.next(), 2)
     test.equal(iter.next(), 2.5)
+    test.is_nil(iter.next())
 end
 
 test.iterutils_filter_even = function()
@@ -45,6 +51,7 @@ test.iterutils_filter_even = function()
     :filter(function (x) return x%2 == 0 end)
     test.equal(iter.next(), 2)
     test.equal(iter.next(), 4)
+    test.is_nil(iter.next())
 end
 
 test.iterutils_reduce_sum = function()
