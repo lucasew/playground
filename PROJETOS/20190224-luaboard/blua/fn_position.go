@@ -6,8 +6,8 @@ import (
 )
 
 func LoadPosition(lw *LuaWrapper) {
-	tbl := lw.State.NewTable()
-	lw.State.SetField(tbl, "get_distance_to", func(l *lua.LState) int {
+	funcs := map[string]lua.LGFunction{}
+	funcs["get_distance_to"] = func(l *lua.LState) int {
 		x := float64(l.ToNumber(1))
 		y := float64(l.ToNumber(2))
 		destination := position.Position{
@@ -18,6 +18,8 @@ func LoadPosition(lw *LuaWrapper) {
 		lw.Context.Player.UseMana()
 		l.Push(lua.LNumber(distance))
 		return 1
-	})
+	}
+	tbl := lw.State.NewTable()
+	lw.State.SetFuncs(tbl, funcs)
 	lw.State.SetGlobal("position", tbl)
 }
