@@ -1,0 +1,15 @@
+#! /usr/bin/env bash
+# vim:ft=bash
+
+set -euxo pipefail
+
+ZIPFOLDER=$1;shift;
+DATABASE=$1;shift;
+R="$(dirname -- $0)"
+echo $R
+
+for file in $ZIPFOLDER;
+do
+    echo "Processando arquivo $file..."
+    $R/zipcat $file | $R/sqlify | $R/sql2db $DATABASE
+done

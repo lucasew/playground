@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+
+R="$(dirname -- $0)"
+
+awk "$(cat $R/sqlify.awk)"
