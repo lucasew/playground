@@ -1,0 +1,23 @@
+<html>
+    <head>
+    </head>
+    <body>
+    <script>
+        window.addEventListener('load', function() {
+            const baseDomain = "biglucas.tk"
+            let urls = {}
+            function registerLink(subdomain, dest) {
+                urls[`${subdomain.length === 0 ? subdomain : `${subdomain}.`}${baseDomain}`] = dest
+            }
+            registerLink("", "https://github.com/lucasew")
+            registerLink("duolingo", "https://invite.duolingo.com/BDHTZTB5CWWKT6KNCXGBPGZKGE")
+            console.log(urls)
+            const url = urls[`${window.location.host}`]
+            if (url === undefined) {
+                return alert("Ponto de redirecionamento não encontrado")
+            }
+            window.location.replace(url)
+        })
+    </script>
+    </body>
+</html>
