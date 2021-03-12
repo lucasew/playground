@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub release draft deleter</title>
+</head>
+<body>
+    <h1>GitHub release draft deleter</h1>
+    <p>If you are lazy like me you can use query strings to pre-fill the elements like user, repo and token</p>
+    <p>All the data is processed locally. The only communication is with GitHub API</p>
+    <h1>Token</h1>
+    <input id="token" type="text"/> 
+    <h1>User</h1>
+    <input id="user" type="text" />
+    <h1>Repository</h1>
+    <input id="repo" type="text" />
+    <br>
+    <button id="start" hidden="true">Start</button>
+    <div id="log"></div>
+    <script>
+    (function() {
+        let url = new URL(window.location.href)
+        document.getElementById("token").value = url.searchParams.get("token")
+        document.getElementById("user").value = url.searchParams.get("user")
+        document.getElementById("repo").value = url.searchParams.get("repo")
+    })()
+    async function listReleases() {
+        const token = document.getElementById("token").value.trim()
+        const user = document.getElementById("user").value.trim()
+        const repo = document.getElementById("repo").value.trim()
+        const url = `https://api.github.com/repos/${user}/${repo}/releases`
+        const results = await fetch(url, {
+            headers: {
+                "accept": "application/vnd.github.v3+json",
+                "authorization": `token ${token}`
+            }
+        })
+        console.log(url)
+        return await results.json()
+    }
+    function logPromise(promise, description) {
+        const statusMsg = document.createElement("p")
+        document.getElementById("log").appendChild(statusMsg)
+        statusMsg.textContent = `WIP: ${description}`
+        promise
+        .then((msg) => {
+            statusMsg.textContent = `${description} - OK ${msg}`
+        })
+        .catch((err) => {
+            statusMsg.textContent = `${description} - ERR ${err.message || err}`
+        })
+    }
+    async function handleSubmit(e) {
+        e.preventDefault()
+        const releases = await listReleases()
+        const drafts = releases.filter((v) => v.draft)
+        console.log(drafts)
+        if (drafts.length === 0) {
+            logPromise(Promise.reject("No draft to delete or invalid token"), "")
+        }
+        drafts.forEach((draft) => {
+            logPromise(handleDraftDelete(draft), `Delete '${draft.name}' (${draft.html_url})`)
+        })
+    }
+    async function handleDraftDelete(release) {
+        if (!release.draft) {
+            throw `"${release.html_url}" is not a draft release`
+        }
+        const res = await fetch(release.url, {
+            method: "DELETE",
+            headers: {
+                "authorization": `token ${document.getElementById("token").value.trim()}`
+            }
+        })
+        return `${res.status} ${res.statusText}`
+    }
+    const start = document.getElementById("start")
+    start.addEventListener('click', handleSubmit)
+    start.hidden = false
+    console.log("Ready")
+    </script>
+</body>
+</html>
