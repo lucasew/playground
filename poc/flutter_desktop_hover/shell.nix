@@ -4,5 +4,6 @@ pkgs.mkShell {
     flutter
     go
     hover
+    appimagekit
   ];
 }
