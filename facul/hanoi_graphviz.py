@@ -53,19 +53,47 @@ def generate_state(state):
     return state_name, ret
 
 def traverse_states(current_state, depth = 12):
-    if depth <= 0:
-        log("depth tá mt baixo, saindo...")
-        return None
     if visited.get(str(current_state)) != None:
-        log("state já visitado")
+        # log("state já visitado")
         return None
     visited[str(current_state)] = True
     current_state_name, current_state_label = generate_state(current_state)
-    print("""
-"%s" [
-label = "%s"
+    def get_color(tower, piece):
+        pieces = current_state[tower]
+        if piece >= len(pieces):
+            return "white"
+        if pieces[piece] == SMALLBAR:
+            return "green"
+        if pieces[piece] == MEDBAR:
+            return "yellow"
+        if pieces[piece] == BIGBAR:
+            return "red"
+    print(f"""
+"{current_state_name}" [
+shape=box
+label=<
+<TABLE>
+<TR>
+    <TD BGCOLOR="{get_color(0,0)}"></TD>
+    <TD BGCOLOR="{get_color(0,1)}"></TD>
+    <TD BGCOLOR="{get_color(0,2)}"></TD>
+</TR>
+<TR>
+    <TD BGCOLOR="{get_color(1,0)}"></TD>
+    <TD BGCOLOR="{get_color(1,1)}"></TD>
+    <TD BGCOLOR="{get_color(1,2)}"></TD>
+</TR>
+<TR>
+    <TD BGCOLOR="{get_color(2,0)}"></TD>
+    <TD BGCOLOR="{get_color(2,1)}"></TD>
+    <TD BGCOLOR="{get_color(2,2)}"></TD>
+</TR>
+</TABLE>>
 ]
-    """ %(current_state_name, current_state_label))
+    """)
+    if depth <= 0:
+        # log("depth tá mt baixo, saindo...")
+        return None
 
     for i in range(0, 3):
         for j in range(0, 3):
@@ -75,33 +103,28 @@ label = "%s"
             if is_endstate(new_state):
                 log("encontrado um estado final")
                 print("""
-"%s" -> "ENDSTATE"
+"%s" -- "ENDSTATE"
                 """ %(current_state_name))
                 continue
             name, label = generate_state(new_state)
-            print("""
-"%s" [
-label = "%s"
-]
-            """ %(name, label))
-            print("""
-"%s" -> "%s"
-            """ %(current_state_name, name))
+            print(f"""
+"{current_state_name}" -- "{name}"
+            """)
             traverse_states(new_state, depth - 1)
 
 
-print("strict digraph G {")
+print("strict graph G {")
 if __name__ == "__main__":
     print("""
 "STARTSTATE" [
-label = "<B> Começo </B>"
+label =<<B>Começo</B>>
 ]
             """)
     name, label = generate_state(START_STATE)
-    print('STARTSTATE -> "%s"' %(name))
+    print('STARTSTATE -- "%s"' %(name))
     print("""
 "ENDSTATE" [
-label = "<B> FIM </B>"
+label = <<B>FIM</B>>
 ]
             """)
     traverse_states(START_STATE)
