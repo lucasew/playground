@@ -122,10 +122,10 @@ def get_dfa():
 
 class DFA():
     def __init__(self, alphabet, states, endstates, transitions):
-        self.alphabet = alphabet
-        self.endstates = endstates
+        self.alphabet = list(alphabet)
+        self.endstates = list(endstates)
         self.transitions = transitions
-        self.states = states
+        self.states = list(states)
     def num2char(self, n):
         return self.alphabet[n]
     def print_graphviz(self):
@@ -153,10 +153,34 @@ class DFA():
                 return False
             state = next_state
         return state in self.endstates
+    def minimize(self):
+        # remover estados sem saída
+        while True: # sai só quando não houver mais estados pra remover
+            to_remove = []
+            for transition in self.transitions.keys():
+                if len(self.transitions[transition]) == 0 and transition not in self.endstates:
+                    to_remove.append(transition)
+            if len(to_remove) == 0:
+                return
+            for r in to_remove:
+                self.states.remove(r)
+                del self.transitions[r]
+                for transition in self.transitions.keys():
+                    delete = []
+                    for path in self.transitions[transition]:
+                        if self.transitions[transition][path] in to_remove:
+                            delete.append(path)
+                    for d in delete:
+                        del self.transitions[transition][d]
+
+        log(to_remove)
+
     def __len__(self):
         return len(self.states)
 
 dfa = get_dfa()
 log(f"quantidade de estados: {len(dfa)}")
 assert(dfa.check_match("acabcbacbabcac")) # optimum
+dfa.minimize()
+log(f"quantidade de estados minimizada: {len(dfa)}")
 dfa.print_graphviz()
