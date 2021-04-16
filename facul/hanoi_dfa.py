@@ -136,7 +136,6 @@ def print_dfa():
 def check_match(match):
     state = 1
     for ch in match:
-        log(f'visiting state {state}')
         if ch not in ALPHABET:
             log("not in alphabet")
             return False
@@ -145,7 +144,7 @@ def check_match(match):
             log(f'state {state} does not have path {ch}')
             return False
         state = next_state
-    return True
+    return state in dfa_endstates
 
 assert(check_match("acabcbacbabcac")) # optimum
 
