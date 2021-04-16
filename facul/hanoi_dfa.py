@@ -68,7 +68,7 @@ def generate_state(state):
 def num2char(n):
     return ALPHABET[n]
 
-def traverse_states(current_state, depth = 12):
+def traverse_states(current_state):
     name, label = generate_state(current_state)
     if visited.get(name) != None:
         # log("state já visitado")
@@ -78,10 +78,6 @@ def traverse_states(current_state, depth = 12):
     if is_endstate(current_state):
         log("estado final encontrado")
         return None
-    if depth <= 0:
-        log("depth tá mt baixo, saindo...")
-        return None
-
     for i in range(0, 3):
         transition_state = name + num2char(i)
         visited[transition_state] = "intermediate"
@@ -93,7 +89,7 @@ def traverse_states(current_state, depth = 12):
                 continue
             new_name, new_label = generate_state(new_state)
             transitions[transition_state][num2char(j)] = new_name
-            traverse_states(new_state, depth - 1)
+            traverse_states(new_state)
 
 traverse_states(START_STATE)
 
@@ -136,5 +132,21 @@ def print_dfa():
             trans_destination = dfa_transitions[node_key][trans_key]
             print(f'"{node_key}" -> "{trans_destination}" [label="{trans_key}"]')
     print("}")
+
+def check_match(match):
+    state = 1
+    for ch in match:
+        log(f'visiting state {state}')
+        if ch not in ALPHABET:
+            log("not in alphabet")
+            return False
+        next_state = dfa_transitions[state].get(ch)
+        if next_state == None:
+            log(f'state {state} does not have path {ch}')
+            return False
+        state = next_state
+    return True
+
+assert(check_match("acabcbacbabcac")) # optimum
 
 print_dfa()
