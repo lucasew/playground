@@ -77,6 +77,7 @@ def traverse_states(current_state, depth = 12):
     transitions[name] = {}
     if is_endstate(current_state):
         log("estado final encontrado")
+        return None
     if depth <= 0:
         log("depth tá mt baixo, saindo...")
         return None
@@ -97,7 +98,6 @@ def traverse_states(current_state, depth = 12):
 traverse_states(START_STATE)
 
 dfa_keys = {}
-
 transition_counter = counter()
 for strkey in transitions.keys():
     state_id = transition_counter()
@@ -122,3 +122,19 @@ for key in dfa_keys:
         continue
     if is_endstate(state_value):
         dfa_endstates.append(dfa_keys[key])
+
+def print_dfa():
+    print("digraph dfa {")
+    print('"" [shape=none]')
+    print('"" -> "1"')
+    for key in dfa_keys.values():
+        print(f'"{key}" [shape=circle label="{key}"]')
+    for endstate in dfa_endstates:
+        print(f'"{endstate}" [shape=doublecircle label="{endstate}"]')
+    for node_key in dfa_transitions.keys():
+        for trans_key in dfa_transitions[node_key].keys():
+            trans_destination = dfa_transitions[node_key][trans_key]
+            print(f'"{node_key}" -> "{trans_destination}" [label="{trans_key}"]')
+    print("}")
+
+print_dfa()
