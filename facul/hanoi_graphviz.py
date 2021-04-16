@@ -52,7 +52,7 @@ def generate_state(state):
     ret = "\n".join([",".join(line) for line in state])
     return state_name, ret
 
-def traverse_states(current_state, depth = 12):
+def traverse_states(current_state, depth = 999):
     if visited.get(str(current_state)) != None:
         # log("state já visitado")
         return None
@@ -131,3 +131,4 @@ label = <<B>FIM</B>>
 
 
 print("}")
+log("nós visitados: ", len(visited))
