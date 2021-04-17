@@ -47,14 +47,14 @@ def get_dfa():
 
     visited = {}
     transitions = {}
-
     def is_endstate(state):
         if len(state) != 3:
             raise ValueError("state must have 3 items")
         last_column = state[2]
-        if len(last_column) != 3:
-            return False
-        return last_column[0] == BIGBAR and last_column[1] == MEDBAR and last_column[2] == SMALLBAR
+        if len(last_column) == 3 and last_column[0] == BIGBAR and last_column[1] == MEDBAR and last_column[2] == SMALLBAR:
+            return True
+        last_column = state[1]
+        return len(last_column) == 3 and last_column[0] == BIGBAR and last_column[1] == MEDBAR and last_column[2] == SMALLBAR
 
     def transition(start_state, origin, destination):
         if (origin == destination):
@@ -63,8 +63,9 @@ def get_dfa():
         if len(end_state[origin]) == 0:
             return None
         v = end_state[origin].pop()
-        if len(end_state[destination]) > 0 and len(end_state[destination][-1]) > len(v):
-            return None
+        if len(end_state[destination]) > 0:
+            if len(end_state[destination][-1].strip()) < len(v.strip()):
+                return None
         end_state[destination].append(v)
         return end_state
 
@@ -317,4 +318,4 @@ dfa_regex.print_item(sys.stdout)
 
 # rg = RegexpAST.concat("a", "b")
 # rg.print_item(sys.stdout)
-log(len(rg))
+# log(len(rg))
