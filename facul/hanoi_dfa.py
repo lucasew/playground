@@ -173,7 +173,66 @@ class DFA():
                     for d in delete:
                         del self.transitions[transition][d]
 
-        log(to_remove)
+    def get_prev_states(self, state):
+        ret = []
+        for k in list(self.transitions.keys()):
+            if state in self.transitions[k].values():
+                ret.append(k)
+        return ret
+
+    def get_pos_states(self, state):
+        return list(self.transitions[state].values())
+
+    def get_if_single_hop(self, orig, dest):
+        return dest in self.transitions[orig].values()
+
+    def to_regex(self):
+        # tá usando ram bagaray
+        dict_states = {r: {c: '' for c in self.states} for r in self.states}
+        for i in self.states:
+            for j in self.states:
+                for k in self.transitions[i].keys():
+                    if self.transitions[i][k] == j:
+                        dict_states[i][j] = k
+        init_state = 1
+        non_intermediates = [init_state, *self.endstates]
+        intermediates = [state for state in self.states if state not in non_intermediates]
+        for inter in list(intermediates):
+            before_me = []
+            for ki in dict_states.keys():
+                for kj in dict_states[ki].keys():
+                    if kj == inter and dict_states[ki][kj] != '':
+                        before_me.append(ki)
+            after_me = []
+            for ki in dict_states[inter].keys():
+                if dict_states[inter][ki] != '':
+                    after_me.append(ki)
+            for before in list(before_me):
+                for after in list(after_me):
+                    inter_loop = dict_states[inter][inter]
+                    before_inter = dict_states[before][inter]
+                    before_after = dict_states[before][after]
+                    inter_after = dict_states[inter][after]
+                    if (len(before_inter) + len(inter_after) + len(inter_loop)) == 0:
+                        log("nothing to add, continuing")
+                        continue
+                    dict_states[before][after] = '+'.join([
+                        f'({dict_states[before][after]})',
+                        ''.join([
+                            f'(dict_states[before][inter])',
+                            f'({dict_states[before][after]})*',
+                            f'({inter_loop})*'
+                            f'({dict_states[inter][after]})'
+                        ])
+                    ])
+                    log(len(dict_states[before][after]))
+            log(inter)
+            dict_states = {r: {c: v for c, v in val.items() if c != inter} for r, val in dict_states.items() if r != inter}
+        init_loop = dict_states[init_state][init_state]
+        init_to_final = f'{dict_states[init_state][self.endstates[0]]}({dict_states[self.endstates[0]][self.endstates[0]]})*'
+        final_to_init = dict_states[self.endstates[0]][init_state]
+        re = f'(({init_loop})+({init_to_final})({final_to_init}))*({init_to_final})'
+        return re
 
     def __len__(self):
         return len(self.states)
@@ -183,4 +242,5 @@ log(f"quantidade de estados: {len(dfa)}")
 assert(dfa.check_match("acabcbacbabcac")) # optimum
 dfa.minimize()
 log(f"quantidade de estados minimizada: {len(dfa)}")
-dfa.print_graphviz()
+print(dfa.to_regex())
+# dfa.print_graphviz()
