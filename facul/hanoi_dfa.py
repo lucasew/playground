@@ -1,5 +1,6 @@
 #! /usr/bin/env nix-shell
 #! nix-shell -p python3 -i python
+import sys
 from copy import deepcopy
 
 
@@ -12,8 +13,11 @@ from copy import deepcopy
 
 
 def log(*args, **kwargs):
-    import sys
     print(*args, file=sys.stderr, **kwargs)
+
+def write_visual_feedback(text):
+    sys.stderr.write(text)
+    sys.stderr.flush()
 
 def counter(i = 0):
     class Counter:
@@ -188,59 +192,129 @@ class DFA():
 
     def to_regex(self):
         # tá usando ram bagaray
-        dict_states = {r: {c: '' for c in self.states} for r in self.states}
+        dict_states = {r: {c: RegexpAST.new_empty() for c in self.states} for r in self.states}
         for i in self.states:
             for j in self.states:
                 for k in self.transitions[i].keys():
                     if self.transitions[i][k] == j:
-                        dict_states[i][j] = k
+                        dict_states[i][j] = RegexpAST.new_summing(k)
         init_state = 1
         non_intermediates = [init_state, *self.endstates]
         intermediates = [state for state in self.states if state not in non_intermediates]
         for inter in list(intermediates):
+            log(f"Eliminating state: {inter}")
             before_me = []
             for ki in dict_states.keys():
                 for kj in dict_states[ki].keys():
-                    if kj == inter and dict_states[ki][kj] != '':
+                    if kj == inter and not dict_states[ki][kj].is_empty():
                         before_me.append(ki)
+            write_visual_feedback(">")
             after_me = []
             for ki in dict_states[inter].keys():
-                if dict_states[inter][ki] != '':
+                if not dict_states[inter][ki].is_empty():
                     after_me.append(ki)
+            write_visual_feedback(">")
             for before in list(before_me):
+                write_visual_feedback("+")
                 for after in list(after_me):
+                    write_visual_feedback("-")
                     inter_loop = dict_states[inter][inter]
                     before_inter = dict_states[before][inter]
                     before_after = dict_states[before][after]
                     inter_after = dict_states[inter][after]
                     if (len(before_inter) + len(inter_after) + len(inter_loop)) == 0:
-                        log("nothing to add, continuing")
+                        # log("nothing to add, continuing")
                         continue
-                    dict_states[before][after] = '+'.join([
-                        f'({dict_states[before][after]})',
-                        ''.join([
-                            f'(dict_states[before][inter])',
-                            f'({dict_states[before][after]})*',
-                            f'({inter_loop})*'
-                            f'({dict_states[inter][after]})'
-                        ])
-                    ])
-                    log(len(dict_states[before][after]))
-            log(inter)
+                    cur = dict_states[before][after]
+                    first = dict_states[before][inter]
+                    second = RegexpAST.star_it(cur)
+                    third = RegexpAST.star_it(dict_states[inter][inter])
+                    fourth = dict_states[inter][after]
+                    dict_states[before][after] = cur + RegexpAST.concat(first, second, third, fourth)
             dict_states = {r: {c: v for c, v in val.items() if c != inter} for r, val in dict_states.items() if r != inter}
         init_loop = dict_states[init_state][init_state]
-        init_to_final = f'{dict_states[init_state][self.endstates[0]]}({dict_states[self.endstates[0]][self.endstates[0]]})*'
+        init_to_final = RegexpAST.concat(dict_states[init_state][self.endstates[0]], RegexpAST.star_it(dict_states[self.endstates[0]][self.endstates[0]]))
         final_to_init = dict_states[self.endstates[0]][init_state]
-        re = f'(({init_loop})+({init_to_final})({final_to_init}))*({init_to_final})'
-        return re
+        return RegexpAST.concat(RegexpAST.star_it(init_loop + init_to_final + final_to_init), init_to_final)
 
     def __len__(self):
         return len(self.states)
+
+class RegexpAST():
+    SYM_STAR = '*'
+    SYM_PLUS = '+'
+    SYM_EMPTY = ''
+
+    def new_empty():
+        return RegexpAST(RegexpAST.SYM_EMPTY, '')
+    def new_summing(*items):
+        return RegexpAST(RegexpAST.SYM_PLUS, *items)
+    def star_it(regexp):
+        return RegexpAST(RegexpAST.SYM_EMPTY, regexp, star = True)
+    def concat(*items):
+        return RegexpAST(RegexpAST.SYM_EMPTY, *items)
+
+    def __init__(self, root_term, *children, star = False):
+        children = list(children)
+        if root_term not in [self.SYM_PLUS, self.SYM_EMPTY]:
+            raise TypeError(f"invalid root_term")
+        if len(children) == 0:
+            raise TypeError("at least one regexp children is required")
+        self.root_term = root_term
+        self.star = star
+        self.children = []
+        for child in children:
+            if type(child) == str:
+                self.children.append(child)
+                continue
+            if type(child) == RegexpAST:
+                self.children.append(child)
+                continue
+            raise TypeError("all children should be string or RegexpAST")
+    def is_empty(self):
+        if len(self.children) > 1:
+            return False
+        if type(self.children[0]) == str:
+            return len(self.children[0]) == 0
+        return self.children[0].is_empty()
+    def __add__(self, another):
+        return RegexpAST(self.SYM_PLUS, self, another)
+    def __len__(self):
+        childlen = 0
+        for ch in self.children:
+            childlen += len(ch)
+        star_size = 0
+        if self.star:
+            star_size = 1
+        return 2 + childlen + (len(self.root_term) * (len(self.children) - 1)) + star_size # parenthesis + children + item separators + 1 if star at the end
+    def print_item(self, f = sys.stdout):
+        childlen = len(self.children)
+        f.write("(")
+        for i in range(0, childlen):
+            if i >= 0 and i <= (childlen - 1):
+                f.write(self.root_term)
+            chtype = type(self.children[i])
+            if chtype == str:
+                f.write(self.children[i])
+            if chtype == RegexpAST:
+                self.children[i].print_item(f)
+        f.write(")")
+        if self.star:
+            f.write(self.SYM_STAR)
+
 
 dfa = get_dfa()
 log(f"quantidade de estados: {len(dfa)}")
 assert(dfa.check_match("acabcbacbabcac")) # optimum
 dfa.minimize()
 log(f"quantidade de estados minimizada: {len(dfa)}")
-print(dfa.to_regex())
+
+dfa_regex = dfa.to_regex()
+dfa_regex.print_item(sys.stdout)
+# log(dfa_regex)
+# log(len(dfa_regex))
 # dfa.print_graphviz()
+
+# rg = RegexpAST.concat("a", "b")
+# rg.print_item(sys.stdout)
+log(len(rg))
