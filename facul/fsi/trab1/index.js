@@ -19,6 +19,14 @@ function useCounter(until = 9999) {
     }
 }
 
+function usePromiseDeferer(promiseFn) {
+    return new Promise((resolve, reject) => {
+        setTimeout(() => {
+            promiseFn().then(resolve).catch(reject)
+        }, 1)
+    })
+}
+
 function useTimeoutLoop(fn, delay = 200) {
     let stop = false
     const cancel = () => {
@@ -50,6 +58,7 @@ function randint(to) {
 }
 
 function generate() {
+    resetView()
     const [alvo_x, alvo_y] = [randint(size_x), randint(size_y)]
     let recompensas = []
     for (let i = 0; i < num_recompensas; i++) {
@@ -157,14 +166,20 @@ class ElementsWrapper {
     heuristica(x, y) {
         const node = this.node(x, y)
         let ret = 0
+        if (node.isInacessivel) {
+            return 0
+        }
         if (node.isAlvo) {
             ret += 20
         }
         if (node.isRecompensa) {
             ret + 10
         }
-        console.log("heuristica", ret)
         return ret
+    }
+    custo(x, y) {
+        const node = this.node(x, y)
+        return node.custo
     }
     isInacessivel(x, y) {
         const node = this.node(x, y)
@@ -190,8 +205,11 @@ class ElementsWrapper {
             })
         })
         candidates = candidates.filter((v) => {
-            const [x, y] = v
-            return that.isIndiceValido(x, y) && !that.isInacessivel(x, y)
+            const [nx, ny] = v
+            if (nx == x && ny == y) {
+                return false
+            }
+            return that.isIndiceValido(nx, ny) && !that.isInacessivel(nx, ny)
         })
         return candidates
     }
@@ -209,7 +227,6 @@ class ElementsWrapper {
         await q.add([start_x, start_y, []])
         async function handleItem(item) {
             const [x, y, path] = item
-            console.log(path.length)
             if (path.length > (that.size_x*that.size_y)) {
                 throw "Estado final não encontrao"
             } 
@@ -226,16 +243,15 @@ class ElementsWrapper {
                 if (nx === undefined || ny === undefined) {
                     continue
                 }
-                console.log(newPath)
                 if (newPath.map((item) => item.map(String).join(',')).includes(`${nx},${ny}`)) { // checa se já passou por ali
-                    console.log("found cycle, skipping")
+                    // console.log("found cycle, skipping")
                     continue
                 }
                 await q.add([nx, ny, newPath])
             }
         }
         while(!q.isEmpty()) {
-            console.log("iteração")
+            // console.log("iteração")
             if (!that.continueOperation) {
                 throw "Operação cancelada"
             }
@@ -247,12 +263,11 @@ class ElementsWrapper {
             if (item) {
                 return item
             }
-            console.log(q.items)
         }
         throw "Nenhum caminho encontrado"
     }
     async algoDFS(start_x = 0, start_y = 0) {
-        that.checkInitialState(start_x, start_y)
+        this.checkInitialState(start_x, start_y)
         this.continueOperation = true
         const that = this
         async function recur(start_x = 0, start_y = 0, tail = []) {
@@ -261,7 +276,7 @@ class ElementsWrapper {
             }
             that.continueOperation = true
             if (tail.map((v) => JSON.stringify(v)).includes(JSON.stringify([start_x, start_y]))) {
-                console.log("found cycle, skipping...")
+                // console.log("found cycle, skipping...")
                 return null
             }
             const cur_node = that.node(start_x, start_y)
@@ -286,6 +301,58 @@ class ElementsWrapper {
         }
         return await recur(start_x, start_y) 
     }
+    async algoAstar(start_x = 0, start_y = 0) {
+        this.checkInitialState(start_x, start_y)
+        const that = this
+        this.continueOperation = true
+        let melhor = null
+        let custoMelhor = 9998
+        async function recur(start_x = 0, start_y = 0, custo = 0, tail = []) {
+            if (!that.continueOperation) {
+                if (melhor != null) {
+                    return melhor
+                }
+                throw "Operação cancelada"
+            }
+            that.continueOperation = true
+            that.checkInitialState(start_x, start_y)
+            if (tail.map((v) => JSON.stringify(v)).includes(JSON.stringify([start_x, start_y]))) {
+                // console.log("found cycle, skipping...")
+                return null
+            }
+            const cur_node = that.node(start_x, start_y)
+            if (cur_node.isInacessivel) {
+                return null
+            }
+            if (cur_node.isAlvo) {
+                if (custo < custoMelhor) {
+                    console.log(`encontrado caminho com custo melhor: ${custo}`)
+                    custoMelhor = custo
+                    melhor = [start_x, start_y, tail]
+                    document.getElementById("optimum").innerText = `${custoMelhor} (cancelar = mostrar)`
+                }
+                return melhor
+            }
+            const neighbours = await that.expandNode(start_x, start_y)
+            let heuristicNeighbours = neighbours
+                .sort((a, b) => {
+                    const [xa, ya] = a
+                    const [xb, yb] = b
+                    return (that.heuristica(xb, yb) - that.custo(xb, yb)) - (that.heuristica(xa, ya) - that.custo(xa, ya))
+                })
+            for (let i = 0; i < heuristicNeighbours.length; i++) {
+                const [x, y] = neighbours[i]
+                const nodeCusto = that.custo(x, y)
+                const newTail = [...tail, [start_x, start_y]]
+                const res = await usePromiseDeferer(() => recur(x, y, custo + nodeCusto, newTail))
+                if (res != null) {
+                    return null
+                }
+            }
+        }
+        await recur(start_x, start_y, this.custo(start_x, start_y)) 
+        return melhor
+    }
     async algoGula(start_x = 0, start_y = 0) {
         const that = this
         this.continueOperation = true
@@ -294,10 +361,9 @@ class ElementsWrapper {
             if (!that.continueOperation) {
                 throw "Operação cancelada"
             }
-            that.continueOperation = true
             that.checkInitialState(start_x, start_y)
             if (tail.map((v) => JSON.stringify(v)).includes(JSON.stringify([start_x, start_y]))) {
-                console.log("found cycle, skipping...")
+                // console.log("found cycle, skipping...")
                 return null
             }
             const cur_node = that.node(start_x, start_y)
@@ -308,17 +374,16 @@ class ElementsWrapper {
                 return [start_x, start_y, tail]
             }
             const neighbours = await that.expandNode(start_x, start_y)
-            let heuristicNeighbours = neighbours.map((v) => {
-                const [x, y] = v
-                const h = that.heuristica(x, y)
-                return [x, y, h]
+            let heuristicNeighbours = neighbours
+            .sort((a, b) => {
+                const [xa, ya] = a
+                const [xb, yb] = b
+                return that.heuristica(xb, yb) - that.heuristica(xa, ya)
             })
-            .sort((a, b) => a[2] - b[2])
-            
             for (let i = 0; i < heuristicNeighbours.length; i++) {
                 const [x, y] = neighbours[i]
                 const newTail = [...tail, [start_x, start_y]]
-                const ret = await recur(x, y, newTail)
+                const ret = await usePromiseDeferer(() => recur(x, y, newTail))
                 if (ret == null) {
                     continue
                 } else {
@@ -331,17 +396,22 @@ class ElementsWrapper {
     }
 
     async highlightPath(data) {
-        console.log(data)
-        if (data == null) {
+        const that = this
+        if (data === null) {
             alert("Nenhum caminho viável foi encontrado!")
+            return
         }
         const [x, y, rest] = data
         const path = [...rest, [x, y]]
+        let custo = 0
+        path.forEach((v) => {
+            const [x, y] = v
+            custo += that.custo(x, y)
+        })
+        document.getElementById("optimum").innerText = custo
         const counter = useCounter(path.length)
-        console.log(path.length)
         useTimeoutLoop((cancel) => {
             const i = counter()
-            console.log(i)
             if (i == null) {
                 cancel()
                 return
@@ -355,12 +425,33 @@ class ElementsWrapper {
 
 let elements = getElements()
 
+function unmarkEveryone(className = "path") {
+    while(true) { // não são todos os elementos que aparecem por rodada
+        const elements = document.getElementsByClassName(className)
+        if (elements.length == 0) {
+            return
+        }
+        for (let i = 0; i < elements.length; i++) {
+            elements[i].classList.remove(className)
+        }
+    }
+
+}
+
+function resetView() {
+    document.getElementById("optimum").innerText = "não conhecido"
+    unmarkEveryone()
+}
+
 function elementsHandler(handler) {
     return async function() {
+        resetView()
         elements = getElements()
         try {
             const res = await Promise.resolve(handler(elements))
-            console.log(res)
+            if (res == null) {
+                throw "Nenhum caminho viável encontrado"
+            }
             await elements.highlightPath(res)
             alert("Resultado encontrado com sucesso")
         } catch (e) {
@@ -374,6 +465,7 @@ function elementsHandler(handler) {
 const apply_busca_largura = elementsHandler((e) => e.algoBFS())
 const apply_busca_profundidade = elementsHandler((e) => e.algoDFS())
 const apply_busca_gulosa = elementsHandler((e) => e.algoGula())
+const apply_busca_astar = elementsHandler((e) => e.algoAstar())
 
 function cancel_operation() {
     if (elements) {

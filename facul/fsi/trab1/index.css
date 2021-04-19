@@ -9,6 +9,10 @@ footer {
     justify-content: space-around;
 }
 
+body > h1 {
+    text-align: center;
+}
+
 #board {
     display: block;
     flex-direction: column;
