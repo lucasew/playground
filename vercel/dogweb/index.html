@@ -1,0 +1,26 @@
+<html>
+    <head>
+        <title>Random Dog</title>
+    </head>
+    <body>
+        <script>
+            fetch("https://dog.ceo/api/breeds/image/random").then((r) => {
+                r.json().then((d) => {
+                    document.getElementById("img").src = d.message
+                })
+            })
+        </script>
+        <style>
+body {
+    margin: 0;
+    padding: 0;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+        </style>
+        <img id="img">
+    </body>
+</html>
