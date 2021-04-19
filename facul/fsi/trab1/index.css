@@ -12,6 +12,9 @@ footer {
 #board {
     display: block;
     flex-direction: column;
+    max-width: 600px;
+    margin-left: auto;
+    margin-right: auto;
 }
 #board > div > div {
     display: flex;
@@ -60,4 +63,9 @@ div[data-recompensa="true"] {
 
 div[data-alvo="true"] {
     font-weight: bolder;
+}
+
+div.path span {
+    border: red 1px solid;
+
 }
