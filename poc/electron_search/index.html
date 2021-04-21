@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+     <meta http-equiv="Content-Security-Policy" 
+               content="script-src 'self' 'unsafe-inline';" />
+     <title>Teste</title>
+</head>
+<body>
+<style>
+body {
+    background-color: white;
+}
+input {
+    flex: 1;
+    padding: auto;
+}
+header {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+</style>
+<script>
+    console.log(process.versions)
+    const {ipcRenderer} = require('electron')
+    function changetext() {
+        const e = document.getElementById("search")
+        console.log(e)
+        const text = e.value
+        ipcRenderer.send('change-text', text)
+    }
+</script>
+    <header>
+        <h1 id="search" contenteditable>Digite sua pesquisa</h1>
+    </header>
+</body>
+</html>
