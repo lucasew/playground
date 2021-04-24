@@ -49,4 +49,4 @@ list_edit_later = sorted(list(edit_later_nodes.values()), key = lambda v: v["cre
 
 labels = []
 for item in list_edit_later:
-    print(f"{item['text']} - {item['url']}")
+    print(f"{item['text']};{item['url']}")

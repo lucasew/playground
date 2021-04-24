@@ -1,0 +1,29 @@
+#! /usr/bin/env bash
+
+# https://developers.google.com/oauthplayground/
+# scopes: tasks,tasks.readonly
+ACCESS_TOKEN=""
+
+# https://developers.google.com/tasks/reference/rest/v1/tasklists/list
+TASK_LIST=""
+
+ORIGIN=$(mktemp)
+FAILED=$(mktemp)
+
+cp "$1" "$ORIGIN"
+touch "$FAILED"
+
+while true do
+    cat $ORIGIN | while read line; do
+        echo "Sending '$line'..."
+        IFS=";" read -ra arrline <<< "$line"
+        JSON=$(jq -n --arg n "${arrline[0]}" --arg v "${arrline[1]}" '{kind: "tasks#task", title: $n, notes: $v}')
+        curl -f -m 5 --request POST "https://tasks.googleapis.com/tasks/v1/lists/$TASK_LIST/tasks" -H "Authorization: Bearer $TASK_LIST" -H 'Content-Type: application/json' -d "$JSON" || echo "$line" >> failed.txt
+        sleep 0.2
+    done
+    [ $(cat "$FAILED" | wc -l) == 0] && break
+    cp "$FAILED" "$ORIGIN"
+done
+
+rm "$FAILED" "$ORIGIN" || true
+
