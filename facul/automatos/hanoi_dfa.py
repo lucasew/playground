@@ -351,11 +351,11 @@ assert(dfa.check_match("acabcbacbabcac")) # optimum
 dfa.minimize()
 log(f"quantidade de estados minimizada: {len(dfa)}")
 
-dfa_regex = dfa.to_regex()
-dfa_regex.print_item(sys.stdout)
+# dfa_regex = dfa.to_regex()
+# dfa_regex.print_item(sys.stdout)
 # log(dfa_regex)
 # log(len(dfa_regex))
-# dfa.print_graphviz()
+dfa.print_graphviz()
 
 # rg = RegexpAST.concat("a", "b")
 # rg.print_item(sys.stdout)
