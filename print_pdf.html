@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <style>
+        /* See also: https://stackoverflow.com/questions/1360869/how-to-use-html-to-print-header-and-footer-on-every-printed-page-of-a-document */
+        :root {
+            font-family: Arial, Helvetica, sans-serif;
+        }
+        html {
+            margin: 0;
+            padding: 0;
+        }
+
+        @page {
+            size: A4 portrait;
+            margin: 10px; /* TODO: mudar */
+
+            marks: crop;
+
+            @bottom-right {
+                content: "Página "counter(page, upper-roman);
+            }
+
+            @bottom-center {
+                content: string(chapter);
+            }
+
+            @top-center {
+                content: string(book-name);
+            }
+        }
+
+        .header {
+            position: sticky;
+        }
+
+        .footer {
+            position: sticky;
+            bottom: 0;
+        }
+
+        page-break {
+            page-break-after: always;
+        }
+
+        h1.chapter {
+            string-set: chapter content(text);
+            page-break-before: always;
+        }
+
+        h1#book-name {
+            string-set: book-name content(text);
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <h1 id="book-name">Teste de PDF</h1>
+    <h1 class="chapter">Teste</h1>
+    <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Aliquam arcu magna, efficitur ut varius a,
+        pharetra dictum diam. Praesent ut velit sed est rutrum placerat. Donec eget cursus ex, ut dapibus
+        odio.
+        Nulla non rutrum urna. Donec commodo mattis laoreet. Quisque dignissim orci eu elit finibus
+        venenatis.
+        Integer viverra dui vitae dui pharetra imperdiet.</p>
+
+    <p>Sed lacinia varius leo eu sollicitudin. Integer nec mauris magna. Donec eu nunc libero. Quisque a
+        lacus
+        malesuada, tristique arcu eget, porttitor felis. Vestibulum ante ipsum primis in faucibus orci
+        luctus et
+        ultrices posuere cubilia curae; Mauris quis orci in ligula consequat finibus et non lorem. Etiam
+        ultrices lorem nec convallis hendrerit. Phasellus rhoncus volutpat mauris. In ut justo ante. Mauris
+        tristique libero ac dapibus consequat. In eget turpis hendrerit, lobortis neque placerat, cursus
+        dolor.
+        Nunc elit sapien, posuere accumsan ultrices vel, semper in sapien.</p>
+
+    <p>Sed ac tortor sollicitudin, iaculis orci eget, volutpat massa. Aliquam facilisis turpis vitae nulla
+        dapibus finibus pellentesque eget erat. Morbi placerat turpis vitae euismod faucibus. Nulla sed
+        consequat eros, sed accumsan sem. Suspendisse risus nibh, cursus in enim at, semper feugiat sem.
+        Curabitur laoreet elit non neque consectetur euismod. Quisque a tellus dui. Nulla gravida mauris
+        nisl,
+        eget ultrices massa rutrum id. Aliquam pretium mauris sit amet mi laoreet accumsan. Morbi erat
+        libero,
+        tempor vitae interdum non, laoreet et magna. Suspendisse potenti. Aliquam dapibus a justo eget
+        aliquam.
+        Phasellus elementum metus sed diam cursus, nec hendrerit felis congue.</p>
+
+    <p>Proin interdum elit interdum tellus lacinia, vitae viverra nibh venenatis. Pellentesque et ultricies
+        risus. Fusce a cursus urna. Sed et risus quis nulla pulvinar venenatis. Nulla consequat purus
+        aliquet
+        nisi sodales luctus. Curabitur nulla odio, viverra condimentum justo a, cursus semper tortor. Nulla
+        tempus dolor non tortor lacinia, eu rhoncus ante viverra.</p>
+
+    <h1 class="chapter">Eoq</h1>
+    <p>Nulla tempus massa et est scelerisque, quis mattis nunc suscipit. Sed malesuada tellus mauris, et
+        dapibus
+        enim fringilla sit amet. Cras nec dui justo. Sed varius magna sem, in tristique lectus tristique a.
+        Aliquam luctus lorem ut molestie ornare. Pellentesque habitant morbi tristique senectus et netus et
+        malesuada fames ac turpis egestas. Aliquam eget malesuada est. Nulla facilisi. Sed feugiat augue
+        laoreet
+        quam convallis, fringilla viverra augue mattis. Sed et efficitur magna, lacinia faucibus nulla.
+        Fusce
+        volutpat purus vel risus condimentum, sit amet dapibus lectus bibendum. Quisque et turpis vel libero
+        lacinia venenatis. Ut vel leo eu tellus aliquam sagittis. Mauris posuere mauris sem, at egestas
+        magna
+        auctor sit amet. Cras porta velit vehicula fringilla aliquam. Praesent id tristique nunc.</p>
+
+    <p>Integer et nulla et ligula accumsan fermentum vitae sit amet lacus. Aenean finibus neque dolor, sed
+        imperdiet quam gravida rutrum. In bibendum dui ac mattis tincidunt. Aliquam at mattis quam. Aenean
+        vestibulum nec turpis ac blandit. Mauris blandit diam eu ligula pellentesque feugiat. Curabitur ut
+        magna
+        consectetur, rutrum dui vulputate, consequat elit. Nullam convallis finibus tincidunt.</p>
+
+    <p>Aenean pellentesque orci ut ligula aliquam fringilla. Nullam vitae pellentesque felis. Phasellus
+        vitae
+        sem efficitur, rutrum urna in, tempus risus. Curabitur dui odio, blandit id nisl ac, cursus volutpat
+        nunc. Sed consectetur vestibulum convallis. Praesent nunc mi, cursus nec feugiat quis, molestie in
+        sem.
+        Quisque est mauris, malesuada vulputate fringilla eget, ultrices in turpis. Pellentesque fringilla,
+        velit id mollis pretium, sapien elit finibus mi, eget maximus erat metus et justo. Aenean quis elit
+        at
+        orci lacinia posuere sodales sit amet lectus. Aliquam vitae egestas neque, ac vulputate nulla.
+        Curabitur
+        commodo sed tortor a euismod. Fusce fermentum lectus a viverra dignissim. Integer vel eros auctor,
+        dignissim risus in, rhoncus turpis. Maecenas et tempor quam.</p>
+
+    <p>Nam dignissim ligula at est malesuada, id vulputate neque eleifend. Vivamus rhoncus, orci vitae
+        semper
+        ornare, magna nulla eleifend nibh, et feugiat neque purus in nisl. Sed fringilla dui eget felis
+        placerat
+        rutrum. Pellentesque habitant morbi tristique senectus et netus et malesuada fames ac turpis
+        egestas.
+        Nam iaculis rhoncus magna a vehicula. Praesent sagittis est massa, non efficitur metus ullamcorper
+        et.
+        Curabitur et pulvinar justo, quis ullamcorper ante. Mauris fringilla consectetur commodo. Sed
+        consequat
+        turpis at odio interdum, et dapibus magna fringilla.</p>
+    <p>Proin volutpat felis id ex maximus accumsan. Proin facilisis sem eu diam dictum, vel vehicula metus
+        laoreet. Pellentesque habitant morbi tristique senectus et netus et malesuada fames ac turpis
+        egestas.
+        Vestibulum lobortis vestibulum volutpat. In in consectetur est. Curabitur fermentum, sapien vitae
+        rhoncus dignissim, elit nulla interdum dolor, non ullamcorper tellus eros id velit. Aenean efficitur
+        porta urna, eu condimentum arcu imperdiet et. Aenean eget dignissim dui, hendrerit cursus est.
+        Aliquam
+        leo eros, facilisis sit amet commodo at, congue at orci.</p>
+
+    <p>Donec placerat lacus ac egestas varius. Aliquam sed laoreet magna. Phasellus egestas ante enim, quis
+        rhoncus diam ultrices at. Integer tempor ante ut metus euismod semper. Nam id tortor iaculis,
+        scelerisque risus sit amet, lacinia ipsum. Mauris rutrum orci tincidunt, fermentum metus ut,
+        bibendum
+        purus. Nam finibus id lorem eu rhoncus. Curabitur non facilisis felis, non condimentum dui. Quisque
+        sed
+        enim vulputate, interdum lectus vitae, consequat ex. Vestibulum ac tincidunt nulla. Etiam aliquet
+        aliquet tellus, sit amet finibus risus semper eu.</p>
+
+    <p>Vivamus vel est sit amet sem facilisis rutrum ac in est. Vestibulum vestibulum quam non pulvinar
+        sagittis. Proin ultrices posuere massa, id porta ligula accumsan eu. Interdum et malesuada fames ac
+        ante
+        ipsum primis in faucibus. Pellentesque ex libero, bibendum viverra lacus in, efficitur iaculis
+        metus.
+        Morbi in arcu quis mi fringilla venenatis eu ut purus. Nunc at lacus quis dui mollis mollis et
+        facilisis
+        diam. Aenean varius ut erat non luctus. Praesent viverra risus urna, ac egestas eros mattis nec.
+        Fusce
+        faucibus massa sed arcu pretium suscipit. Aliquam vehicula nisl eget odio pellentesque euismod.</p>
+
+    <p>In ac augue sit amet turpis faucibus feugiat et eget nulla. Etiam at mi eu ante eleifend vestibulum.
+        Nullam id ultricies nibh, eu vulputate ligula. Morbi magna orci, vehicula non vehicula ac, feugiat
+        ut
+        lacus. Fusce congue euismod sollicitudin. Nulla facilisis ante quis ornare varius. Donec nibh magna,
+        posuere aliquet tristique vel, consequat et augue. Proin ac justo vitae felis mattis interdum.
+        Praesent
+        massa metus, tempor non consectetur sit amet, blandit et lorem. Nulla euismod imperdiet magna, nec
+        mattis mauris viverra a. Morbi a neque at mauris vehicula finibus. Orci varius natoque penatibus et
+        magnis dis parturient montes, nascetur ridiculus mus. Phasellus sed suscipit lorem.</p>
+
+    <p>Suspendisse a urna pellentesque, facilisis magna eget, finibus lorem. Maecenas metus erat, feugiat ac
+        dui
+        vel, posuere dignissim nulla. Pellentesque gravida velit hendrerit lectus tristique euismod. Class
+        aptent taciti sociosqu ad litora torquent per conubia nostra, per inceptos himenaeos. Mauris vel
+        posuere
+        nulla, sit amet sollicitudin risus. Aliquam eleifend ullamcorper volutpat. Lorem ipsum dolor sit
+        amet,
+        consectetur adipiscing elit. Nam sagittis sapien ut augue convallis lacinia. Pellentesque habitant
+        morbi
+        tristique senectus et netus et malesuada fames ac turpis egestas. Ut imperdiet sed velit eu blandit.
+        Maecenas turpis dui, pellentesque ut aliquam nec, feugiat eget dui.</p>
+    
+    <h1 class="chapter">Trabson</h1>
+
+    <p>Fusce venenatis aliquet orci, pharetra aliquet diam commodo at. In hac habitasse platea dictumst.
+        Morbi
+        in metus feugiat, ornare neque quis, tempus elit. Fusce ut malesuada sem. Aenean in aliquam diam, a
+        egestas nisi. In non efficitur sem. Donec malesuada suscipit ultrices. Aliquam id ante non ex
+        commodo
+        lacinia. Aenean venenatis porttitor tellus, in maximus augue bibendum sit amet. Etiam at diam
+        tristique
+        eros auctor ultrices. Proin ornare nisi in ante convallis, quis bibendum magna ullamcorper. Sed leo
+        diam, congue sit amet justo non, sodales condimentum mauris. Integer porta ullamcorper dui sit amet
+        tempor. Phasellus in nunc gravida, feugiat nisi non, ultricies nisl. Sed nisi nisl, cursus ut
+        lacinia
+        sit amet, tincidunt in purus.</p>
+
+    <p>Integer eget laoreet velit. Vestibulum id nisl nec augue lobortis tincidunt sit amet sit amet nisl.
+        Nam
+        consectetur, nibh in pretium feugiat, turpis magna imperdiet lacus, at hendrerit dui odio vitae
+        neque.
+        Aliquam posuere lorem arcu, in feugiat dui finibus id. Quisque porttitor congue lacinia. Etiam
+        ullamcorper interdum arcu cursus lacinia. Duis eget risus porttitor, placerat odio at, mattis
+        sapien.
+        Aenean efficitur sit amet augue tristique molestie. Quisque neque risus, pulvinar sed augue at,
+        venenatis aliquet velit. Praesent eget suscipit elit. Interdum et malesuada fames ac ante ipsum
+        primis
+        in faucibus. Sed nec mi sed dui consectetur rutrum. Fusce tempus tellus eget diam lacinia
+        sollicitudin.
+        Praesent in pharetra eros. Quisque elementum mauris faucibus, luctus dui ac, posuere quam. Cras et
+        ornare mauris, vitae venenatis libero.</p>
+
+    <p>Pellentesque vestibulum laoreet tellus sed mattis. In et ligula est. Integer molestie mollis turpis,
+        ac
+        laoreet felis faucibus a. Donec tempus bibendum tincidunt. Interdum et malesuada fames ac ante ipsum
+        primis in faucibus. Quisque eleifend libero eget ligula venenatis iaculis vel gravida ante. Proin
+        vulputate facilisis varius. Donec id convallis enim, non placerat lorem. Sed cursus lorem non
+        pretium
+        ullamcorper. Proin feugiat neque quis congue placerat. Fusce ex turpis, semper et dolor at, iaculis
+        vulputate felis. In aliquet odio laoreet pharetra maximus. Cras vitae leo sem. Class aptent taciti
+        sociosqu ad litora torquent per conubia nostra, per inceptos himenaeos. Proin nisi turpis, molestie
+        at
+        purus quis, placerat gravida nisl. Nam et ultricies magna, nec elementum mi.</p>
+    <h1 class="chapter">Another Chapter</h1>
+
+    <p>Sed vitae justo consectetur, suscipit mi non, aliquet lorem. Sed laoreet gravida velit non tincidunt.
+        Nullam aliquam ac quam in commodo. Donec posuere sem id lorem facilisis, eget luctus nisi vehicula.
+        Mauris mollis turpis nec urna efficitur, a fringilla eros posuere. Cras consequat dictum arcu,
+        sagittis
+        tincidunt ante finibus vitae. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nunc ultrices
+        tempus tortor, vitae lobortis arcu sodales ut. Mauris ultricies sodales augue, eu aliquam sapien
+        porttitor vel.</p>
+
+    <p>Vestibulum sagittis metus vel mauris malesuada fringilla. Nullam ornare molestie neque. In hac
+        habitasse
+        platea dictumst. Quisque cursus felis non magna dignissim porttitor. Proin a nunc tincidunt,
+        interdum
+        ligula eget, semper metus. Fusce vitae nunc mattis, rhoncus orci sit amet, ullamcorper turpis. Cras
+        sed
+        quam sem.</p>
+
+    <p>Curabitur lobortis leo sit amet leo euismod, vitae luctus metus venenatis. Mauris fringilla felis et
+        magna ultricies, at ullamcorper mi posuere. Mauris placerat iaculis pharetra. Pellentesque neque
+        erat,
+        iaculis tempus risus sit amet, aliquam dignissim massa. Donec porttitor convallis dui eu placerat.
+        Suspendisse non dictum libero. Maecenas non justo non odio sollicitudin sodales eget non augue.
+        Fusce
+        quis ipsum scelerisque dolor fermentum scelerisque a nec massa. Donec vitae ex ante. Pellentesque
+        posuere elit at tempor egestas. Suspendisse cursus eros eu massa porta varius. In hac habitasse
+        platea
+        dictumst. Aenean augue risus, scelerisque eu posuere a, efficitur nec ipsum. Duis quis tortor at
+        metus
+        mattis hendrerit.</p>
+
+    <p>Aenean nec vehicula urna, sit amet pretium purus. Quisque feugiat tellus sed purus feugiat volutpat.
+        Nam
+        pharetra lacinia nunc, posuere imperdiet felis tincidunt nec. Maecenas ultrices sem felis, in
+        pulvinar
+        quam aliquam a. Donec lectus ligula, congue a risus a, aliquet mollis quam. Ut tincidunt quis justo
+        a
+        lacinia. Interdum et malesuada fames ac ante ipsum primis in faucibus. Aliquam sit amet dolor ornare
+        velit congue imperdiet sed et nisi. In ante libero, pharetra at iaculis vel, varius sed metus.
+        Maecenas
+        faucibus ipsum sed aliquet placerat. Lorem ipsum dolor sit amet, consectetur adipiscing elit.
+        Vivamus
+        dictum rutrum nunc, vel scelerisque elit eleifend eget. Morbi eu consequat massa. Vivamus
+        consectetur et
+        elit ullamcorper suscipit. </p>
+    <script src="https://unpkg.com/pagedjs/dist/paged.polyfill.js"></script>
+    <script src="https://unpkg.com/pagedjs@0.2.0/dist/paged.js"></script>
+</body>
+
+</html>
