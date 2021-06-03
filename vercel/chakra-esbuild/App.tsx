@@ -1,13 +1,8 @@
 import * as React from 'react'
-import * as Server from 'react-dom/server'
 
 import { Badge, Box, ChakraProvider, Flex, SimpleGrid, Spinner, Text } from '@chakra-ui/react'
 
-const port = 8080;
-
-import Koa from 'koa'
-
-function RootComponent(props) {
+export default function RootComponent(props) {
     const [loading, setLoading] = React.useState(true)
     React.useEffect(() => {
         return () => clearTimeout(setTimeout(() => setLoading(false), 3000))
@@ -37,14 +32,3 @@ function RootComponent(props) {
         </ChakraProvider>
     )
 }
-
-
-const app = new Koa()
-app.use(async ctx => {
-    // This is vanilla SSR xD
-    // BTW that print does not run on client
-    ctx.body = Server.renderToString(<RootComponent/>)
-})
-
-app.listen(port)
-console.log(`listening on port ${port}`)

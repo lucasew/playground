@@ -3,6 +3,7 @@
     "@chakra-ui/react": "^1.6.1",
     "@emotion/react": "^11",
     "@emotion/styled": "^11",
+    "@koa/router": "^10.0.0",
     "esbuild": "^0.11.19",
     "framer-motion": "^4",
     "koa": "^2.13.1",
@@ -11,11 +12,12 @@
   },
   "devDependencies": {
     "@types/koa": "^2.13.1",
+    "@types/koa__router": "^8.0.4",
     "@types/react": "^17.0.5",
     "@types/react-dom": "^17.0.3"
   },
   "scripts": {
-    "build": "esbuild ./App.jsx --bundle --outfile=dist/main.js --platform=node",
+    "build": "esbuild App.tsx --bundle --outfile=dist/main.js",
     "start": "yarn build && node dist/main.js"
   }
 }
