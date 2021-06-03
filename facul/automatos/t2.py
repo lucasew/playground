@@ -56,7 +56,8 @@ class StackAutomata:
             pop_stack()
             push_stack(to_push)
             state = next_state
-        is_final = len(stack) == 0
+        # is_final = len(stack) == 0
+        is_final = state == self.final_state
         return is_final
 
 def icaro_states():
@@ -136,3 +137,4 @@ fail_testcase("d")
 fail_testcase("e")
 fail_testcase("f")
 fail_testcase("")
+fail_testcase("bdeeef")
