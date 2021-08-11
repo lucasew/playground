@@ -2,6 +2,7 @@
 #! nix-shell -p python3 -i python
 import sys
 from copy import deepcopy
+from pprint import pprint
 
 
 """
@@ -73,7 +74,6 @@ def get_dfa():
         state_name = str(state).replace(' ', '')
         ret = "\n".join([",".join(line) for line in state])
         return state_name, ret
-
 
     def traverse_states(current_state):
         name, label = generate_state(current_state)
@@ -192,79 +192,14 @@ class DFA():
         return dest in self.transitions[orig].values()
 
     def to_regex(self):
-        # parece estar gerando ciclos de referencia que nunca terminam, mas pelo menos não está levando eras :shrug:
-        dict_states = {}
+        # FIXME: I do not work
+        endstates = deepcopy(self.endstates)
+        transitions = deepcopy(self.transitions)
         states = deepcopy(self.states)
-        empty_re = RegexpAST.new_empty()
-        def key(x, y):
-            return f'{x},{y}'
-        def key2num(key):
-            return [int(n) for n in key.split(",")]
-        def state_get(x, y):
-            v = dict_states.get(key(x, y))
-            if v == None:
-                return empty_re
-            return v
-        def state_set(x, y, data):
-            dict_states[key(x, y)] = data
-        def eliminate_state(state):
-            for i in states:
-                for j in states:
-                    if i == state or j == state:
-                        del(dict_states[key(i, j)])
-            states.remove(state)
-        def get_before(state):
-            before_me = []
-            for i in states:
-                for j in states:
-                    if j == state and not state_get(i, j).is_empty():
-                        before_me.append(i)
-            return before_me
-        def get_after(state):
-            after_me = []
-            for i in states:
-                if not state_get(state, i).is_empty():
-                    after_me.append(i)
-            return after_me
-        
-        # inicialização da matriz
-        for i in self.states:
-            for j in self.states:
-                state_set(i, j, empty_re)
-
-        for i in self.states:
-            for j in self.states:
-                for k in self.transitions[i].keys():
-                    if self.transitions[i][k] == j:
-                        state_set(i, j, RegexpAST.new_summing(k))
-                        log(state_get(i, j).is_empty())
-        init_state = 1 # estado inicial
-        non_intermediates = [init_state, *self.endstates] # estados não intermediarios (mais fácil)
-        intermediates = [state for state in self.states if state not in non_intermediates] # estados intermediários
-        for inter in intermediates:
-            log(f"Eliminating state: {inter}")
-            for before in get_before(inter):
-                write_visual_feedback("+")
-                for after in get_after(inter):
-                    write_visual_feedback("-")
-                    inter_loop = state_get(inter, inter)
-                    before_inter = state_get(before, inter)
-                    before_after = state_get(before, after)
-                    inter_after = state_get(inter, after)
-                    # if before_inter.is_empty() or inter_after.is_empty() or inter_loop.is_empty():
-                    #     continue
-                    cur = state_get(before, after)
-                    first = state_get(before, inter)
-                    second = RegexpAST.star_it(cur)
-                    third = RegexpAST.star_it(inter_loop)
-                    fourth = inter_after
-                    state_set(before, after, cur + RegexpAST.concat(first, second, third, fourth))
-            eliminate_state(inter)
-        init_loop = state_get(init_state, init_state)
-        init_to_final = RegexpAST.concat(state_get(init_state, self.endstates[0]), RegexpAST.star_it(state_get(self.endstates[0], self.endstates[0])))
-        final_to_init = state_get(self.endstates[0], init_state)
-        return RegexpAST.concat(RegexpAST.star_it(init_loop + init_to_final + final_to_init), init_to_final)
-
+        pprint(endstates)
+        pprint(transitions)
+        pprint(states)
+        return RegexpAST.new_empty()
     def __len__(self):
         return len(self.states)
 
@@ -323,7 +258,7 @@ class RegexpAST():
         if self.star:
             star_size = 1
         return 2 + childlen + (len(self.root_term) * (len(self.children) - empty_children - 1)) + star_size # parenthesis + children + item separators + 1 if star at the end
-    def print_item(self, f = sys.stdout, depth = 21):
+    def print_item(self, f = sys.stdout, depth = 100):
         if self.is_empty():
             return
         if depth == 0:
@@ -346,18 +281,21 @@ class RegexpAST():
 
 
 dfa = get_dfa()
-log(f"quantidade de estados: {len(dfa)}")
 assert(dfa.check_match("acabcbacbabcac")) # optimum
+log(f"quantidade de estados: {len(dfa)}")
 dfa.minimize()
+assert(dfa.check_match("acabcbacbabcac")) # optimum
 log(f"quantidade de estados minimizada: {len(dfa)}")
+dfa.to_regex().print_item(sys.stdout)
+
 
 # dfa_regex = dfa.to_regex()
 # dfa_regex.print_item(sys.stdout)
 # log(dfa_regex)
 # log(len(dfa_regex))
-dfa.print_graphviz()
+# dfa.print_graphviz()
 
-# rg = RegexpAST.concat("a", "b")
+# rg = RegexpAST.concat("a", "b").star_it()
 # rg.print_item(sys.stdout)
 # log(len(rg))
 # a = RegexpAST.concat("abc")
