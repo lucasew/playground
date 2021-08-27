@@ -1,9 +1,12 @@
 #! /usr/bin/env nix-shell
 #! nix-shell -p python3 -i python
 import sys
+from copy import deepcopy
+from random import randint
 
 class StackAutomata:
-    def __init__(self, start_state=None, final_state=None):
+    def __init__(self, start_state=None, final_state=None, start_stack = []):
+        self.start_stack = start_stack
         self.states = {}
         assert (final_state is not None)
         self.start_state = start_state
@@ -30,7 +33,7 @@ class StackAutomata:
             self.start_state = self.start_state = origin
 
     def check(self, stmt):
-        stack = []
+        stack = deepcopy(self.start_stack)
 
         def push_stack(items):
             items = list(items)
@@ -39,13 +42,14 @@ class StackAutomata:
 
         def peek_stack():
             if len(stack) == 0:
-                return None
+                return ""
             return stack[-1]
 
         def pop_stack():
+            if len(stack) == 0:
+                return ""
             return stack.pop()
 
-        push_stack("Z")
         state = self.start_state
         for ch in stmt:
             stack_top = peek_stack()
@@ -55,29 +59,37 @@ class StackAutomata:
             to_push, next_state = route
             pop_stack()
             push_stack(to_push)
+            # print(ch, state, next_state, stack_top, to_push, stack)
             state = next_state
         # is_final = len(stack) == 0
         is_final = state == self.final_state
         return is_final
 
-def icaro_states():
-    ret = StackAutomata(start_state = 0, final_state = 6)
-    ret.add_route(0, 0, "a", "X", "XXX")
-    ret.add_route(0, 0, "a", "Z", "ZXX")
-    ret.add_route(0, 1, "b", "X", "X")
-    ret.add_route(0, 1, "b", "Z", "Z")
-    ret.add_route(1, 1, "c", "X", "")
-    ret.add_route(1, 2, "d", "Z", "Z")
-    ret.add_route(2, 2, "d", "Z", "Z")
-    ret.add_route(2,3, "e", "Z", "X")
-    ret.add_route(3,4,"e", "X", "X")
-    ret.add_route(4,5,"e", "X", "X")
-    ret.add_route(5,3, "e", "X", "XX")
-    ret.add_route(5, 6, "f", "X", "")
-    ret.add_route(6, 6, "f", "X", "")
+def our_states():
+    ret = StackAutomata(start_state = 1, final_state = 9, start_stack = ["Z"])
+    def r(sa, sb, ch, st, sp):
+        ret.add_route(sa, sb, ch, st, sp)
+    r(1, 2, "a", "Z", "ZAA")
+    r(1, 3, "b", "Z", "Z")
+    r(2, 2, "a", "A", "AAA")
+    r(2, 3, "b", "A", "A")
+    r(3, 3, "c", "A", "")
+    r(3, 4, "d", "Z", "Z")
+    r(4, 4, "d", "Z", "Z")
+    r(4, 5, "e", "Z", "Z")
+    r(5, 6, "e", "A", "A")
+    r(5, 6, "e", "Z", "Z")
+    r(6, 7, "e", "A", "A")
+    r(6, 7, "e", "Z", "Z")
+    r(7, 5, "e", "A", "AA")
+    r(7, 5, "e", "Z", "ZA")
+    r(7, 8, "f", "A", "")
+    r(7, 9, "f", "Z", "")
+    r(8, 8, "f", "A", "")
+    r(8, 9, "f", "Z", "")
     return ret
 
-states = icaro_states()
+states = our_states()
 print(states.__dict__)
 
 def check(stmt):
@@ -85,16 +97,16 @@ def check(stmt):
     return ret
 
 def pass_testcase(stmt):
-    if not check(stmt):
-        print(f"fail: {stmt} <=> valido")
+    if check(stmt):
+        print(f"OK valid: {stmt}")
     else:
-        print(f"pass valid")
+        print(f"FAIL valid: {stmt}")
 
 def fail_testcase(stmt):
-    if check(stmt):
-        print(f"fail: {stmt} <=> inválido")
+    if not check(stmt):
+        print(f"OK invalid: {stmt}")
     else:
-        print(f"pass invalid")
+        print(f"FAIL invalid: {stmt}")
 
 def sentence_generator(n, x, m):
     # assert(n >= 0)
@@ -102,39 +114,16 @@ def sentence_generator(n, x, m):
     # assert(x >= 1)
     return ("a"*n) + "b" + ("c" * 2 * n) + ("d" * x) + ("e" * 3 * m)+ ("f" * m)
 
-pass_testcase("abccdeeef") # n = 1, x = 1, m = 1
-pass_testcase("bdeeef") # n = 0, x = 1, m = 1
-fail_testcase("bdeef") 
 
-pass_testcase("bddeeef") # n = 0, x = 2, m = 1
-fail_testcase("bddeef")
-
-pass_testcase("bddeeeeeeff") # n = 0, x = 2, m = 2
-fail_testcase("bddeeeeeef")
-fail_testcase("bddeeeeeff")
-
-pass_testcase("abccddeeef") # n = 1, x = 2, m = 1
-fail_testcase("abccddeef")
-fail_testcase("abcddeeef")
-
-pass_testcase("abccddeeeeeeff") # n = 1, x = 2, m = 2
-fail_testcase("abccddeeeeeff") 
-fail_testcase("abccddeeeeeef")
-fail_testcase("abccddeeeeff")
-
-for n in range(0, 10):
-    for m in range(1, 10):
-        for x in range(1, 10):
+MAX_SIZE=1
+for n in range(0, MAX_SIZE):
+    for m in range(0, MAX_SIZE):
+        for x in range(0, MAX_SIZE):
+            fail_testcase(sentence_generator(n,x,m) + ("f" * randint(1, MAX_SIZE)))
             if m == 0 or x == 0:
                 fail_testcase(sentence_generator(n, x, m))
             else:
                 pass_testcase(sentence_generator(n, x, m))
 
-fail_testcase("a")
-fail_testcase("b")
-fail_testcase("c")
-fail_testcase("d")
-fail_testcase("e")
-fail_testcase("f")
-fail_testcase("")
-fail_testcase("bdeeef")
+
+pass_testcase("bdeeef")
