@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+    <script src="http://mozilla.github.io/pdf.js/build/pdf.js" crossorigin="anonymous"></script>
+    <script src="https://www.marvinj.org/releases/marvinj-1.0.min.js"></script>
+    <link href="http://mozilla.github.io/pdf.js/web/viewer.css" rel="stylesheet" type="text/css" />
+    <style type="text/css">
+        canvas {
+            border: 1px solid black;
+            direction: ltr;
+        }
+        #textLayer {
+            position: absolute;
+        }
+        #textLayer  span {
+            position: absolute;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>PDF.js Previous/Next example</h1>
+
+    <div>
+        <button id="prev">Previous</button>
+        <button id="next">Next</button>
+        <button id="download">Download</button>
+        &nbsp; &nbsp;
+        <span>Page: <span id="page_num"></span> / <span id="page_count"></span></span>
+    </div>
+
+    <input id="pdf" type="file"/>
+    <br>
+    <canvas id="the-canvas"></canvas>
+    <canvas id="segmented"></canvas>
+    <div id="textLayer"></div>
+
+    <script>
+        var pdfjsLib = window['pdfjs-dist/build/pdf'];
+        const canvas = document.getElementById('the-canvas')
+        const ctx = canvas.getContext('2d');
+
+        // The workerSrc property shall be specified.
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'http://mozilla.github.io/pdf.js/build/pdf.worker.js';
+        const input = document.getElementById('pdf')
+        input.addEventListener('change', async (e) => {
+            console.log(input.files)
+            console.log("* change *")
+            handleRender()
+        })
+        document.getElementById('download').addEventListener('click', () => {
+            const link = document.createElement('a')
+            link.download = 'demo.png'
+            link.href = canvas.toDataURL()
+            link.click()
+        })
+
+        function handleRender() {
+            if (input.files[0]) {
+                reader = new FileReader()
+                let h = 0
+                reader.onload = async (e) => {
+                    render(reader.result)
+                }
+                reader.readAsArrayBuffer(input.files[0])
+            }
+        }
+
+        let pageNum = 1
+
+        /**
+         * Displays previous page.
+         */
+        function onPrevPage() {
+            pageNum--;
+            handleRender()
+        }
+        document.getElementById('prev').addEventListener('click', onPrevPage);
+
+        /**
+         * Displays next page.
+         */
+        function onNextPage() {
+            pageNum++;
+            handleRender()
+        }
+        document.getElementById('next').addEventListener('click', onNextPage);
+
+        async function render(data) {
+            document.getElementById('textLayer').innerHTML = ""
+            const pdfDoc = await pdfjsLib.getDocument(data).promise.then(function (pdfDoc_) {
+                document.getElementById('page_count').textContent = pdfDoc_.numPages;
+                return pdfDoc_
+            });
+            if (pageNum < 1) {
+                pageNum = 1
+            }
+            if (pageNum > pdfDoc.numPages) {
+                pageNum = pdfDoc.numPages
+            }
+            var 
+                pageRendering = false,
+                pageNumPending = null,
+                // scale = 0.8,
+                scale = 1
+            console.log(ctx)
+            /**
+             * Asynchronously downloads PDF.
+             */
+            
+            /**
+             * Get page info from document, resize canvas accordingly, and render page.
+             * @param num Page number.
+             */
+            pageRendering = true;
+            // Using promise to fetch the page
+            await pdfDoc.getPage(pageNum).then(function (page) {
+                var viewport = page.getViewport({ scale });
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+
+                // Render PDF page into canvas context
+                var renderContext = {
+                    canvasContext: ctx,
+                    viewport: viewport
+                };
+                var renderTask = page.render(renderContext);
+
+                // Wait for rendering to finish
+                renderTask.promise.then(function () {
+                    pageRendering = false;
+                }).then(function () {
+                    // Returns a promise, on resolving it will return text contents of the page
+                    return page.getTextContent();
+                }).then(async function (textContent) {
+
+                    // Assign CSS to the textLayer element
+                    var textLayer = document.getElementById("textLayer");
+
+                    textLayer.style.left = canvas.offsetLeft + 'px';
+                    textLayer.style.top = canvas.offsetTop + 'px';
+                    textLayer.style.height = canvas.offsetHeight + 'px';
+                    textLayer.style.width = canvas.offsetWidth + 'px';
+
+                    // Pass the data to the method for rendering of text over the pdf canvas.
+                    let content = textContent
+                    // remove vertical elements
+                    content.items = content.items.filter((item) => {
+                        const {transform} = item
+                        const [,a,b,,,] = transform
+                        return (a === 0) && (b === 0)
+                    })
+                    pdfjsLib.renderTextLayer({
+                        textContent: content,
+                        container: textLayer,
+                        viewport: viewport,
+                        textDivs: []
+                    });
+                    const mimage = new MarvinImage();
+                    await new Promise((res, rej) => mimage.load(canvas.toDataURL(), res))
+                    const segmented = document.getElementById('segmented')
+                    segmented.width = canvas.width
+                    segmented.height = canvas.height
+                    const out = mimage.clone()
+                    out.clear(0xFF000000)
+                    Marvin.prewitt(mimage, out)
+                    Marvin.invertColors(out, out)
+                    Marvin.thresholding(out, out, 150)
+                    const segments = Marvin.floodfillSegmentation(out)
+                    for (let i = 0; i < segments.length; i++) {
+                        const seg = segments[i]
+                        out.drawRect(Math.floor(seg.x1), Math.floor(seg.y1), Math.floor(seg.width), Math.floor(seg.height), 0xFFFF0000)
+                    }
+                    out.draw(segmented)
+                    document.querySelectorAll('#textLayer > br').forEach((e) => e.parentElement.removeChild(e))
+                });
+            });
+
+            // Update page counters
+            document.getElementById('page_num').textContent = pageNum;
+        }
+    </script>
+
+</body>
+
+</html>
