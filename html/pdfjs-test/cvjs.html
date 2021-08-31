@@ -18,6 +18,11 @@
         #textLayerContainer  span {
             position: absolute;
         }
+        #extraCanvasContainer {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
     </style>
 </head>
 
@@ -37,6 +42,7 @@
     <canvas id="mainCanvas"></canvas>
     <canvas id="experimentCanvas"></canvas>
     <div id="textLayerContainer"></div>
+    <div id="extraCanvasContainer"></div>
 
     <script>
         let pdfjsLib = window['pdfjs-dist/build/pdf'];
@@ -45,6 +51,7 @@
         const experimentCanvas = document.getElementById('experimentCanvas')
         const pdfInput = document.getElementById('pdfInput')
         const textLayerContainer = document.getElementById('textLayerContainer')
+        const extraCanvasContainer = document.getElementById('extraCanvasContainer')
         function normalizeToEven(number) {
             return number % 2 == 0 ? number : number + 1
         }
@@ -84,7 +91,69 @@
         let pageNum = 1
         document.getElementById('prevButton').addEventListener('click', withRender(() => pageNum--))
         document.getElementById('nextButton').addEventListener('click', withRender(() => pageNum++))
-
+        function findBlockTree(pageImg, whiteThreshold = 5, vertical = true) {
+            let blocks = []
+            const totalSize = pageImg.size()
+            console.log(totalSize)
+            const imax = vertical ? totalSize.height : totalSize.width
+            const jmax = vertical ? totalSize.width : totalSize.height
+            console.log(imax, jmax)
+            function sliceImage(from, to) {
+                // console.log(from, to)
+                let nfrom = from
+                let nto = to
+                const xfrom = vertical ? 1 : nfrom
+                const yfrom = vertical ? nfrom : 1
+                const xsize = vertical ? jmax - 1 : nto - nfrom
+                const ysize = vertical ? nto - nfrom : jmax - 1
+                const rect = new cv.Rect(xfrom, yfrom, xsize, ysize)
+                console.log(pageImg.size())
+                console.log(rect)
+                const ret = pageImg.roi(rect)
+                const res = findBlockTree(ret, 5, !vertical)
+                if (res.length > 0) {
+                    res.forEach((e) => blocks.push(e))
+                } else {
+                    blocks.push(ret)
+                }
+            }
+            let blockBegin = 0;
+            let blockEnd = 0;
+            let consecutiveWhite = 0;
+            for (let i = 0; i < imax; i++) {
+                let isLineWhite = true
+                try {
+                    for (let j = 0; j < jmax; j++) {
+                        const pixel = vertical ? pageImg.ucharAt(i, j) : pageImg.ucharAt(j, i)
+                        if (pixel === 0) {
+                            isLineWhite = false
+                        }
+                    }
+                    if (isLineWhite && (blockBegin === blockEnd)) {
+                        blockBegin = i
+                        blockEnd = i
+                        continue
+                    }
+                    if (isLineWhite) {
+                        if (consecutiveWhite > whiteThreshold) {
+                            sliceImage(blockBegin, blockEnd)
+                            blockBegin = i
+                            blockEnd = i
+                        } else {
+                            consecutiveWhite++
+                            continue
+                        }
+                    } else {
+                        blockEnd = i
+                        consecutiveWhite = 0
+                    }
+                } finally {
+                    console.log(isLineWhite, blockBegin, blockEnd)
+                }
+            }
+            // blocks.push(sliceImage(blockBegin, blockEnd))
+            return blocks
+        }
         async function render() {
             reset()
             const file = await getSelectedPDFFile()
@@ -130,45 +199,21 @@
             });
             const imageSrc = cv.imread(mainCanvas)
             let out = new cv.Mat()
-            cv.cvtColor(imageSrc, imageSrc, cv.COLOR_RGBA2GRAY, 0)
-            cv.adaptiveThreshold(imageSrc, out, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, 3, 2)
-            console.log(imageSrc)
+            cv.cvtColor(imageSrc, out, cv.COLOR_RGBA2GRAY, 0)
+            cv.adaptiveThreshold(out, out, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, 3, 2)
             cv.imshow(experimentCanvas, out)
-            imageSrc.delete()
-            out.delete()
-            // function preprocessImageForSuperblockSegmentation(image) {
-            //     let out = image.clone()
-            //     const width = image.getWidth()
-            //     const factor = width / 80
-            //     Marvin.scale(out, out.clone(), 80)
-            //     out.clear(0xFF000000)
-            //     Marvin.prewitt(mimage, out)
-            //     Marvin.invertColors(out.clone(), out)
-            //     Marvin.thresholding(out, out, 230)
-
-            //     out = MarvinColorModelConverter.rgbToBinary(out, 240)
-            //     Marvin.morphologicalClosing(out.clone(), out, MarvinMath.getTrueMatrix(10, 10))
-            //     out = MarvinColorModelConverter.binaryToRgb(out)
-            //     return out
-            // }
-            // const out = preprocessImageForSuperblockSegmentation(mimage)
-            // console.log(out.getWidth(), out.getHeight())
-            // const segments = Marvin.findTextRegions(out, console.log)
-
-            // console.log(segments)
-            // for(let i = 0; i < segments.length; i++) {
-            //     const seg = segments[i]
-            //     out.drawRect(Math.floor(seg.x1), Math.floor(seg.y1), Math.floor(seg.width), Math.floor(seg.height), 0xFFFF0000)
-            // }
-
-            // const colorful = MarvinColorModelConverter.binaryToRgb(out)
-            // console.log(Marvin.floodfillSegmentation(colorful))
-            // const segments = Marvin.floodfillSegmentation(out)
-            // for (let i = 0; i < segments.length; i++) {
-            //     const seg = segments[i]
-            //     out.drawRect(Math.floor(seg.x1), Math.floor(seg.y1), Math.floor(seg.width), Math.floor(seg.height), 0xFFFF0000)
-            // }
-            // out.draw(experimentCanvas)
+            console.log(out)
+            console.log(findBlockTree(out, 5).map((e) => {
+            // console.log(findBlockTree(imageSrc, 5).map((e) => {
+                const img = e
+                const tmpCanvas = document.createElement('canvas')
+                const {width, height} = img.size()
+                tmpCanvas.width = width
+                tmpCanvas.height = height
+                const c = extraCanvasContainer.appendChild(tmpCanvas)
+                cv.imshow(c, img)
+                return e
+            }))
             removeAllByQuery('#textLayerContainer > br')
             document.querySelectorAll('#textLayerContainer > span')
             .forEach((item) => {
