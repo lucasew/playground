@@ -91,13 +91,88 @@
         let pageNum = 1
         document.getElementById('prevButton').addEventListener('click', withRender(() => pageNum--))
         document.getElementById('nextButton').addEventListener('click', withRender(() => pageNum++))
-        function findBlockTree(pageImg, whiteThreshold = 5, vertical = true) {
+        function trimWhitespace(image, threshold = 0) {
+            const {width, height} = image.size()
+            let firstLine = 1
+            let lastLine = height - 1
+            let firstColumn = 1
+            let lastColumn = width - 1
+            for (let i = 0; i < height; i++) {
+                let isWhiteLine = true
+                for (let j = 0; j < width; j++) {
+                    if (image.ucharAt(i, j) <= threshold) {
+                        isWhiteLine = false
+                        break
+                    }
+                }
+                if (!isWhiteLine) {
+                    firstLine = i
+                    break
+                }
+            }
+            for (let i = height - 1; i >= 0; i--) {
+                let isWhiteLine = true
+                for (let j = 0; j < width; j++) {
+                    if (image.ucharAt(i, j) <= threshold) {
+                        isWhiteLine = false
+                        break
+                    }
+                }
+                if (!isWhiteLine) {
+                    lastLine = i
+                    break
+                }
+            }
+            for (let i = 0; i < width; i++) {
+                let isWhiteLine = true
+                for (let j = 0; j < height; j++) {
+                    if (image.ucharAt(j, i) <= threshold) {
+                        isWhiteLine = false
+                        break
+                    }
+                }
+                if (!isWhiteLine) {
+                    firstColumn = i
+                    break
+                }
+            }
+            for (let i = width - 1; i >= 0; i--) {
+                let isWhiteLine = true
+                for (let j = 0; j < height; j++) {
+                    if (image.ucharAt(j, i) <= threshold) {
+                        isWhiteLine = false
+                        break
+                    }
+                }
+                if (!isWhiteLine) {
+                    lastColumn = i
+                    break
+                }
+            }
+            const rect = new cv.Rect(
+                firstColumn,
+                firstLine,
+                lastColumn - firstColumn,
+                lastLine - firstLine,
+            )
+            // console.log(width, height, firstLine, firstColumn, lastLine, lastColumn, rect)
+            return image.roi(rect)
+        }
+        function findBlockTree(pageImg, {
+            whiteThreshold = 3, 
+            vertical = true,
+            blackThreshold = 0,
+            minHeight = 8,
+            minWidth = 50,
+            maxVerticalProportionAllowed = 4,
+            minHeightAllow = 3
+        }) {
             let blocks = []
             const totalSize = pageImg.size()
-            console.log(totalSize)
+            // console.log(totalSize)
             const imax = vertical ? totalSize.height : totalSize.width
             const jmax = vertical ? totalSize.width : totalSize.height
-            console.log(imax, jmax)
+            // console.log(imax, jmax)
             function sliceImage(from, to) {
                 // console.log(from, to)
                 let nfrom = from
@@ -107,15 +182,42 @@
                 const xsize = vertical ? jmax - 1 : nto - nfrom
                 const ysize = vertical ? nto - nfrom : jmax - 1
                 const rect = new cv.Rect(xfrom, yfrom, xsize, ysize)
-                console.log(pageImg.size())
-                console.log(rect)
+                // console.log(pageImg.size())
+                // console.log(rect)
                 const ret = pageImg.roi(rect)
-                const res = findBlockTree(ret, 5, !vertical)
-                if (res.length > 0) {
-                    res.forEach((e) => blocks.push(e))
-                } else {
-                    blocks.push(ret)
+                const res = findBlockTree(ret, {
+                    vertical: !vertical,
+                    whiteThreshold,
+                    blackThreshold,
+                    minHeight,
+                    minHeightAllow,
+                    maxVerticalProportionAllowed,
+                    minWidth
+                }).map((e) => {
+                    const {width, height} = e.size()
+                    const proportion = height / width
+                    const isProportionAllowed = proportion < maxVerticalProportionAllowed
+                    const isMoreThanMinimumHeight = minHeightAllow < height
+                    const isAllowedItem = isProportionAllowed && isMoreThanMinimumHeight
+                    if (!isAllowedItem) {
+                        return null
+                    }
+                    return e
+                })
+                if (res.length == 0) {
+                    return [ret]
                 }
+                const smol = res.filter((e) => {
+                    if (e == null) {
+                        return false
+                    }
+                    const {width, height} = e.size()
+                    return width < minWidth || height < minHeight
+                })
+                if (smol.length > 0) {
+                    return [ret]
+                }
+                return res.filter((e) => e != null)
             }
             let blockBegin = 0;
             let blockEnd = 0;
@@ -136,7 +238,7 @@
                     }
                     if (isLineWhite) {
                         if (consecutiveWhite > whiteThreshold) {
-                            sliceImage(blockBegin, blockEnd)
+                            sliceImage(blockBegin, blockEnd).forEach(e => blocks.push(e))
                             blockBegin = i
                             blockEnd = i
                         } else {
@@ -145,10 +247,12 @@
                         }
                     } else {
                         blockEnd = i
-                        consecutiveWhite = 0
+                        if ((blockBegin - blockEnd) < blackThreshold) {
+                            consecutiveWhite = 0
+                        }
                     }
                 } finally {
-                    console.log(isLineWhite, blockBegin, blockEnd)
+                    // console.log(isLineWhite, blockBegin, blockEnd)
                 }
             }
             // blocks.push(sliceImage(blockBegin, blockEnd))
@@ -201,9 +305,14 @@
             let out = new cv.Mat()
             cv.cvtColor(imageSrc, out, cv.COLOR_RGBA2GRAY, 0)
             cv.adaptiveThreshold(out, out, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, 3, 2)
+            // out = trimWhitespace(out)
             cv.imshow(experimentCanvas, out)
             console.log(out)
-            console.log(findBlockTree(out, 5).map((e) => {
+            console.log(findBlockTree(out, {
+                // whiteThreshold: 4,
+                // blackThreshold: 5,
+                vertical: true
+            }).map(trimWhitespace).map((e) => {
             // console.log(findBlockTree(imageSrc, 5).map((e) => {
                 const img = e
                 const tmpCanvas = document.createElement('canvas')
