@@ -87,10 +87,63 @@
             }
             return Promise.resolve(null)
         }
-
         let pageNum = 1
         document.getElementById('prevButton').addEventListener('click', withRender(() => pageNum--))
         document.getElementById('nextButton').addEventListener('click', withRender(() => pageNum++))
+        function testWrapperImplementation(image) {
+            function must(a, b, reason) {
+                const ja = JSON.stringify(a)
+                const jb = JSON.stringify(b)
+                if (ja !== jb) {
+                    alert(reason)
+                    console.warn(a)
+                    console.warn(b)
+                }
+            }
+            const wrapped = wrapCvImage(image)
+            const uwSize = image.size()
+            const wSize = wrapped.size()
+            must(uwSize, wSize, "sizes diferentes")
+            const rect = new cv.Rect(
+                47,
+                21,
+                106,
+                123
+            )
+            const uwRoi = image.roi(rect)
+            const wRoi = wrapped.roi(rect)
+            const uwRoiSize = uwRoi.size()
+            const wRoiSize = wRoi.size()
+            must(uwRoiSize, wRoiSize, "roi size")
+            for (let i = 0; i < uwRoiSize.width; i++) {
+                for (let j = 0; j < uwRoiSize.height; j++) {
+                    const pxuw = uwRoi.ucharAt(i, j)
+                    const pxw = wRoi.ucharAt(i, j)
+                    must(pxuw, pxw, `1st stage: pixel ${i} ${j} different`)
+                }
+            }
+            const rect2 = new cv.Rect(10, 10, 15, 19)
+            const uwRoi2 = uwRoi.roi(rect2)
+            const wRoi2 = wRoi.roi(rect2)
+            const uwRoi2Size = uwRoi2.size()
+            const wRoi2Size = wRoi2.size()
+            must(uwRoi2Size, wRoi2Size, 'roi size 2')
+            for (let i = 0; i < uwRoi2Size.width; i++) {
+                for (let j = 0; j < uwRoi2Size.height; j++) {
+                    const pxuw2 = uwRoi2.ucharAt(i, j)
+                    const pxw2 = wRoi2.ucharAt(i, j)
+                    must(pxuw2, pxw2, `2st stage: pixel ${i} ${j} different`)
+                }
+            }
+            const wRoi2Unwrapped = wRoi2.unwrap()
+            for (let i = 0; i < uwRoi2Size.width; i++) {
+                for (let j = 0; j < uwRoi2Size.height; j++) {
+                    const pxuw2 = uwRoi2.ucharAt(i, j)
+                    const pxw2 = wRoi2Unwrapped.ucharAt(i, j)
+                    must(pxuw2, pxw2, `reunwrapped: pixel ${i} ${j} different`)
+                }
+            }
+        }
         class WrappedCvImage {
             constructor(image) {
                 this._ref = image
@@ -121,21 +174,24 @@
                     throw new Error(`ucharAt: parameters below 0`)
                 }
                 if (x > this._width + 1) {
-                    console.log(x, y, this._width, this._height, this.size())
-                    throw new Error(`Invalid x position ${x}, width: ${this._width}`)
+                    // return 0
+                    // console.log(x, y, this._width, this._height, this.size())
+                    // throw new Error(`Invalid x position ${x}, width: ${this._width}`)
                 }
                 if (y > this._height + 1) {
-                    console.log(x, y, this._width, this._height, this.size())
-                    throw new Error(`Invalid y position ${y}, height: ${this._height}`)
+                    // return 0
+                    // console.log(x, y, this._width, this._height, this.size())
+                    // throw new Error(`Invalid y position ${y}, height: ${this._height}`)
                 }
                 return this._ref.ucharAt(
                     this._ref_startx + x,
-                    this._ref_starty + y
+                    this._ref_starty + y,
                 )
             }
             roi(rect) {
                 const {x, y, width, height} = rect
                 if (x < 0 || y < 0 || width <= 0 || height <= 0) {
+                    console.log(rect)
                     throw new Error(`roi: parameters < 0`)
                 }
                 if (x + width > this._width) {
@@ -146,9 +202,10 @@
                 }
                 let ret = new WrappedCvImage(this._ref)
                 ret._ref_startx = this._ref_startx + x
-                ret._ref_starty = this._ref_starty + y
+                ret._ref_starty = this._ref_starty + y 
                 ret._width = width
                 ret._height = height
+                console.log("roi", rect, this, ret)
                 return ret
             }
         }
@@ -242,12 +299,13 @@
             // console.log(imax, jmax)
             function sliceImage(from, to) {
                 // console.log(from, to)
-                let nfrom = from
-                let nto = to
-                const xfrom = vertical ? 1 : nfrom
-                const yfrom = vertical ? nfrom : 1
-                const xsize = vertical ? jmax - 1 : nto - nfrom
-                const ysize = vertical ? nto - nfrom : jmax - 1
+                const xfrom = vertical ? 0 : from
+                const yfrom = vertical ? from : 0
+                const xsize = vertical ? jmax - 1 : to - from
+                const ysize = vertical ? to - from : jmax - 1
+                if (xfrom < 0 || yfrom < 0 || xsize <= 0 || ysize <= 0) {
+                    return []
+                }
                 const rect = new cv.Rect(xfrom, yfrom, xsize, ysize)
                 // console.log(pageImg.size())
                 // console.log(rect)
@@ -291,35 +349,31 @@
             let consecutiveWhite = 0;
             for (let i = 0; i < imax; i++) {
                 let isLineWhite = true
-                try {
-                    for (let j = 0; j < jmax; j++) {
-                        const pixel = vertical ? pageImg.ucharAt(i, j) : pageImg.ucharAt(j, i)
-                        if (pixel === 0) {
-                            isLineWhite = false
-                        }
+                for (let j = 0; j < jmax; j++) {
+                    const pixel = vertical ? pageImg.ucharAt(i, j) : pageImg.ucharAt(j, i)
+                    if (pixel === 0) {
+                        isLineWhite = false
                     }
-                    if (isLineWhite && (blockBegin === blockEnd)) {
+                }
+                if (isLineWhite && (blockBegin === blockEnd)) {
+                    blockBegin = i
+                    blockEnd = i
+                    continue
+                }
+                if (isLineWhite) {
+                    if (consecutiveWhite > whiteThreshold) {
+                        sliceImage(blockBegin, blockEnd).forEach(e => blocks.push(e))
                         blockBegin = i
                         blockEnd = i
+                    } else {
+                        consecutiveWhite++
                         continue
                     }
-                    if (isLineWhite) {
-                        if (consecutiveWhite > whiteThreshold) {
-                            sliceImage(blockBegin, blockEnd).forEach(e => blocks.push(e))
-                            blockBegin = i
-                            blockEnd = i
-                        } else {
-                            consecutiveWhite++
-                            continue
-                        }
-                    } else {
-                        blockEnd = i
-                        if ((blockBegin - blockEnd) < blackThreshold) {
-                            consecutiveWhite = 0
-                        }
+                } else {
+                    blockEnd = i
+                    if ((blockBegin - blockEnd) < blackThreshold) {
+                        consecutiveWhite = 0
                     }
-                } finally {
-                    // console.log(isLineWhite, blockBegin, blockEnd)
                 }
             }
             // blocks.push(sliceImage(blockBegin, blockEnd))
@@ -372,13 +426,17 @@
             let out = new cv.Mat()
             cv.cvtColor(imageSrc, out, cv.COLOR_RGBA2GRAY, 0)
             cv.adaptiveThreshold(out, out, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, 3, 2)
+            testWrapperImplementation(out)
             out = wrapCvImage(out)
             // out = trimWhitespace(out)
+            console.log(out)
             cv.imshow(experimentCanvas, wrapCvImage(out).unwrap())
             console.log(out)
             console.log(findBlockTree(out, {
                 vertical: true
-            }).map(trimWhitespace).map((e) => {
+            })
+            // .map(trimWhitespace)
+            .map((e) => {
             // console.log(findBlockTree(imageSrc, 5).map((e) => {
                 const img = wrapCvImage(e).unwrap()
                 const tmpCanvas = document.createElement('canvas')
