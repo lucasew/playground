@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+
+set -eu
+
+if [ "$GITHUB_TOKEN" == "" ]; then
+    echo "Missing GITHUB_TOKEN"
+    exit 1
+fi
+
+function request {
+    echo "Requesting $1" > /dev/stderr
+    curl -f \
+        -H "Accept: application/vnd.github.v3+json" "$@" \
+        -H "authorization: Bearer $GITHUB_TOKEN"
+}
+
+REPO_USER="$1"; shift
+REPO_NAME="$1"; shift
+REPO_BRANCH="$1"; shift
+FILENAME="$1"; shift
+CONTENT="$1"; shift
+
+BRANCH_HASH=`request https://api.github.com/repos/$REPO_USER/$REPO_NAME/git/ref/heads/$REPO_BRANCH | jq -r .object.sha`
+
+BRANCH_TREE_ID=`request https://api.github.com/repos/$REPO_USER/$REPO_NAME/git/commits/$BRANCH_HASH | jq -r .tree.sha`
+
+echo "Original branch id: $BRANCH_TREE_ID"
+
+ENCODED_CONTENT=`echo $CONTENT | base64`
+
+ADD_BLOB_PAYLOAD=`
+cat << EOF
+{
+    "content": "$ENCODED_CONTENT",
+    "encoding": "base64"
+}
+EOF
+`
+
+
+BLOB_ID=`request https://api.github.com/repos/$REPO_USER/$REPO_NAME/git/blobs -X POST -d "$ADD_BLOB_PAYLOAD" | jq -r .sha`
+
+echo "Original blob id: $BLOB_ID"
+
+ADD_TREE_PAYLOAD=`
+cat << EOF
+{
+    "base_tree": "$BRANCH_TREE_ID",
+    "tree": [
+        {
+            "path": "$FILENAME",
+            "mode": "100644",
+            "type": "blob",
+            "sha": "$BLOB_ID"
+        }
+    ]
+}
+EOF
+`
+
+NEW_TREE_ID=`request https://api.github.com/repos/$REPO_USER/$REPO_NAME/git/trees -X POST -d "$ADD_TREE_PAYLOAD" | jq -r .sha`
+echo "New tree id: $NEW_TREE_ID"
+
+NEW_COMMIT_PAYLOAD=`
+cat << EOF
+{
+    "message": "it works!",
+    "parents": [ "$BRANCH_HASH" ],
+    "tree": "$NEW_TREE_ID"
+}
+EOF
+`
+NEW_COMMIT=`request https://api.github.com/repos/$REPO_USER/$REPO_NAME/git/commits -X POST -d "$NEW_COMMIT_PAYLOAD" | jq -r .sha `
+echo "New commit id: $NEW_TREE_ID"
+
+REF_PAYLOAD_PATCH=`
+cat << EOF
+{
+    "sha": "$NEW_COMMIT"
+}
+EOF
+`
+
+request https://api.github.com/repos/$REPO_USER/$REPO_NAME/git/refs/heads/$REPO_BRANCH -f -d "$REF_PAYLOAD_PATCH" -X PATCH
