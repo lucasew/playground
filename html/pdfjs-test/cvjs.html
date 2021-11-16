@@ -138,69 +138,76 @@
             const [x, y, w, h] = pt
             return [x + ex, y + ey]
         }
+        function blackestPixelRow(image, subsection, rowid) {
+            const [,,,h] = subsection
+            let max = 0
+            for (let j = 0;j < h; j++) {
+                const [x, y] = subsectionElem(subsection, rowid, j)
+                const pixel = image.ucharAt(x, y)
+                if (pixel > max) {
+                    max = pixel
+                }
+            }
+            return max
+        }
+        function blackestPixelColumn(image, subsection, colid) {
+            const [,,w,] = subsection
+            let max = 0
+            for (let j = 0;j < w; j++) {
+                const [x, y] = subsectionElem(subsection, j, colid)
+                const pixel = image.ucharAt(x, y)
+                if (pixel > max) {
+                    max = pixel
+                }
+            }
+            return max
+        }
         function getSectionWithoutBorder(image, threshold = 0, _subsection) {
-            const subsection = _subsection || cvMat2subsection(image)
+            const subsection = _subsection == undefined 
+                ? cvMat2subsection(image)
+                : _subsection
             const [,,width, height] = subsection
             let firstLine = 1
             let lastLine = height - 1
             let firstColumn = 1
             let lastColumn = width - 1
             for (let i = 0; i < height; i++) {
-                let isWhiteLine = true
-                for (let j = 0; j < width; j++) {
-                    const [x, y] = subsectionElem(subsection, i, j)
-                    if (image.ucharAt(x, y) <= threshold) {
-                        isWhiteLine = false
-                        break
-                    }
-                }
-                if (!isWhiteLine) {
+                const blackest = blackestPixelRow(image, subsection, i)
+                if (blackest <= threshold) {
+                    // console.log('changed firstLine', i)
                     firstLine = i
+                } else {
                     break
                 }
             }
             for (let i = height - 1; i >= 0; i--) {
-                let isWhiteLine = true
-                for (let j = 0; j < width; j++) {
-                    const [x, y] = subsectionElem(subsection, i, j)
-                    if (image.ucharAt(x, y) <= threshold) {
-                        isWhiteLine = false
-                        break
-                    }
-                }
-                if (!isWhiteLine) {
-                    lastLine = i
+                const blackest = blackestPixelRow(image, subsection, i)
+                if (blackest <= threshold) {
+                    // console.log('changed lastLine', i)
+                    lastLine = height - i
+                } else {
                     break
                 }
             }
             for (let i = 0; i < width; i++) {
-                let isWhiteLine = true
-                for (let j = 0; j < height; j++) {
-                    const [x, y] = subsectionElem(subsection, j, i)
-                    if (image.ucharAt(x, y) <= threshold) {
-                        isWhiteLine = false
-                        break
-                    }
-                }
-                if (!isWhiteLine) {
+                const blackest = blackestPixelColumn(image, subsection, i)
+                if (blackest <= threshold) {
+                    // console.log('changed firstColumn', i)
                     firstColumn = i
+                } else {
                     break
                 }
             }
             for (let i = width - 1; i >= 0; i--) {
-                let isWhiteLine = true
-                for (let j = 0; j < height; j++) {
-                    const [x, y] = subsectionElem(subsection, j, i)
-                    if (image.ucharAt(x, y) <= threshold) {
-                        isWhiteLine = false
-                        break
-                    }
-                }
-                if (!isWhiteLine) {
-                    lastColumn = i
+                const blackest = blackestPixelColumn(image, subsection, i)
+                if (blackest <= threshold) {
+                    // console.log('changed lastColumn', i)
+                    lastColumn = width - i
+                } else {
                     break
                 }
             }
+            console.log('unborder', firstColumn, firstLine, lastColumn, lastLine)
             return getSubsection(subsection, [
                 firstColumn,
                 firstLine,
@@ -210,19 +217,24 @@
         }
         async function findBlockTree(pageImg, props) {
             const {
-                whiteThreshold = 5, 
+                whiteThreshold = 10,
                 vertical = true,
-                blackThreshold = 5,
-                minHeight = 20,
-                minWidth = 30,
-                maxVerticalProportionAllowed = 10,
-                minHeightAllow = 1,
+                blackThreshold = 10,
+                minHeight = 10,
+                minWidth = 10,
+                maxVerticalProportionAllowed = 1000,
+                minHeightAllow = 4,
                 _initialSection
             } = props
-            console.log('orientation', vertical ? 'vertical' : 'horizontal')
-            const initialSection = _initialSection || cvMat2subsection(pageImg)
+            const initialSection = _initialSection === undefined 
+                ? cvMat2subsection(pageImg)
+                : _initialSection
+            console.log('orientation', vertical ? 'vertical' : 'horizontal', 'section', initialSection)
             let blocks = []
             const [,, width, height] = initialSection
+            if (width < 0 || height < 0) {
+                debugger
+            }
             const imax = vertical 
                 ? height
                 : width
@@ -230,37 +242,27 @@
                 ? width
                 : height
             const getPoint = (i, j) => vertical
-                ? subsectionElem(initialSection, i, j)
-                : subsectionElem(initialSection, j, i)
-
+                ? [j, i]
+                : [i, j]
             async function sliceImage(blockBegin, blockEnd) {
-                console.log('slice', blockBegin, blockEnd)
-                const thisBlock = vertical 
-                    ? getSubsection(initialSection, [
-                        0, 
-                        blockBegin,
-                        width,
-                        blockEnd - blockBegin
-                    ])
-                    : getSubsection(initialSection, [
-                        blockBegin,
-                        0,
-                        blockEnd - blockBegin,
-                        height
-                    ])
-                const children = await findBlockTree(pageImg, {
+                const newSubsection = vertical
+                    ? [0, blockBegin, width, blockEnd - blockBegin]
+                    : [blockBegin, 0, blockEnd - blockBegin, height]
+                const thisBlock = getSubsection(initialSection, newSubsection)
+                console.log('slice', blockBegin, blockEnd, thisBlock)
+                const roiedImage = roiBySubsection(pageImg, newSubsection)
+                const children = (await findBlockTree(roiedImage, {
                     ...props,
                     vertical: !vertical,
-                    _initialSection: thisBlock
-                })
-                console.log(children)
+                })).map(r => getSubsection(thisBlock, r))
                 if (children.length == 0) {
+                    console.log('no children')
                     return [thisBlock]
                 }
                 const tooSmallItems = children.filter((i) => {
                     const [x, y, w, h] = i
                     const isMinimumHeight = h > minHeight
-                    const isMinimumWidth = h > minWidth
+                    const isMinimumWidth = w > minWidth
                     const notSmall = isMinimumHeight && isMinimumWidth
                     return !notSmall
                 })
@@ -268,6 +270,7 @@
                 if (isSmall) {
                     return [thisBlock]
                 }
+                // return children
                 const filteredChildren = children.filter((e) => {
                     const [x, y, w, h] = e
                     const isValidHeight = h > minHeightAllow
@@ -279,46 +282,53 @@
                 if (filteredChildren.length == 0) {
                     return [thisBlock]
                 }
-                console.log(filteredChildren)
+                console.log('filteredChildren', children, filteredChildren)
                 return filteredChildren
             }
+            const submitBlock = async (from, to) => (await sliceImage(from, to)).forEach(e => blocks.push(e))
             let blockBegin = 0;
             let blockEnd = 0;
             let consecutiveWhite = 0;
+            let consecutiveBlack = 0;
+            const patchChecker = vertical
+                ? blackestPixelRow
+                : blackestPixelColumn
+            const checkPatch = (i) => patchChecker(pageImg, initialSection, i)
             for (let i = 0; i < imax; i++) {
-                let isLineWhite = true
-                // await withNextTick(async () => {
-                    for (let j = 0; j < jmax; j++) {
-                        const [x, y] = getPoint(i, j)
-                        const pixel = pageImg.ucharAt(x, y)
-                        if (pixel === 0) {
-                            isLineWhite = false
-                        }
-                    }
-                    if (isLineWhite && (blockBegin === blockEnd)) {
-                        blockBegin = i
-                        blockEnd = i
-                        continue
-                    }
-                    if (isLineWhite) {
-                        if (consecutiveWhite > whiteThreshold) {
-                            const slices = await sliceImage(blockBegin, blockEnd)
-                            slices.forEach(e => blocks.push(e))
-                            blockBegin = i
-                            blockEnd = i
-                        } else {
-                            consecutiveWhite++
-                            continue
-                        }
-                    } else {
-                        blockEnd = i
-                        if ((blockBegin - blockEnd) < blackThreshold) {
-                            consecutiveWhite = 0
-                        }
-                    }
-                // })()
+                const blackestPixel = checkPatch(i)
+                const isWhiteLine = blackestPixel == 0
+                if (!isWhiteLine) {
+                    consecutiveBlack++
+                }
+                if (isWhiteLine) {
+                    consecutiveWhite++
+                }
+                // if (consecutiveBlack > blackThreshold && isWhiteLine) {
+                //     blockEnd = i - consecutiveBlack
+                //     const slices = await sliceImage(blockBegin, blockEnd)
+                //     slices.forEach(s => blocks.push(s))
+                //     blockBegin = i
+                //     blockEnd = i
+                // }
+                blockEnd = i
+                if (consecutiveBlack > blackThreshold && isWhiteLine) {
+                    await submitBlock(blockBegin, i)
+                    blockBegin = i
+                }
+                if (consecutiveWhite > whiteThreshold) {
+                    blockBegin = i
+                    blockEnd = i
+                }
+                if (isWhiteLine) {
+                    consecutiveBlack = 0
+                }
+                if (!isWhiteLine) {
+                    consecutiveWhite = 0
+                }
             }
-            // blocks.push(sliceImage(blockBegin, blockEnd))
+            // if (consecutiveBlack > blackThreshold) {
+            //     await submitBlock(blockBegin, blockEnd)
+            // }
             return blocks
         }
         function testOpenCVCoordinateSystemVsAbstraction(img) {
@@ -393,23 +403,21 @@
             cv.cvtColor(imageSrc, out, cv.COLOR_RGBA2GRAY, 0)
             cv.adaptiveThreshold(out, out, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, 3, 2)
             testOpenCVCoordinateSystemVsAbstraction(out)
+            console.log(out)
             const sectionWoBorder = getSectionWithoutBorder(out)
             console.log('section wo border', sectionWoBorder)
-            const initialSection = cvMat2subsection(out)
-            // const initialSection = sectionWoBorder
+            // const initialSection = cvMat2subsection(out)
+            const initialSection = sectionWoBorder
+            console.log('initialSection', initialSection)
             const trimmed = roiBySubsection(out, initialSection)
-            console.log('trimmed', trimmed)
             cv.imshow(experimentCanvas, trimmed)
             const blocks = await findBlockTree(out, {
-                vertical: true,
-                _initialSection: initialSection
+                vertical: false,
             })
             console.log('blocks', blocks)
             blocks.map((e) => {
                 const [x, y, w, h] = e
-                console.log('blocks e', e)
                 const img = roiBySubsection(out, e)
-                console.log("subsection", e)
                 const tmpCanvas = document.createElement('canvas')
                 const {width, height} = img.size()
                 tmpCanvas.width = width
