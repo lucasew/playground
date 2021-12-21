@@ -74,8 +74,8 @@ func (e ForcaApp) Server(args []string) error {
         word := e.GetWord()
         placeholder := []byte(strings.Repeat("_", len(word)))
         fmt.Fprintln(conn, "Pressione enter para iniciar")
+        tentativas_restantes := 3
         for {
-            tentativas_restantes := 3
             _, err := fmt.Fprintln(conn, string(placeholder))
             if err != nil {
                 log.Println(err.Error())
@@ -108,16 +108,16 @@ func (e ForcaApp) Server(args []string) error {
                 if found {
                     fmt.Fprintln(conn, "Você encontrou letras")
                 }
-                if end_of_game {
-                    fmt.Fprintln(conn, "Você ganhou")
-                    break
-                }
                 if !found {
                     if tentativas_restantes == 0 {
                         fmt.Fprintln(conn, "Você perdeu")
                         break
                     }
-                    tentativas_restantes--
+                    tentativas_restantes -= 1
+                }
+                if end_of_game {
+                    fmt.Fprintln(conn, "Você ganhou")
+                    break
                 }
             } else {
                 fmt.Fprintln(conn, "Você passou algo maior que uma letra")

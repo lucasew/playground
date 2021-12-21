@@ -4,7 +4,7 @@ import java.util.Iterator;
 
 public class BarEx1 {
     public static void main (String[] args) throws InterruptedException {
-        int numClientes = 100;
+        int numClientes = 10;
         int numGarcons = 3;
         int numRodadas = 3;
         Bar bar = new Bar(numRodadas);
