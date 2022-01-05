@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+
+BASE_HTML="$(curl http://www.sih-web.aguasparana.pr.gov.br/sih-web/gerarRelatorioAlturasDiariasPrecipitacao.do?action=carregarInterfaceInicial)"
+SESSION_ID=`echo "$BASE_HTML" | grep '"gerarRelatorioAlturasDiariasPrecipitacaoForm' | sed 's;[^,]*jsessionid=\(.*\)?action[^,]*;\1;'`
+echo "'$SESSION_ID'"
+LOCAIS=`echo "$BASE_HTML" |  grep '^<option' | sed 's;<option value="\([0-9]*\)">\([^<]*\).*;\1,\2;'`
+echo "$LOCAIS"
+
+echo "$LOCAIS" | while read LOCAL; do
+    IFS=',' read -ra LOCAL_ARR <<< $LOCAL
+    ID=${LOCAL_ARR[0]}
+    NOME=${LOCAL_ARR[1]}
+    ARQUIVO="2021-$ID-$NOME.txt"
+    echo "Baixando $ARQUIVO..."
+    sleep 0.5
+    curl 'http://www.sih-web.aguasparana.pr.gov.br/sih-web/gerarRelatorioAlturasDiariasPrecipitacao.do?action=gerarRelatorio' -H 'User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:91.0) Gecko/20100101 Firefox/91.0' -H 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8' -H 'Accept-Language: pt-BR,en-US;q=0.7,en;q=0.3' --compressed -H 'Content-Type: application/x-www-form-urlencoded' -H 'Origin: http://www.sih-web.aguasparana.pr.gov.br' -H 'DNT: 1' -H 'Connection: keep-alive' -H 'Referer: http://www.sih-web.aguasparana.pr.gov.br/sih-web/gerarRelatorioAlturasDiariasPrecipitacao.do?action=carregarInterfaceInicial' -H "Cookie: JSESSIONID=$SESSION_ID" -H 'Upgrade-Insecure-Requests: 1' -H 'Pragma: no-cache' -H 'Cache-Control: no-cache' --data-raw "anoAtual=2021&nomeEstacao=&codMunicipio=$ID&anoInicial=2021&anoFinal=2021&leituraCadastrada=true&formato=TXT" -o "$ARQUIVO"
+done
