@@ -1,0 +1,21 @@
+#!/usr/bin/env nix-shell
+(*
+#!nix-shell -i ocamlscript -p ocamlPackages.findlib ocaml ocamlPackages.batteries ocamlPackages.ocamlscript
+# vim:ft=ocaml
+*)
+
+Ocaml.packs := ["batteries"];;
+--
+open Batteries
+
+print_string "Hallo worldson\n";;
+
+print_endline "eoq";;
+
+let main () =
+    (1--999)
+    |> Enum.filter (fun i -> i mod 3 = 0 || i mod 5 = 0)
+    |> Enum.reduce (+)
+    |> Int.to_string
+    |> print_endline
+let () = main ()
