@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+
+echo "Content-Type: text/html"
+echo
+
+echo "<p>query $QUERY_STRING</p>"
+
+cat /dev/stdin
