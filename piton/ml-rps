@@ -1,0 +1,65 @@
+#!/usr/bin/env nix-shell
+#!nix-shell -i python -p python3Packages.tensorflow python3Packages.keras
+# vim:ft=python
+
+import keras
+import tensorflow as tf
+import numpy as np
+
+def prefetch(url, sha256):
+    from pathlib import Path
+    from subprocess import run
+    res = run(["nix-prefetch-url", url, "--print-path", "--unpack", "--type", "sha256", sha256], capture_output = True)
+    stdout = res.stdout.decode('utf8')
+    return Path(stdout.split("\n")[1])
+
+dataset_train = prefetch("https://storage.googleapis.com/laurencemoroney-blog.appspot.com/rps.zip", "1mwngd23nb2kl1sdcwxczjmgcdi6yk8zfyqsggil9z7mw492lw7a")
+dataset_test = prefetch("https://storage.googleapis.com/laurencemoroney-blog.appspot.com/rps-test-set.zip", "06pgxbaa8hcg8mc7baw3ll6w78h7hby1w5hpmcm8a1rc2cwsbq9i")
+
+print(dataset_train, dataset_test)
+
+training_datagen = tf.keras.preprocessing.image.ImageDataGenerator(rescale = 1./255)
+
+train_generator = training_datagen.flow_from_directory(
+    str(dataset_train), 
+    target_size=(150, 150),
+    class_mode='categorical'
+)
+
+validation_datagen = tf.keras.preprocessing.image.ImageDataGenerator(rescale = 1./255)
+validation_generator = training_datagen.flow_from_directory(
+    str(dataset_test), 
+    target_size=(150, 150),
+    class_mode='categorical'
+)
+
+model = keras.Sequential([
+    tf.keras.layers.Conv2D(64, (3, 3), activation = 'relu', input_shape=(150, 150, 3)),
+    tf.keras.layers.MaxPooling2D(2, 2),
+    tf.keras.layers.Conv2D(64, (3, 3), activation = 'relu'),
+    tf.keras.layers.MaxPooling2D(2, 2),
+    tf.keras.layers.Conv2D(128, (3, 3), activation = 'relu'),
+    tf.keras.layers.MaxPooling2D(2, 2),
+    tf.keras.layers.Conv2D(128, (3, 3), activation = 'relu'),
+    tf.keras.layers.MaxPooling2D(2, 2),
+    keras.layers.Flatten(),
+    keras.layers.Dropout(0.5), # abandono de neuronios para melhorar eficiencia
+    keras.layers.Dense(512, activation=tf.nn.relu), # oculta
+    keras.layers.Dense(3, activation=tf.nn.softmax) # output
+])
+
+
+model.compile(
+    optimizer='rmsprop',
+    loss='categorical_crossentropy',
+    metrics=['accuracy']
+)
+
+history = model.fit_generator(
+    train_generator,
+    epochs = 25,
+    validation_data = validation_generator,
+    verbose = 1
+)
+
+print(history)
