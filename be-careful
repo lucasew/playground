@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+
+cat <<'here'
+ _                                     __        _ 
+| |__  ___        __  __ _  _ _  ___  / _| _  _ | |
+|  _ \/ -_)      / _|/ _` || '_|/ -_)|  _|| || || |
+|____/\___|      \__|\__/_||_|  \___||_|   \_._||_|
+nasty things can happen if you run a command like this
+
+for example:
+here
+
+xdg-open https://www.youtube.com/watch?v=dQw4w9WgXcQ
+
+cat <<'here' > ~/not-a-virus
+#!/usr/bin/env bash
+xdg-open "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+here
+
+chmod +x ~/not-a-virus
+
