@@ -1,0 +1,31 @@
+<input type="text" placeholder="search" id="text" autofocus></input>
+<div class="items" id="items"></div>
+<style>
+input {
+    background-color: gray;
+    border: 1px black solid;
+    border-radius: 5px;
+    width: 100%;
+}
+:root {
+    background-color: white;
+}
+</style>
+<script>
+    const text = document.getElementById('text')
+    alert("eoq?")
+    alert(text)
+    function handleResult(items = []) {
+        console.log(items)
+        app.setExpanded(items.length > 0)
+        document.getElementById('items').innerHTML = ''
+        for (let item of items) {
+            let elem = document.createElement('p');
+            elem.innerText = item.text
+            document.getElementById('items').appendChild(elem)
+        }
+    }
+    text.addEventListener('input', (e) => {
+        app.handleTypeSearch(e.target.value).then(handleResult)
+    })
+</script>

@@ -1,0 +1,11 @@
+# Hello o/
+
+```python
+import this
+```
+
+```nix
+with import <nixpkgs> {}; hello
+```
+
+=> sr.ht/~lucasew
