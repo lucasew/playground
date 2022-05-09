@@ -1,0 +1,21 @@
+#!/usr/bin/env nix-shell
+#!nix-shell -i bash -p nix
+# vim:ft=bash
+
+TMPDIR=$(mktemp -d)
+
+cp /nix/var/nix/db/db.sqlite $TMPDIR/nix.db
+
+MIN_SIZE=10000000
+
+sqlite3 $TMPDIR/nix.db "select path, ca from ValidPaths where ca like 'fixed:%' and narSize > $MIN_SIZE" | sed 's;|; ;g' | while read line; do
+    path=$(echo $line | awk '{ print $1 }')
+    hash=$(echo $line | awk '{ print $2 }' | sed 's;^fixed:;;g' | sed 's;^r:;;g')
+    hash_type=$(echo $hash | awk -F ":" '{ print $1 }')
+    name=$(echo $path | sed 's;/nix/store/[a-z0-9]*-\([^$]*\);\1;g')
+    hash=$(nix hash to-base16 $hash)
+    printf "$path $name $hash_type $hash\n"
+done
+
+rm $TMPDIR -rf
+
