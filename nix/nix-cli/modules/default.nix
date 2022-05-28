@@ -60,42 +60,70 @@ in
           ${flags''}
           exit 0
         '';
-      buildCommandTree = cfg: ''
+      buildCommandTree = cfg: let
+        help = buildHelp cfg;
+
+        mkSubcommandHandler = k: v: let
+          flags = cfg.flags ++ v.flags;
+          _subcommand = cfg._subcommand ++ [ v.name ];
+          subcommandArgs = v // { inherit flags _subcommand; };
+          handler = buildCommandTree subcommandArgs;
+          handler' = ''
+            ${k})
+              ${handler}
+              exit 0
+            ;;
+          '';
+          in handler';
+
+        mkFlagHandler = flag:
+        let
+          caseExpr = concatStringsSep " | " flag.keywords;
+          varAttrExpr = ''${flag.variable}="$1"'';
+          validateExprError = ''echo "flag '$flagkey' (${flag.variable}) doesn't pass the validation as a ${flag.validator}" '';
+
+          isBool = flag.validator == "bool";
+          validateExpr = optionalString (!isBool) ''validate_${flag.validator} "$" || ${validateExprError}'';
+        in ''
+          ${caseExpr} )
+            ${optionalString (!isBool) "shift"}
+            ${optionalString isBool "${flag.variable}=1"}
+            ${optionalString isBool "continue"}
+
+            if [ $# -eq 0 ]; then
+              error "the flag '$flagkey' expects a value of type ${flag.validator} but found end of parameters"
+            fi
+
+            ${flag.variable}="$1"
+            ${validateExpr}
+          ;;
+        '';
+
+        subcommands = cfg.subcommands;
+        subcommands' = mapAttrs mkSubcommandHandler subcommands;
+        subcommands'' = attrValues subcommands';
+        subcommands''' = concatStringsSep "\n" subcommands'';
+        flags = cfg.flags;
+        flags' = map mkFlagHandler flags;
+        flags'' = concatStringsSep "\n" flags';
+
+      in ''
         if [ $# -eq 0 ]; then
-          ${buildHelp cfg}
+          ${help}
         fi
         local command=$1
         shift
         case "$command" in
-          ${builtins.concatStringsSep "\n" (builtins.attrValues (builtins.mapAttrs (k: v: ''
-              # ( por algum motivo o syntax highlight do vim conflita com o fecha parenteses do case
-              ${k})
-                ${buildCommandTree (v // {
-                  flags = cfg.flags ++ v.flags;
-                  _subcommand = cfg._subcommand ++ [v.name];
-                  })}
-                exit 0
-              ;;
-          '') cfg.subcommands))}
+          ${subcommands'''}
         esac
         ARGS=()
         while [ ! $# -eq 0 ]; do
           local flagkey="$1"
           case "$flagkey" in
               -h | --help)
-                ${buildHelp cfg}
+                ${help}
               ;;
-              ${builtins.concatStringsSep "\n" (builtins.map (flag: ''
-                    # ( por algum motivo o syntax highlight do vim conflita com o fecha parenteses do case
-                    ${builtins.concatStringsSep " | " flag.keywords} )
-                      shift
-                      if [ $# -eq 0 ]; then
-                        error "the flag '$flagkey' expects a value of type ${flag.validator} but found end of parameters"
-                      fi
-                      ${flag.variable}="$1"
-                      validate_${flag.validator} "$res" || error "flag '$flagkey' (${flag.variable}) doesnt pass the validation as a ${flag.validator}"
-                    ;;
-              '') cfg.flags)}
+                ${flags''}
               *)
                 error "invalid keyword argument near '$flagkey'"
               ;;
