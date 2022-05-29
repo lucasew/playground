@@ -44,7 +44,10 @@ let
       description = "Command flags";
     };
     subcommands = mkOption {
-      type = nullOr (attrsOf (submodule ({...}: {options = command; })));
+      type = attrsOf (submodule ({name, ...}: {
+        options = command;
+        config = { inherit name; }; 
+      }));
       default = {};
       description = "Subcommands";
     };

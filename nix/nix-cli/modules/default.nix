@@ -70,6 +70,7 @@ in
           handler = buildCommandTree subcommandArgs;
           handler' = ''
             ${k})
+              shift
               ${handler}
               exit 0
             ;;
@@ -83,19 +84,22 @@ in
           validateExprError = ''echo "flag '$flagkey' (${flag.variable}) doesn't pass the validation as a ${flag.validator}" '';
 
           isBool = flag.validator == "bool";
-          validateExpr = optionalString (!isBool) ''validate_${flag.validator} "$" || ${validateExprError}'';
+          validateExpr = optionalString (!isBool) ''validate_${flag.validator} "$arg" || ${validateExprError}'';
         in ''
           ${caseExpr} )
-            ${optionalString (!isBool) "shift"}
-            ${optionalString isBool "${flag.variable}=1"}
+            shift
+            ${optionalString isBool "export ${flag.variable}=1"}
             ${optionalString isBool "continue"}
 
             if [ $# -eq 0 ]; then
               error "the flag '$flagkey' expects a value of type ${flag.validator} but found end of parameters"
             fi
 
-            ${flag.variable}="$1"
+            arg="$1"; shift
+
+            export ${flag.variable}="$arg"
             ${validateExpr}
+            break
           ;;
         '';
 
@@ -106,19 +110,17 @@ in
         flags = cfg.flags;
         flags' = map mkFlagHandler flags;
         flags'' = concatStringsSep "\n" flags';
-
       in ''
         if [ $# -eq 0 ]; then
           ${help}
         fi
-        local command=$1
-        shift
-        case "$command" in
+        case "$1" in
           ${subcommands'''}
         esac
         ARGS=()
         while [ ! $# -eq 0 ]; do
           local flagkey="$1"
+
           case "$flagkey" in
               -h | --help)
                 ${help}
@@ -128,7 +130,6 @@ in
                 error "invalid keyword argument near '$flagkey'"
               ;;
           esac
-          shift
         done
         ${cfg.action}
         exit 0
