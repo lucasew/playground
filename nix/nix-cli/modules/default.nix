@@ -25,8 +25,8 @@ in
           subcommandTree = cfg._subcommand;
           subcommandTree' = concatStringsSep " " subcommandTree;
 
-          firstLine = "${subcommandTree'} ${cfg.description}";
-          firstLine' = "echo '${firstLine}'";
+          firstLine = "$(bold '${subcommandTree'}') ${cfg.description}";
+          firstLine' = "echo \"${firstLine}\"";
           subcommands = mapAttrs (k: v: v.description) cfg.subcommands;
           subcommands' = mapAttrs (k: v: ''
             printf "\t"
