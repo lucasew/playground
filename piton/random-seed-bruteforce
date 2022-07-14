@@ -1,0 +1,16 @@
+#!/usr/bin/env nix-shell
+#!nix-shell -p python3 python3Packages.tqdm -i python
+# vim:ft=python
+
+# https://www.youtube.com/watch?v=gSxcDYCK_lY&t=1241
+
+from random import randint, seed
+from tqdm import tqdm
+for i in tqdm(range(0, 0xffffffff)):
+    seed(i)
+    a = randint(0, 99)
+    b = randint(0, 99)
+    c = randint(0, 99)
+    if a==13 and b==37 and c==42:
+        print(f"Seed: {i}")
+        break
