@@ -1,0 +1,11 @@
+#! /usr/bin/env bash
+# implements a pattern used by commands like git that if git-something is in $PATH then git something is available by consequence, base command is defined by the name of this script
+set -eu
+BASE_COMMAND="$(basename "$0")"
+if [ $# -eq 0 ]; then
+    echo "$BASE_COMMAND: command not found"
+    exit 1
+fi
+SUBCOMMAND="$1"; shift
+
+$BASE_COMMAND-$SUBCOMMAND "$@"
