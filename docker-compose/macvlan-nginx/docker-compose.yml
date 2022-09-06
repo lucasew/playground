@@ -1,0 +1,20 @@
+version: "3.9"
+services:
+  httpd:
+    image: nginx
+    ports:
+      - "80:80"
+    networks:
+      http-vlan:
+        ipv4_address: 192.168.1.20
+networks:
+  http-vlan:
+    driver: macvlan
+    driver_opts:
+      parent: enp2s0f1
+    ipam:
+      driver: default
+      config:
+        - subnet: 192.168.1.0/24
+          gateway: 192.168.1.1
+
