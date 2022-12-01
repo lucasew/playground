@@ -1,0 +1,53 @@
+.order {
+  background-color: yellow;
+
+  width: 200px;
+  height: auto;
+  max-height: fit-content;
+  color: #000;
+
+  border: 1px solid #000;
+
+  margin: 10px;
+  padding: 5px;
+
+  border-radius: 2px;
+
+  display: flex;
+  flex-direction: column;
+}
+
+.order strong {
+  align-self: center;
+}
+
+.order hr {
+  border: 0.5px solid #000;
+  margin-bottom: 10px;
+}
+
+.order p {
+  margin-bottom: 10px;
+  border-bottom: 1px solid black;
+  align-self: center;
+}
+
+.order ul {
+  list-style: none;
+}
+
+.order ul li {
+  padding-left: 10px;
+}
+
+.order button {
+  height: 25px;
+  margin: 10px 0;
+
+  background-color: #000;
+  border: 1px solid #fff;
+
+  color: #fff;
+  font-size: 15px;
+  font-weight: bold;
+}

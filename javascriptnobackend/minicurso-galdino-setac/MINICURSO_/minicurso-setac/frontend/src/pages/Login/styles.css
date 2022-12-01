@@ -1,0 +1,62 @@
+.container {
+  height: 100%;
+  flex: 1;
+  background-color: yellow;
+
+  color: #000;
+
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.title {
+  font-size: 45px;
+  margin: 5% 0;
+  display: inline-flex;
+}
+
+.title strong {
+  font-size: 54px;
+  font-weight: bold;
+  margin-left: 10px;
+}
+
+.sessionform {
+  align-items: center;
+  justify-content: center;
+  background-color: #fff;
+  height: 350px;
+  width: 300px;
+
+  display: flex;
+  flex-direction: column;
+}
+
+.form-label {
+  font-size: 20px;
+  flex-direction: column;
+  margin-bottom: 5px;
+}
+
+.sessionform input {
+  border: 1px solid #000;
+  height: 30px;
+  width: 200px;
+  padding: 0 10px;
+}
+
+#first {
+  margin-bottom: 6%;
+}
+
+.sessionform button {
+  margin-top: 15%;
+  width: 200px;
+  height: 45px;
+  background-color: yellow;
+  border: 1px solid #000;
+  font-size: 16px;
+  font-weight: bold;
+}
