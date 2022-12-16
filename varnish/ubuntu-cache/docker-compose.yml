@@ -1,0 +1,11 @@
+version: "3"
+services:
+  varnish:
+    build:
+      context: .
+      dockerfile: Dockerfile.varnish
+    container_name: ubuntu-varnish
+    environment:
+      - VARNISH_SIZE=2G
+    volumes:
+      - "./varnish.vcl:/etc/varnish/default.vcl:ro"
