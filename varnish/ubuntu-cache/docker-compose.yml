@@ -9,3 +9,23 @@ services:
       - VARNISH_SIZE=2G
     volumes:
       - "./varnish.vcl:/etc/varnish/default.vcl:ro"
+  ubuntu-warmup:
+    image: ubuntu
+    entrypoint: [ "bash", "-c", "rm /signal/signal && sed -i 's;archive.ubuntu.com;ubuntu-varnish;g' /etc/apt/sources.list && sleep 5; apt update && apt upgrade -y && time apt install -y curl gimp && echo vai > /signal/signal && while true; do sleep 1; done" ]
+    volumes:
+      - "./signal:/signal"
+    healthcheck:
+      test: "[ -f /done ]"
+      interval: 10s
+      retries: 999999
+      start_period: 600s
+  ubuntu-loaders:
+    image: ubuntu
+    volumes:
+      - "./signal:/signal"
+    deploy:
+      replicas: 10
+    entrypoint:
+      - "bash"
+      - "-c"
+      - while true; do sleep 5 && cat /signal/signal && break || continue; done; sed -i 's;archive.ubuntu.com;ubuntu-varnish;g' /etc/apt/sources.list && sleep 5; apt update && apt upgrade -y && time apt install -y curl gimp

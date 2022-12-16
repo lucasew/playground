@@ -11,6 +11,21 @@ backend ub6 { .host = "ubuntu-archive.locaweb.com.br"; .port = "80"; }
 backend ub7 { .host = "ubuntu.itsbrasil.net"; .port = "80"; }
 backend ub8 { .host = "ubuntu.letscloud.io"; .port = "80"; }
 
+sub vcl_backend_response {
+    # 5 minutos de cache por padrão
+    set beresp.ttl = 5m;
+    set beresp.grace = 1h;
+
+    if (bereq.url ~ "\.deb$") {
+        set beresp.ttl = 24h;
+        set beresp.grace = 2d;
+    }
+    if (bereq.url ~ "Contents.*$" || bereq.url ~ "Packages.*$") {
+        set beresp.ttl = 1h;
+        set beresp.grace = 12h;
+    }
+}
+
 sub vcl_init {
     new ubuntu = directors.round_robin();
     ubuntu.add_backend(ub1);
