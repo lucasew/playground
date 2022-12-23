@@ -3,10 +3,11 @@
 from subprocess import PIPE, run
 from argparse import ArgumentParser
 from sys import stderr
-from json import loads, dumps
+from json import loads, dump
 
 parser = ArgumentParser(description="Dumps path relations of a Nix closure")
 parser.add_argument('-i', type=str, help="Nix flake ref or nix store path", required=True)
+parser.add_argument('-o', type=str, help="Where to save the generated HTML file", required=True)
 args = parser.parse_args()
 
 # proc = run(["cat", "/home/lucasew/TMP2/sysgraph.json"], stdout=PIPE)
@@ -31,6 +32,17 @@ for item in items:
             backlinks[reference] = []
         backlinks[reference].append(path)
 
-print(dumps(dict(links=links,backlinks=backlinks,paths=paths)))
+with open(args.o, 'w') as w:
+    with open("./web/dist/index.html", 'r') as r:
+        while True:
+            chunk = r.read(128*1024)
+            if not chunk:
+                break
+            print("chunk")
+            w.write(chunk)
+    print("<script>window.setData(", file=w)
+    dump(dict(links=links,backlinks=backlinks,paths=paths), w)
+    print(")</script>", file=w)
+
 
 # print(result_to_process[0])
