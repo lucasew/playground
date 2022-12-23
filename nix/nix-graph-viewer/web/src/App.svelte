@@ -13,7 +13,7 @@ onMount(() => {
 
 function getLinksOf(data: any, id: string, is_backlink: boolean = false) {
     const key = id.replace('nix:', '/nix/store/')
-    return (data.links[key] || []).filter(x => x !== key)
+    return ((is_backlink ? data.backlinks : data.links)[key] || []).filter(x => x !== key)
 }
 
 /* $: console.log('p', Object.keys($dataStore.paths)) */
