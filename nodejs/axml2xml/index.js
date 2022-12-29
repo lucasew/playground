@@ -28,9 +28,9 @@ const bufferProxy = new Proxy(originalBuffer, {
         if (typeof item === 'function') {
             return function (...args) {
                 const npmItem = Reflect.get(npmBuffer, propKey, receiver)
-                const npmResult = npmItem.apply(npmBuffer, args)
+                // const npmResult = npmItem.apply(npmBuffer, args)
                 const result = item.apply(target, args)
-                console.log(propKey, result, npmResult, args)
+                // console.log(propKey, result, npmResult, args)
                 return result
             }
         } else {
