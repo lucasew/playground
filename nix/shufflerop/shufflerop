@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Inspired by https://quitesimple.org/page/fun-gentoo-shuffle-rop-gadgets
+
+INPUT="$1"; shift
+OUTPUT="$1"; shift
+
+( cd "$INPUT"; find -type d) | sed 's;^\.;;' | grep -v -e '^/obj'
+
+rm "$OUTPUT"/* -rf
+mkdir -p "$OUTPUT"/{lib,bin}
+
+function rand_items {
+    echo "$@" | tr ' ' '\n' | sort -R
+}
+
+for bin in "$INPUT"/obj/bin/*; do
+    name="$(basename "$bin")"
+    echo "Building binary $name"
+    cc -o "$OUTPUT/bin/$name" $(rand_items "$bin"/*)
+done
+
+for lib in "$INPUT"/obj/lib/*; do
+    name="$(basename "$lib")"
+    echo "Building library $name"
+    ar rcs "$OUTPUT/lib/lib$name" $(rand_items "$lib"/*)
+    cc --shared -o "$OUTPUT/lib/lib$name.so" $(rand_items "$lib"/*)
+done
+
