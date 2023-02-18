@@ -4,6 +4,7 @@ pkgs.mkShell {
     (python3.withPackages (p: with p; [
       feedparser
     ]))
+    python3Packages.pylsp-mypy
   ];
   shellHook = ''
     PYTHONPATH=$PYTHONPATH:$(pwd)
