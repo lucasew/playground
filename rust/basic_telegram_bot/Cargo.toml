@@ -1,0 +1,12 @@
+[package]
+name = "basic_telegram_bot"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+telegram-bot = "0.7"
+futures = { version = "0.3.28", features = ["compat"] }
+tokio = { version = "1", features = ["full"] }
+tokio-compat = { version = "0.1.6", features = ["rt-full"] }
