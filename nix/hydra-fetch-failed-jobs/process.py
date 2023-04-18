@@ -2,21 +2,46 @@
 from argparse import ArgumentParser
 from pathlib import Path
 from collections import defaultdict
+from urllib.request import urlopen
+from pprint import pprint
+import logging
 import re
 
+logging.basicConfig()
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
 parser = ArgumentParser()
-
-parser.add_argument('input', type=Path)
-
-regex = r"https:\/\/hydra.nixos.org\/job\/nixpkgs\/trunk\/([^\"]*)"
+parser.add_argument(
+    '-i,--input',
+    dest="input",
+    help="File with data downloaded from 'https://hydra.nixos.org/jobset/nixpkgs/trunk/jobs-tab?filter=%'. Will fetch manually if not defined",
+    type=Path,
+)
+parser.add_argument(
+    '-j,--job',
+    dest="job",
+    help="Job to get data from hydra",
+    default="trunk"
+)
 
 args = parser.parse_args()
-print(parser)
-
-packages = defaultdict(lambda: [])
+print(args)
 
 
-for line in args.input.open('r'):
+regex = r"https:\/\/hydra.nixos.org\/job\/nixpkgs\/[^\/]*\/([^\"]*)"
+
+
+logger.info(f"Fetching data from 'https://hydra.nixos.org/jobset/nixpkgs/{args.job}/jobs-tab?filter=%'")
+
+data = args.input.open('rb') if args.input is not None else urlopen(f'https://hydra.nixos.org/jobset/nixpkgs/{args.job}/jobs-tab?filter=%')
+
+logger.info("Parsing fetched data")
+
+items = []
+
+for line in data:
+    line = line.decode('utf-8')
     if not 'title="Failed"' in line:
         continue
     line = line.strip()
@@ -24,10 +49,7 @@ for line in args.input.open('r'):
     if item is None:
         continue
     item = item.group(1)
-    parts = item.split('.')
-    arch = parts.pop()
-    packages[".".join(parts)].append(arch)
+    items.append(item)
 
-for package, archs in packages.items():
-    print(package, archs)
-
+for item in items:
+    print(item)
