@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+
+nasm -felf64 $1.asm -g
+gcc $1.o -o exe_$1
