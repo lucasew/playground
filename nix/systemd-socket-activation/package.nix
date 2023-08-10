@@ -12,22 +12,24 @@ import "${path}/nixos/tests/make-test-python.nix" ({pkgs, ...}: {
       systemd.sockets.demo-server = {
         socketConfig = {
           ListenStream = 80;
-          # Service = "demo-server.service";
         };
         unitConfig = {
-          BindsTo = [ "demo-server.service" ];
+          OnFailure = [ "demo-server.socket" ];
         };
-        wantedBy = [ "sockets.target" ];
+        wantedBy = [ "sockets.target" "multi-user.target" ];
       };
       systemd.services.demo-server = {
-        script = "${python3}/bin/python ${./payload.py} --out-dir $STATE_DIRECTORY";
+        script = ''
+          echo systemd service start >&2
+          ${python3}/bin/python ${./payload.py} --out-dir $STATE_DIRECTORY
+          echo systemd service stop >&2
+        '';
+        wantedBy = [ "multi-user.target" ];
         unitConfig = {
-          Requires = [ "demo-server.socket" ];
-          After = [ "network.target" "demo-server.socket" ];
+          After = [ "network.target"  ];
         };
         serviceConfig = {
           StateDirectory = "demo_server";
-          Restart = "always";
         };
       };
     };
@@ -40,28 +42,36 @@ import "${path}/nixos/tests/make-test-python.nix" ({pkgs, ...}: {
   testScript = ''
     start_all()
 
-    # not running at first
+    log.info("Showing units content")
+    server.succeed("systemctl cat demo-server.service >&2")
+    server.succeed("systemctl cat demo-server.socket >&2")
+
+    log.info("Check if the service is not running at first")
     server.succeed("[ ! -f /var/lib/demo_server/init ]")
     server.succeed("[ ! -f /var/lib/demo_server/request0 ]")
     client.sleep(2)
 
-    # wake up
+    log.info("Wake the service up")
     client.succeed("curl server")
     client.sleep(2)
 
-    # confirm it's started
+    log.info("Check if the unit actually started and achieved the route handler")
     server.succeed("[ -f /var/lib/demo_server/init ]")
     server.succeed("[ -f /var/lib/demo_server/request0 ]")
+
+    log.info("Send request to the service again to check if systemd is not spawning another instance")
     client.succeed("curl server")
 
-    # confirm that's not starting another instance
+    log.info("Check if systemd hasn't started another instance")
     server.succeed("[ -f /var/lib/demo_server/request1 ]")
+
+    log.info("Wait for the auto shutdown logic of the service to stop it")
     client.sleep(10)
 
-    # confirm that's stopped for inactivity
+    log.info("Confirm that the service actually stopped")
     server.succeed("[ -f /var/lib/demo_server/stop ]")
 
-    # check if the service can be restarted
+    log.info("Check if the service can wake up again from that exact same socket")
     client.succeed("curl server")
   '';
 })
