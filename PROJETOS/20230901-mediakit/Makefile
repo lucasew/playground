@@ -32,7 +32,7 @@ fmt:              ## Format code using black & isort.
 
 .PHONY: lint
 lint:             ## Run pep8, black, mypy linters.
-	$(ENV_PREFIX)flake8 mediakit_project/
+	$(ENV_PREFIX)flake8 mediakit_project/ --builtins="_"
 	$(ENV_PREFIX)black -l 79 --check mediakit_project/
 	$(ENV_PREFIX)black -l 79 --check tests/
 	$(ENV_PREFIX)mypy --ignore-missing-imports mediakit_project/
@@ -115,6 +115,25 @@ switch-to-poetry: ## Switch to poetry package manager.
 init:             ## Initialize the project based on an application template.
 	@./.github/init.sh
 
+mediakit_project/i18n/mediakit_project.pot: **/*.py
+	xgettext -d mediakit_project -o $@ --files-from=<(find mediakit_project -name '*.py' ; python -c 'import argparse; print(argparse.__file__)')
+	sed -i 's;CHARSET;UTF-8;g' $@
+
+.PRECIOUS: mediakit_project/i18n/%/LC_MESSAGES/mediakit_project.po
+mediakit_project/i18n/%/LC_MESSAGES/mediakit_project.po : mediakit_project/i18n/mediakit_project.pot
+	@mkdir -p mediakit_project/i18n/$*/LC_MESSAGES
+	if [ ! -f $@ ]; then
+		cp $< $@
+	fi
+	msgmerge --no-fuzzy-matching -U $@ $<
+
+# .PRECIOUS: mediakit_project/i18n/%/LC_MESSAGES/mediakit_project.mo
+mediakit_project/i18n/%/LC_MESSAGES/mediakit_project.mo : mediakit_project/i18n/%/LC_MESSAGES/mediakit_project.po
+	msgfmt -o $@ $<
+
+
+.PHONY: update-locales
+update-locales: mediakit_project/i18n/pt_BR/LC_MESSAGES/mediakit_project.mo
 
 # This project has been generated from rochacbruno/python-project-template
 # __author__ = 'rochacbruno'
