@@ -16,7 +16,8 @@ from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
 from pathlib import Path
 import os
 
-from mediakit_project.utils import load_module, ModuleClass
+from mediakit_project.utils import load_module
+from mediakit_project.utils.module import ModuleClass
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +28,9 @@ def add_subcommand(subparsers, name: str, submodule):
     handler = submodule.command(subparser)
     subparser.set_defaults(fn=handler)
 
+
 DEFAULT_MEDIAKTI_PROJECT_REPO = os.environ.get("MEDIAKIT_PROJECT_REPO")
+
 
 def common_flags(parser):
     parser.add_argument(

@@ -1,4 +1,4 @@
-from mediakit_project import utils
+from mediakit_project.utils import module
 from typing import Optional
 from hashlib import sha256
 from uuid import uuid4
@@ -17,7 +17,7 @@ class BlobInvalidDataToPutInABlob(Exception):
         super(_("Invalid data to put in a blob: {dtype}").format(dtype=f"{dtype.__module__}.{dtype.__name__}"))
 
 
-class ModuleClass(utils.ModuleClass):
+class ModuleClass(module.ModuleClass):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
