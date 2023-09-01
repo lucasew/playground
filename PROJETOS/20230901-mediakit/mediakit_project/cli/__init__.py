@@ -14,8 +14,9 @@ import logging
 import sys
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
 from pathlib import Path
+import os
 
-from mediakit_project.utils import load_module
+from mediakit_project.utils import load_module, ModuleClass
 
 logger = logging.getLogger(__name__)
 
@@ -26,8 +27,16 @@ def add_subcommand(subparsers, name: str, submodule):
     handler = submodule.command(subparser)
     subparser.set_defaults(fn=handler)
 
+DEFAULT_MEDIAKTI_PROJECT_REPO = os.environ.get("MEDIAKIT_PROJECT_REPO")
 
 def common_flags(parser):
+    parser.add_argument(
+        "--repo",
+        dest="repo_path",
+        default=Path(DEFAULT_MEDIAKTI_PROJECT_REPO) if DEFAULT_MEDIAKTI_PROJECT_REPO is not None else None,
+        type=Path,
+        help=_("Where is the state repository stored")
+    )
     parser.add_argument(
         "-v",
         "--verbose",
@@ -89,6 +98,10 @@ def main():  # pragma: no cover
 
     fn = args.__dict__.get("fn")
     args.__dict__["fn"] = None
+
+    assert args.repo_path is not None and args.repo_path.exists() and args.repo_path.is_dir(), "State repository not specified or not a existent directory"
+    ModuleClass.repo_dir = args.repo_path
+
     if fn is not None:
         fn(args)
     else:
