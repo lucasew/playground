@@ -1,8 +1,11 @@
 from mediakit_project.utils import module
-from typing import Optional
+from mediakit_project.utils.type_hints import Readable, Writable
+
+from typing import Optional, Any
 from hashlib import sha256
 from uuid import uuid4
 import io
+from pathlib import Path
 
 
 class BlobNotFoundException(Exception):
@@ -41,36 +44,43 @@ class ModuleClass(module.ModuleClass):
                 return blob_file
         return None
 
-    def get_blob(self, blob_id: str, variation: Optional[str] = None):
+    def get_blob(self, blob_id: str, variation: Optional[str] = None) -> Readable:
         blob_file_path = self._get_blob_file(blob_id, variation=variation)
         if blob_file_path is None:
             raise BlobNotFoundException(blob_id, variation)
         return open(str(blob_file_path), 'rb')
 
-    def put_blob(self, stream, variation="default"):
+    def put_blob_stream(self, stream: Writable, variation="default") -> str:
         temp_file = self._get_blob_repo_dir("__cache__") / str(uuid4())
         hasher = sha256()
-        finished = False
-        try:
-            with open(str(temp_file), "wb") as f:
-                if isinstance(stream, bytes):  # bytes
-                    hasher.update(stream)
-                    f.write(stream)
-                    finished = True
-                elif isinstance(stream, io.BufferedReader):  # files
-                    while True:
-                        buf = stream.read(16*1024)
-                        if not buf:
-                            break
-                        hasher.update(buf)
-                        f.write(buf)
-                    finished = True
-                else:
-                    raise BlobInvalidDataToPutInABlob(stream)
-        finally:
-            if not finished:
-                temp_file.unlink()
-        output_file = self._get_blob_repo_dir(variation=variation) / hasher.hexdigest()
+        with temp_file.open('wb') as f:
+            while True:
+                buf = stream.read(16*1024)
+                if not buf:
+                    break
+                hasher.update(buf)
+                f.write(buf)
+        blob_id = hasher.hexdigest()
+        output_file = self._get_blob_repo_dir(variation=variation) / blob_id
         temp_file.rename(output_file)
-        return output_file
+        if temp_file.exists():
+            temp_file.unlink()
+        return blob_id
+
+    def put_blob_file(self, file: Path, variation="default") -> str:
+        with file.open('rb') as f:
+            return self.put_blob_stream(f, variation=variation)
+
+    def put_blob_bytes(self, data: bytes, variation="default") -> str:
+        return self.put_blob_stream(io.BytesIO(data), variation=variation)
+
+    def put_blob(self, data: Any, variation="default") -> str:
+        if isinstance(data, Path):
+            return self.put_blob_file(data, variation=variation)
+        elif isinstance(data, bytes):
+            return self.put_blob_bytes(data, variation=variation)
+        elif isinstance(data, Readable):
+            return self.put_blob_stream(data, variation=variation)
+        else:
+            raise BlobInvalidDataToPutInABlob(data)
 
