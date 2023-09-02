@@ -38,12 +38,13 @@ logger = logging.getLogger(__name__)
 
 
 class UnsupportedFeedURL(Exception):
-    pass
+    def __init__(self, url: str):
+        super().__init__(_("UnsupportedFeedURL: {url}").format(url=url))
 
 
-class UnsupportedPostUrl(Exception):
-    pass
-
+class UnsupportedPostURL(Exception):
+    def __init__(self, url: str):
+        super().__init__(_("UnsupportedPostURL: {url}").format(url=url))
 
 
 class PostType(Enum):
@@ -54,6 +55,7 @@ class PostType(Enum):
 
 def get_root_dir():
     return utils.REPO_DIR / "feeds"
+
 
 def get_feed_dir(url: str):
     return get_root_dir() / utils.hash_string(url)
@@ -71,6 +73,12 @@ class FeedRepository():
     def _with_feed_meta(self):
         return utils.ContextJSON(self.feed_repo / "__meta__.json")
 
+    @property
+    def feed_info(self) -> dict:
+        with self._with_feed_meta() as d:
+            return d
+
+    @property
     def posts(self):
         ret = []
         for post in self.feed_repo.iterdir():
