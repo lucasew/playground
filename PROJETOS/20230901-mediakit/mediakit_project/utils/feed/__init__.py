@@ -124,4 +124,3 @@ class FeedRepository():
             d['title'] = title
             d['summary'] = summary
             d['icon'] = icon
-            pprint(d)

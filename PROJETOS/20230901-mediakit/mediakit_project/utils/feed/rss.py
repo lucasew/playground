@@ -29,6 +29,7 @@ def get_feed_url_from_webpage(repo: FeedRepository) -> str:
         return feed_info['rss_feed_url']
 
     with urlopen(Request(url, headers=headers)) as res:
+        logger.info(_("Fetching webpage to get feed: {url}").format(url=url))
         first_chunk = res.read().decode('utf-8')
         matches = re.findall(r"type=\"application\/rss\+xml[^>]*href=\"([^\"]*)", first_chunk, re.MULTILINE)
         if len(matches) > 0:
@@ -43,13 +44,13 @@ def extract(repo: FeedRepository):
 
     logger.info(_("fetching '{url}'").format(url=url))
     data = feedparser.parse(rss_feed_url)
-    pprint(data)
 
     head_node = data['feed']
     repo.update_meta(
         title=head_node.get('title'),
         subtitle=head_node.get('subtitle'),
-        icon=head_node.get('icon')
+        icon=head_node.get('icon'),
+        rss_feed_url=rss_feed_url
     )
     for entry in data['entries']:
         published_time = entry['published_parsed']
