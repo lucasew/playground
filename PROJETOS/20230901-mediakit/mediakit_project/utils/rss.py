@@ -22,6 +22,23 @@ def timestamp_to_unix(timestamp):
     return int(date_diff.total_seconds())
 
 
+def refresh_feeds():
+    feed_dir = get_root_dir()
+    feeds = []
+    for feed in feed_dir.iterdir():
+        if not feed.is_dir():
+            continue
+        if feed.name.startswith("__"):
+            continue
+        with utils.ContextJSON(feed / "__meta__.json") as d:
+            last_updated = d['_last_updated']
+            url = d['url']
+            feeds.append(dict(last_updated=last_updated, url=url))
+    feeds.sort(key=lambda x: x['last_updated'])
+    for feed in feeds:
+        yield fetch_rss(feed['url'])
+
+
 def fetch_rss(url: str):
     logger.info(_("fetching '{url}'").format(url=url))
     data = feedparser.parse(url)
@@ -38,6 +55,8 @@ def fetch_rss(url: str):
         d['title'] = head_node.get('title_detail')
         d['subtitle'] = head_node.get('subtitle')
         d['image'] = head_node.get('image')
+        d['_last_updated'] = int(time.time())
+
     for entry in data['entries']:
         published_time = entry['published_parsed']
         with utils.ContextJSON(feed_dir / f"{timestamp_to_unix(published_time)}.json") as d:
