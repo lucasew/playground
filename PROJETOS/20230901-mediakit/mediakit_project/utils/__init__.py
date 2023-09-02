@@ -1,6 +1,8 @@
 import logging
 import json
 from pathlib import Path
+import configparser
+from uuid import uuid4 as uuidgen
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +43,23 @@ def hash_file(file: Path) -> str:
     return hasher.hexdigest()
 
 
+class ContextConfig():
+    def __init__(self, configfile="mediakit_project.conf", readonly=True):
+        self.configfile = REPO_DIR / configfile
+        self.mode = "r" if readonly else "w"
+
+    def __enter__(self):
+
+        config = configparser.ConfigParser()
+        config.read(str(self.configfile))
+        self._config = config
+        return config
+
+    def __exit__(self):
+        with open(self._configfile, self.mode) as f:
+            self._config.write(f)
+
+
 class ContextJSON():
     def __init__(self, file):
         self.file = file
@@ -55,6 +74,12 @@ class ContextJSON():
         return self._data
 
     def __exit__(self, exc_type, exc_val, exc_traceback):
-        with open(self.file, "w") as f:
-            json.dump(self._data, f, indent=4, sort_keys=True)
+        tmpfile = self.file.parent / f".{uuidgen()}.json"
+        try:
+            with tmpfile.open("w") as f:
+                json.dump(self._data, f, indent=4, sort_keys=True)
+            tmpfile.rename(self.file)
+        finally:
+            if tmpfile.exists():
+                tmpfile.unlink()
 

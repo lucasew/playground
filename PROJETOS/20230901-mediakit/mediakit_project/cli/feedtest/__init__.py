@@ -1,4 +1,5 @@
-from mediakit_project.utils.rss import fetch_rss
+from mediakit_project.utils.feed.rss import extract
+from mediakit_project.utils.feed import FeedRepository
 
 COMMAND_DESCRIPTION = "Test with rss feeds"
 
@@ -7,5 +8,6 @@ def command(parser):
     parser.add_argument("feed_url", type=str)
 
     def handle(args):
-        fetch_rss(args.feed_url)
+        repo = FeedRepository(args.feed_url)
+        extract(repo)
     return handle
