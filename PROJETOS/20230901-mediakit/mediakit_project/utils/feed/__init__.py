@@ -61,8 +61,33 @@ def get_feed_dir(url: str):
     return get_root_dir() / utils.hash_string(url)
 
 
+def fetch_all_feeds():
+    from json import loads
+    feeds = []
+    for feed in get_root_dir().iterdir():
+        if feed.name.startswith("__"):
+            continue
+        data = loads((feed / "__meta__.json").read_text())
+        repository = FeedRepository(data['url'])
+        feed_info = repository.feed_info
+        feeds.append(dict(
+            feed_info=feed_info,
+            repository=repository,
+            feed=feed,
+        ))
+    feeds.sort(key=lambda feed: feed['feed_info']['last_updated'])
+    for feed in feeds:
+        update_one_feed(feed['repository'])
+        yield feed['repository']
+
+
+def update_one_feed(feed):
+    from .rss import extract  # TODO: add other filters
+    extract(feed)
+
+
 class FeedRepository():
-    def __init__(self, url):
+    def __init__(self, url: str):
         self._url = url
         self.feed_repo = get_root_dir() / utils.hash_string(url)
 
@@ -75,8 +100,7 @@ class FeedRepository():
 
     @property
     def feed_info(self) -> dict:
-        with self._with_feed_meta() as d:
-            return d
+        return self._with_feed_meta().data
 
     @property
     def posts(self):

@@ -64,16 +64,26 @@ class ContextJSON():
     def __init__(self, file):
         self.file = file
 
+    @property
+    def data(self):
+        if self.file.exists() and self.file.is_file():
+            return json.loads(self.file.read_text())
+        return {}
+
     def __enter__(self):
         if not self.file.parent.exists():
             self.file.parent.mkdir(exist_ok=True, parents=True)
         if not self.file.exists():
-            self.file.write_text("{}")
-        with open(str(self.file), 'r') as f:
-            self._data = json.load(f)
+            self._data = {}
+        else:
+            self._data = json.loads(self.file.read_text())
         return self._data
 
     def __exit__(self, exc_type, exc_val, exc_traceback):
+        print("começo", self.file)
+        if exc_type is not None:
+            return False
+        print("fim", self.file)
         tmpfile = self.file.parent / f".{uuidgen()}.json"
         try:
             with tmpfile.open("w") as f:

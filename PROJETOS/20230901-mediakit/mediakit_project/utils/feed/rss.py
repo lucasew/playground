@@ -34,6 +34,13 @@ def get_feed_url_from_webpage(repo: FeedRepository) -> str:
         matches = re.findall(r"type=\"application\/rss\+xml[^>]*href=\"([^\"]*)", first_chunk, re.MULTILINE)
         if len(matches) > 0:
             return matches[0]
+    for test_route in ["feed.xml", "feed", "atom"]:
+        join_part = "" if url.endswith("/") else "/"
+        final_url = join_part.join([url, test_route])
+        data = feedparser.parse(final_url)
+        if 'bozo_exception' not in data:
+            return final_url
+        pprint(data)
     raise UnsupportedFeedURL(url)
 
 
