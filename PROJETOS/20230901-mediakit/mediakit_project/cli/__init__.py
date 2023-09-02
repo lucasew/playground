@@ -16,8 +16,7 @@ from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
 from pathlib import Path
 import os
 
-from mediakit_project.utils import load_module
-from mediakit_project.utils.module import ModuleClass
+from mediakit_project import utils
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +82,7 @@ def main():  # pragma: no cover
         if str(module).find("pycache") > 0:
             continue
         module_name = module.parent.name
-        subcommand_module = load_module(
+        subcommand_module = utils.load_module(
             module, module_name=f"mediakit_project.cli.{module_name}"
         )
         add_subcommand(subparsers, module_name, subcommand_module)
@@ -102,10 +101,11 @@ def main():  # pragma: no cover
     fn = args.__dict__.get("fn")
     args.__dict__["fn"] = None
 
-    assert args.repo_path is not None and args.repo_path.exists() and args.repo_path.is_dir(), "State repository not specified or not a existent directory"
-    ModuleClass.repo_dir = args.repo_path
+    print(args)
+    utils.REPO_DIR = args.repo_path
 
     if fn is not None:
+        assert args.repo_path is not None and args.repo_path.exists() and args.repo_path.is_dir(), "State repository not specified or not a existent directory"
         fn(args)
     else:
         parser.parse_args([*sys.argv[1:], "--help"])

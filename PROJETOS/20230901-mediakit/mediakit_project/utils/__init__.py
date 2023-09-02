@@ -1,6 +1,10 @@
 import logging
+import json
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+REPO_DIR = None
 
 
 def load_module(script_path, module_name="module"):
@@ -16,4 +20,41 @@ def load_module(script_path, module_name="module"):
     spec.loader.exec_module(model_script)
 
     return model_script
+
+
+def hash_string(text: str) -> str:
+    from hashlib import sha256
+    hasher = sha256()
+    hasher.update(text.encode('utf-8'))
+    return hasher.hexdigest()
+
+
+def hash_file(file: Path) -> str:
+    from hashlib import sha256
+    hasher = sha256()
+    with file.open('rb') as f:
+        while True:
+            buf = f.read(4096)
+            if not buf:
+                break
+            hasher.update(buf)
+    return hasher.hexdigest()
+
+
+class ContextJSON():
+    def __init__(self, file):
+        self.file = file
+
+    def __enter__(self):
+        if not self.file.parent.exists():
+            self.file.parent.mkdir(exist_ok=True, parents=True)
+        if not self.file.exists():
+            self.file.write_text("{}")
+        with open(str(self.file), 'r') as f:
+            self._data = json.load(f)
+        return self._data
+
+    def __exit__(self, exc_type, exc_val, exc_traceback):
+        with open(self.file, "w") as f:
+            json.dump(self._data, f, indent=4, sort_keys=True)
 

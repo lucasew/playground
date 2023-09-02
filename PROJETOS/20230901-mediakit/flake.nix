@@ -30,6 +30,8 @@
           python3Packages.mypy
           python3Packages.flake8
           python3Packages.pytest
+          # runtime
+          python3Packages.feedparser
         ];
       };
     });
