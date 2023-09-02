@@ -3,9 +3,14 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-__ALL__ = ["Validator", "VALIDATORS", "entity_type"]
+__ALL__ = []
 
 
+def _export(item):
+    __ALL__.append(item.__name__)
+
+
+@_export
 class Validator():
     def validate(self, data):
         """
@@ -21,7 +26,7 @@ class Validator():
         """
         return self.validate(data)
 
-
+@_export
 class ValidationException(Exception):
     def __init__(self, message: str, data: Any, exception=None, path="item"):
         super().__init__(message)
@@ -31,8 +36,10 @@ class ValidationException(Exception):
 
 
 VALIDATORS: Dict[str, Validator] = {}
+_export(VALIDATORS)
 
 
+@_export
 def normalize_validator(validator):
     if type(validator) is str:
         return VALIDATORS[validator]
@@ -43,6 +50,7 @@ def normalize_validator(validator):
     raise ValueError("invalid validator")
 
 
+@_export
 def entity_type(name: str):
     logger.debug(_("Registering entity: {entity}").format(entity=name))
 
@@ -82,6 +90,7 @@ class CoreFloat(Validator):
             raise ValidationException("can't cast to float", data, exception=e)
 
 
+@_export
 def make_dict_validator(type_name, **kwargs):
     validators = {}
     for (k, v) in kwargs.items():
@@ -122,6 +131,7 @@ def make_dict_validator(type_name, **kwargs):
             return ret
 
 
+@_export
 def make_enum_validator(type_name, **possible_items):
     possible_items = [str(item) for item in possible_items]
 
@@ -146,5 +156,6 @@ make_dict_validator(
 )
 
 
+@_export
 def validate_object(validator, data):
     return normalize_validator(validator).validate(data)
