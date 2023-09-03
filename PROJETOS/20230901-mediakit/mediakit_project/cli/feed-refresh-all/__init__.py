@@ -6,5 +6,5 @@ COMMAND_DESCRIPTION = "Update all feeds"
 def command(parser):
     def handle(args):
         for feed in fetch_all_feeds():
-            print(feed)
+            pass
     return handle

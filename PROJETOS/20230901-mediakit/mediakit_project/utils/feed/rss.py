@@ -28,6 +28,10 @@ def get_feed_url_from_webpage(repo: FeedRepository) -> str:
     if "rss_feed_url" in feed_info:
         return feed_info['rss_feed_url']
 
+    data = feedparser.parse(url)
+    if 'bozo_exception' not in data:
+        return url
+
     with urlopen(Request(url, headers=headers)) as res:
         logger.info(_("Fetching webpage to get feed: {url}").format(url=url))
         first_chunk = res.read().decode('utf-8')

@@ -80,10 +80,8 @@ class ContextJSON():
         return self._data
 
     def __exit__(self, exc_type, exc_val, exc_traceback):
-        print("começo", self.file)
         if exc_type is not None:
             return False
-        print("fim", self.file)
         tmpfile = self.file.parent / f".{uuidgen()}.json"
         try:
             with tmpfile.open("w") as f:
