@@ -60,6 +60,9 @@ class ContextConfig():
             self._config.write(f)
 
 
+repo_config = ContextConfig()
+
+
 class ContextJSON():
     def __init__(self, file):
         self.file = file
@@ -91,3 +94,18 @@ class ContextJSON():
             if tmpfile.exists():
                 tmpfile.unlink()
 
+
+def run_command_with_args(command, *args, pwd=None, **env):
+    from subprocess import run
+    from shutil import which
+    from sys import stdin, stdout, stderr
+
+    return run(
+        [which(command), *args],
+        stdin=stdin,
+        stdout=stdout,
+        stderr=stderr,
+        check=True,
+        cwd=pwd,
+        env={**os.environ, env}
+    )

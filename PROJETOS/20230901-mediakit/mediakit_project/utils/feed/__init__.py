@@ -21,17 +21,15 @@ to be reencoded.
 - Article: the content itself is some kind of post, the shownotes of
 a podcast can also be considered an article.
 
-These resources are extracted by modules or external software
-such as yt-dlp and may have to be reencoded using ffmpeg, for example.
+These resources are extracted by feed providers. To extract data from
+feeds that don't provide these resources there is another tool, in this
+case, derivations.
 
 By default, all feeds provide articles.
 
 All extraction must be deferred to be done later. The queue is built using
 a build.ninja file that can be run on another machine that is syncing the
 repo.
-
-All feed urls should be the original source URL and any third party resources
-must be handled by extractors.
 """
 
 logger = logging.getLogger(__name__)

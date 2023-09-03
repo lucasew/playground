@@ -103,6 +103,7 @@ def main():  # pragma: no cover
 
     print(args)
     utils.REPO_DIR = args.repo_path
+    os.chdir(str(args.repo_path.resolve()))
 
     if fn is not None:
         assert args.repo_path is not None and args.repo_path.exists() and args.repo_path.is_dir(), "State repository not specified or not a existent directory"
