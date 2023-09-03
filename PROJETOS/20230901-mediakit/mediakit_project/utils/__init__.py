@@ -112,3 +112,16 @@ def run_command_with_args(command, *args, pwd=None, **env):
         cwd=pwd,
         env={**os.environ, **env}
     )
+
+
+def init_skeleton():
+    from shutil import copy
+    skeleton_dir = Path(__file__).parent.parent / "repo_skeleton"
+    for p in skeleton_dir.rglob('*'):
+        path_stem = str(p).replace(str(skeleton_dir) + "/", '')
+        out_file = REPO_DIR / path_stem
+        if not out_file.parent.exists():
+            out_file.parent.mkdir(parents=True, exists_ok=True)
+        if not out_file.exists():
+            logger.debug(_("skeleton: copying {file} to repo").format(file=str(out_file)))
+            copy(p, out_file)
