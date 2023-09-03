@@ -44,7 +44,6 @@ def get_feed_url_from_webpage(repo: FeedRepository) -> str:
         data = feedparser.parse(final_url)
         if 'bozo_exception' not in data:
             return final_url
-        pprint(data)
     raise UnsupportedFeedURL(url)
 
 

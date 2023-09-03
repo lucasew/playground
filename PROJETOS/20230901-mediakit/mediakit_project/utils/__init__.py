@@ -45,6 +45,7 @@ def hash_file(file: Path) -> str:
 
 class ContextConfig():
     def __init__(self, configfile="mediakit_project.conf", readonly=True):
+        assert type(configfile) is str
         self.configfile = REPO_DIR / configfile
         self.mode = "r" if readonly else "w"
 
@@ -60,7 +61,8 @@ class ContextConfig():
             self._config.write(f)
 
 
-repo_config = ContextConfig()
+def get_default_repo_config():
+    return ContextConfig()
 
 
 class ContextJSON():
@@ -99,6 +101,7 @@ def run_command_with_args(command, *args, pwd=None, **env):
     from subprocess import run
     from shutil import which
     from sys import stdin, stdout, stderr
+    import os
 
     return run(
         [which(command), *args],
@@ -107,5 +110,5 @@ def run_command_with_args(command, *args, pwd=None, **env):
         stderr=stderr,
         check=True,
         cwd=pwd,
-        env={**os.environ, env}
+        env={**os.environ, **env}
     )

@@ -134,7 +134,7 @@ class FeedRepository():
         video_url: Optional[str] = None,
         **kwargs
     ):
-        with utils.ContextJSON(self.feed_repo / f"{published_unix}.json") as d:
+        with utils.ContextJSON(self.feed_repo / str(published_unix) / "__meta__.json") as d:
             for (k, v) in kwargs.items():
                 d[k] = v
             d['article_url'] = article_url
