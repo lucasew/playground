@@ -1,0 +1,4 @@
+from alpine
+copy demoscript /bin/demoscript
+
+entrypoint [ "/bin/demoscript" ]

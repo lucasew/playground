@@ -1,0 +1,4 @@
+#!/usr/bin/env sh
+for param in "$@"; do
+    echo param $param
+done
