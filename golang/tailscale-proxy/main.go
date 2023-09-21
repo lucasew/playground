@@ -1,13 +1,14 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"log"
+	"net"
+    "os"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-    "net"
-    "context"
 
 	"tailscale.com/tsnet"
 )
@@ -17,6 +18,7 @@ var remoteHostURL *url.URL
 var enableFunnel bool
 var tsHost string
 var addr string
+var stateDir string
 
 var cancel = func() {}
 var ctx = context.Background()
@@ -26,6 +28,7 @@ func init() {
     flag.StringVar(&remoteHost, "h", "", "Where to forward the connection")
     flag.BoolVar(&enableFunnel, "f", false, "Enable tailscale funnel")
     flag.StringVar(&tsHost, "n", "demoproxy", "Hostname in tailscale devices list")
+    flag.StringVar(&stateDir, "s", "", "State directory")
     flag.StringVar(&addr, "addr", ":443", "Port to listen")
     flag.Parse()
     remoteHostURL, err = url.Parse(remoteHost)
@@ -56,6 +59,13 @@ func main() {
     http.HandleFunc("/", handler(proxy))
     s := new(tsnet.Server)
     s.Hostname = tsHost
+    if stateDir != "" {
+        err := os.MkdirAll(stateDir, 0700)
+        if err != nil {
+            log.Fatal(err)
+        }
+        s.Dir = stateDir
+    }
     if enableFunnel {
         ln, err := s.ListenFunnel("tcp", addr)
         if err != nil {
