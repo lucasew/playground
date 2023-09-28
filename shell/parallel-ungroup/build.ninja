@@ -1,0 +1,20 @@
+# I either have streaming output or parallelization '-'
+
+rule run-payload
+    command = ./payload
+    pool = console
+
+build task1: run-payload
+build task2: run-payload
+build task3: run-payload
+build task4: run-payload
+build task5: run-payload
+build task6: run-payload
+build task7: run-payload
+build task8: run-payload
+build task9: run-payload
+build task10: run-payload
+build task11: run-payload
+build task12: run-payload
+
+
