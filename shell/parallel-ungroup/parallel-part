@@ -1,0 +1,14 @@
+#!/usr/bin/env nix-shell
+#!nix-shell -i bash -p parallel
+#! vim:ft=bash
+
+{
+    echo "./payload"
+    echo "./payload"
+    echo "./payload"
+    echo "./payload"
+    echo "./payload"
+    echo "./payload"
+    echo "./payload"
+    echo "./payload"
+} | parallel -j 4 --line-buffer
