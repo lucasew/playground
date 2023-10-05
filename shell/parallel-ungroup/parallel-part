@@ -11,4 +11,5 @@
     echo "./payload"
     echo "./payload"
     echo "./payload"
-} | parallel -j 4 --line-buffer
+# } | parallel --tag -j 4
+} | parallel --tmux -j 2
