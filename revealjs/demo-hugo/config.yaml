@@ -6,3 +6,7 @@ imaging:
     disableDate: true
     disableLatLong: true
 
+markup:
+  goldmark:
+    renderer:
+      unsafe: true
