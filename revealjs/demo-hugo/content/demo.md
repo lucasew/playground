@@ -58,3 +58,15 @@ pkgs.mkShell {
 
 <iframe width="420" height="315" allowfullscreen src="https://www.youtube.com/embed/dQw4w9WgXcQ?autoplay=1&mute=0">
 </iframe>
+
+---
+%auto-animate%
+## Animações
+
+<p>AAAA</p>
+
+---
+%auto-animate%
+## Animações
+
+<p color="red">AAAA</p>

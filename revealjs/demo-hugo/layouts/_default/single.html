@@ -12,6 +12,9 @@
 {{- $content := replaceRE `(<code class="language-\w+){(\S+)}(">)` `$1" data-line-numbers="$2">` $content -}}
 <!-- Support both <hr /> (blackfriday) and <hr> (mmark) -->
 {{- $content := replace $content "<hr>" "<hr />" -}}
+
+{{- $content := replace $content "<p>%auto-animate%</p>" "<script>document.currentScript.parentNode.setAttribute('data-auto-animate', '1');</script>" -}}
+
 <div class="reveal">
     <div class="slides">
         <!-- Split the processed content by <hr /> tag -->
@@ -39,6 +42,5 @@ Reveal.initialize({
     plugins: [ RevealZoom, RevealNotes, RevealSearch, RevealMarkdown, RevealHighlight ]
 });
 </script>
-
 
 {{- end -}}
