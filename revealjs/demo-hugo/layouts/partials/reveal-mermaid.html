@@ -14,7 +14,9 @@
             let processed = mermaidElem.getAttribute('data-processed');
             if (!processed){
                 // https://github.com/mermaid-js/mermaid/issues/311#issuecomment-332557344
-                mermaid.init(undefined, mermaidElem);
+                requestAnimationFrame(() {
+                    mermaid.init(undefined, mermaidElem);
+                })
             }
         });
     };

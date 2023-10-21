@@ -17,8 +17,10 @@
 
 <script>
     (function () {
-        function render() {
-            renderMathInElement(document.body, {delimiters: [{left: '$$', right: '$$', display: true}, {left: '$', right: '$', display: false}]});
+        async function render(event) {
+            requestAnimationFrame(() => {
+                renderMathInElement(event.currentSlide, {delimiters: [{left: '$$', right: '$$', display: true}, {left: '$', right: '$', display: false}]});
+            })
         }
         Reveal.on('slidechanged', render)
         Reveal.on('ready', render)

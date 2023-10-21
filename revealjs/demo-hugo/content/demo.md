@@ -1,5 +1,5 @@
 ---
-title: Teste
+title: Demonstração das funcionalidades
 logo:
     src: https://blog-do-lucao.vercel.app/apple-touch-icon.png
     alt: Lucão
@@ -14,6 +14,7 @@ logo:
 - Tem que ser num formato mais padrão tipo PNG ou JPG senão o hugo reclama que não sabe lidar
 
 ----
+%auto-animate%
 
 ## Funciona código
 
@@ -27,6 +28,7 @@ public class Main {
 ```
 
 ---
+%auto-animate%
 
 ## Funciona código
 
@@ -70,3 +72,25 @@ pkgs.mkShell {
 ## Animações
 
 <p color="red">AAAA</p>
+
+---
+<style>
+img.block {
+width: 100px; height: 100px;
+margin: auto;
+}
+</style>
+
+%auto-animate%
+
+# Animações
+
+<img class="block" style="background-color: red"></img>
+
+---
+%auto-animate%
+
+# Animações
+
+<img class="block" style="background-color: blue; margin-top: 100px"></img>
+
