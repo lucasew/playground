@@ -1,0 +1,8 @@
+DefaultContentLanguage: pt
+minify:
+  minifyOutput: true
+imaging:
+  exif:
+    disableDate: true
+    disableLatLong: true
+

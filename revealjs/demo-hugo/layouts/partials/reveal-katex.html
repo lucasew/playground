@@ -1,0 +1,26 @@
+{{ $katexVersion := "0.13.11" }}
+
+{{ with printf "https://cdn.jsdelivr.net/npm/katex@%s/dist/katex.min.css" $katexVersion | resources.GetRemote  }}
+
+<link rel="stylesheet" href="{{ .RelPermalink }}" />
+{{ end }}
+
+{{ with printf "https://cdn.jsdelivr.net/npm/katex@%s/dist/katex.min.js" $katexVersion | resources.GetRemote  }}
+
+<script src="{{ .RelPermalink }}" ></script>
+{{ end }}
+
+{{ with printf "https://cdn.jsdelivr.net/npm/katex@%s/dist/contrib/auto-render.min.js" $katexVersion | resources.GetRemote }}
+
+<script src="{{ .RelPermalink }}" ></script>
+{{ end }}
+
+<script>
+    (function () {
+        function render() {
+            renderMathInElement(document.body, {delimiters: [{left: '$$', right: '$$', display: true}, {left: '$', right: '$', display: false}]});
+        }
+        Reveal.on('slidechanged', render)
+        Reveal.on('ready', render)
+    })()
+</script>

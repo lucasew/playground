@@ -1,0 +1,31 @@
+{{- define "main" -}}
+    {{- if gt (len .Sections) 0 -}}
+        <h1>Pastas</h1>
+        <ul>
+    {{- end -}}
+
+    {{ range .Sections }}
+        <li><a href="{{ .RelPermalink }}">{{ .Title }}</a></li>
+    {{ end }}
+
+    {{- if gt (len .Sections) 0 -}}
+        </ul>
+    {{- end -}}
+
+    {{- if gt (len .RegularPages) 0 -}}
+        <h1>Arquivos</h1>
+        <ul>
+    {{- end -}}
+
+
+    {{ range .RegularPages }}
+        <li><a href="{{ .RelPermalink }}">{{ .Title }}</a></li>
+    {{ end }}
+
+    {{- if gt (len .RegularPages) 0 -}}
+        </ul>
+    {{- end -}}
+<ul>
+</ul>
+
+{{- end -}}
