@@ -13,12 +13,12 @@
 <link rel="stylesheet" href="{{ .RelPermalink }}" />
 {{ end }}
 
-{{ with printf "%s/%s" $revealBaseURL "plugin/highlight/monokai.css" | resources.GetRemote }}
-<link rel="stylesheet" href="{{ .RelPermalink }}" />
-{{ end }}
-
 {{ with printf "%s/%s" $revealBaseURL "dist/reveal.js" | resources.GetRemote }}
 <script src="{{ .RelPermalink }}"></script>
+{{ end }}
+
+{{ with printf "%s/%s" $revealBaseURL "plugin/highlight/monokai.css" | resources.GetRemote }}
+<link rel="stylesheet" href="{{ .RelPermalink }}" />
 {{ end }}
 
 {{ with printf "%s/%s" $revealBaseURL "plugin/highlight/highlight.js" | resources.GetRemote }}
