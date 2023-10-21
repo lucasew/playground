@@ -1,6 +1,6 @@
 DefaultContentLanguage: pt
-minify:
-  minifyOutput: true
+# minify:
+#   minifyOutput: true
 imaging:
   exif:
     disableDate: true

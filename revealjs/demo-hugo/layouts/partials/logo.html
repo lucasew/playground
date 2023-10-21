@@ -1,0 +1,18 @@
+{{ with .Params.logo }}
+
+<style>
+#logo {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    width: 250px;
+    max-width: 2rem;
+    max-height: 2rem;
+}
+</style>
+
+{{ $logo := resources.GetRemote .src }}
+
+<img id="logo" src="{{ $logo.RelPermalink }}" alt="{{ or .alt " " }}">
+
+{{ end }}

@@ -1,5 +1,8 @@
 ---
 title: Teste
+logo:
+    src: https://blog-do-lucao.vercel.app/apple-touch-icon.png
+    alt: Lucão
 ---
 
 # Bom dia
