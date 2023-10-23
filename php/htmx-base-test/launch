@@ -1,0 +1,5 @@
+#!/usr/bin/env -S nix run github:lucasew/nix-flake-shell
+#!nix-flake-shell nixpkgs.php
+
+#! vim:ft=bash
+php -S 127.0.0.1:2222 -t .
