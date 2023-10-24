@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+
+while IFS= read -r -d $'\0' file; do
+    key="${file%%=*}"
+    value="${file#*=}"
+    printf "key:\t%s\n" "$key"
+    printf "value:\t%s\n\n" "$value"
+done < /proc/self/environ
