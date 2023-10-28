@@ -73,6 +73,9 @@ int main(int argc, char* argv[]) {
     if (vkCreateInstance(&createInfo, NULL, &instance) != VK_SUCCESS) {
         fprintf(stderr, "vulkan deu pau criando instância\n");
     }
+    
+
+    // Paused at: https://vulkan-tutorial.com/en/Drawing_a_triangle/Setup/Validation_layers
 
 
     fprintf(stderr, "Chegou agui\n");
