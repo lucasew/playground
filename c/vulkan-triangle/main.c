@@ -1,5 +1,6 @@
 #include<stdio.h>
 #include<stdlib.h>
+#include<string.h>
 
 #define GLFW_INCLUDE_VULKAN
 
@@ -10,7 +11,11 @@ const char* const VULKAN_VALIDATION_LAYERS[] = {
     "VK_LAYER_KHRONOS_validation"
 };
 
-static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
+static void glfwErrorCallback(int error, const char* description) {
+    fprintf(stderr, "glfwdebug %i: %s\n", error, description);
+}
+
+static VKAPI_ATTR VkBool32 VKAPI_CALL vulkanDebugCallback(
         VkDebugUtilsMessageSeverityFlagBitsEXT severity,
         VkDebugUtilsMessageTypeFlagsEXT type,
         const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
@@ -34,35 +39,75 @@ void showExtensions() {
     free(extensionProperties);
 }
 
-void showValidationLayers(uint32_t validationLayersCount, VkLayerProperties* layers) {
+void showValidationLayers() {
+    uint32_t validationLayersCount;
+    vkEnumerateInstanceLayerProperties(&validationLayersCount, NULL);
+    VkLayerProperties* validationLayers = malloc(sizeof(VkLayerProperties)*validationLayersCount);
+    vkEnumerateInstanceLayerProperties(&validationLayersCount, validationLayers);
     fprintf(stderr, "Number of validation layers supported: %i\n", validationLayersCount);
     for (int i = 0; i < validationLayersCount; i++) {
-        VkLayerProperties layer = layers[i];
+        VkLayerProperties layer = validationLayers[i];
         fprintf(stderr, "\t Layer: %s (spec:%i, impl=%i): %s\n", layer.layerName, layer.specVersion, layer.implementationVersion, layer.description);
     }
 }
 
-VkResult setupDebug(VkInstance instance) {
-    VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo = {
-        .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
-        .messageSeverity =
-              VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT
-            | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT
-            | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT,
-        .pfnUserCallback = debugCallback,
-        .pUserData = NULL
-    };
+
+
+void getUsedValidationLayers(VkInstanceCreateInfo *createInfo) {
+    uint32_t validationLayersCount;
+    vkEnumerateInstanceLayerProperties(&validationLayersCount, NULL);
+    VkLayerProperties* validationLayers = malloc(sizeof(VkLayerProperties)*validationLayersCount);
+    vkEnumerateInstanceLayerProperties(&validationLayersCount, validationLayers);
+    const char **usedValidationLayers = malloc(sizeof(char*)*validationLayersCount);
+    for (int i = 0; i < validationLayersCount; i++) {
+        usedValidationLayers[i] = validationLayers[i].layerName;
+    }
+    createInfo->enabledLayerCount = validationLayersCount;
+    createInfo->ppEnabledLayerNames = usedValidationLayers;
+}
+
+void getUsedExtensions(VkInstanceCreateInfo *createInfo) {
+    uint32_t glfwExtensionCount;
+    const char **glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+
+    const char **vulkanExtensions = malloc(sizeof(char*)*(glfwExtensionCount+1));
+    memcpy(vulkanExtensions, glfwExtensions, sizeof(char*)*glfwExtensionCount);
+    vulkanExtensions[glfwExtensionCount] = VK_EXT_DEBUG_UTILS_EXTENSION_NAME;
+
+    createInfo->enabledExtensionCount = glfwExtensionCount + 1;
+    createInfo->ppEnabledExtensionNames = vulkanExtensions;
+}
+VkResult setupDebug(VkInstance instance, VkDebugUtilsMessengerCreateInfoEXT *debugCreateInfo, VkDebugUtilsMessengerEXT *debugMessenger) {
+    debugCreateInfo->sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+    debugCreateInfo->messageSeverity =
+          VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT
+        | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT
+        | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+
+    debugCreateInfo->pfnUserCallback = vulkanDebugCallback;
+    debugCreateInfo->pUserData = NULL;
+
     PFN_vkCreateDebugUtilsMessengerEXT handler = (PFN_vkCreateDebugUtilsMessengerEXT) vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
-    VkDebugUtilsMessengerEXT debugMessenger;
     if (handler) {
-        return handler(instance, &debugCreateInfo, NULL, &debugMessenger);
+        return handler(instance, debugCreateInfo, NULL, debugMessenger);
     }
     fprintf(stderr, "setupDebug: vkCreateDebugUtilsMessengerEXT not found\n");
     return VK_ERROR_EXTENSION_NOT_PRESENT;
 
 }
 
+void destroyDebug(VkInstance instance, VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo, VkDebugUtilsMessengerEXT debugMessenger) {
+    if (!debugCreateInfo.pfnUserCallback) {
+        return;
+    }
+    PFN_vkDestroyDebugUtilsMessengerEXT handler = (PFN_vkDestroyDebugUtilsMessengerEXT) vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");
+    if (handler) {
+        handler(instance, debugMessenger, NULL);
+    }
+}
+
 int main(int argc, char* argv[]) {
+    glfwSetErrorCallback(glfwErrorCallback);
     // init GLFW
     if (!glfwInit()) {
         fprintf(stderr, "glfw didn't initialize\n");
@@ -86,22 +131,14 @@ int main(int argc, char* argv[]) {
         .apiVersion = VK_API_VERSION_1_0
     };
 
-    uint32_t glfwExtensionCount;
-    const char **glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-
-    uint32_t validationLayersCount;
-    vkEnumerateInstanceLayerProperties(&validationLayersCount, NULL);
-    VkLayerProperties* validationLayers = malloc(sizeof(VkLayerProperties)*validationLayersCount);
-    vkEnumerateInstanceLayerProperties(&validationLayersCount, validationLayers);
-    showValidationLayers(validationLayersCount, validationLayers);
-
     VkInstanceCreateInfo createInfo = {
         .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
         .pApplicationInfo = &appInfo,
-        .enabledExtensionCount = glfwExtensionCount,
-        .ppEnabledExtensionNames = glfwExtensions,
         .enabledLayerCount = 0
     };
+    getUsedExtensions(&createInfo);
+    showValidationLayers();
+    /* getUsedValidationLayers(&createInfo); */
 
     /* createInfo.enabledLayerCount = 1; */
     /* createInfo.ppEnabledLayerNames = VULKAN_VALIDATION_LAYERS; */
@@ -110,8 +147,11 @@ int main(int argc, char* argv[]) {
         fprintf(stderr, "vulkan deu pau criando instância\n");
     }
 
-    if (setupDebug(instance) != VK_SUCCESS) {
+    VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo;
+    VkDebugUtilsMessengerEXT debugMessenger;
+    if (setupDebug(instance, &debugCreateInfo, &debugMessenger) != VK_SUCCESS) {
         fprintf(stderr, "falha ao dar setup no debug\n");
+        debugCreateInfo.pfnUserCallback = NULL;
     }
 
     // Paused at: https://vulkan-tutorial.com/en/Drawing_a_triangle/Setup/Validation_layers
@@ -124,6 +164,8 @@ int main(int argc, char* argv[]) {
 
     // deinit GLFW window
     glfwDestroyWindow(window);
+
+    destroyDebug(instance, debugCreateInfo, debugMessenger);
     // deinit GLFW
     glfwTerminate();
     return 0;
