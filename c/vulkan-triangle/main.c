@@ -370,17 +370,47 @@ int main(int argc, char* argv[]) {
     uint32_t swapchainImageCount;
     vkGetSwapchainImagesKHR(device, swapChain, &swapChainImageCount, NULL);
     VkImage* swapchainImages = malloc(sizeof(VkImage)*swapChainImageCount);
+    VkImageView* swapchainImageViews = malloc(sizeof(VkImageView)*swapChainImageCount);
     vkGetSwapchainImagesKHR(device, swapChain, &swapChainImageCount, swapchainImages);
     VkFormat swapChainImageFormat = surfaceFormat.format;
 
-    // Paused at: https://vulkan-tutorial.com/en/Drawing_a_triangle/Presentation/Image_views
+    for (int i = 0; i < swapchainImageCount; i++) {
+        VkImageViewCreateInfo imageViewCreateInfo = {
+            .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+            .image = swapchainImages[i],
+            .viewType = VK_IMAGE_VIEW_TYPE_2D,
+            .format = swapChainImageFormat,
+            .components = {
+                .r = VK_COMPONENT_SWIZZLE_IDENTITY,
+                .g = VK_COMPONENT_SWIZZLE_IDENTITY,
+                .b = VK_COMPONENT_SWIZZLE_IDENTITY,
+                .a = VK_COMPONENT_SWIZZLE_IDENTITY,
+            },
+            .subresourceRange = {
+                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                .baseMipLevel = 0,
+                .levelCount = 1,
+                .baseArrayLayer = 0,
+                .layerCount = 1
+            }
+        };
+        if (vkCreateImageView(device, &imageViewCreateInfo, NULL, &swapchainImageViews[i]) != VK_SUCCESS) {
+            fprintf(stderr, "vulkan: can't create image view\n");
+        }
+    }
 
-
+    // Paused at: https://vulkan-tutorial.com/en/Drawing_a_triangle/Graphics_pipeline_basics/Introduction
     fprintf(stderr, "Chegou agui\n");
     while(!glfwWindowShouldClose(window)) {
         glfwPollEvents();
     }
     fprintf(stderr, "E agui\n");
+
+    for (int i = 0; i < swapchainImageCount; i++) {
+        vkDestroyImageView(device, swapchainImageViews[i], NULL);
+    }
+    free(swapchainImageViews);
+    free(swapchainImages);
 
     vkDestroySwapchainKHR(device, swapChain, NULL);
     vkDestroySurfaceKHR(instance, surface, NULL);
