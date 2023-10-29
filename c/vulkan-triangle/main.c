@@ -301,6 +301,7 @@ void destroyDebug(VkInstance instance, VkDebugUtilsMessengerCreateInfoEXT debugC
 }
 
 void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex) {
+    fprintf(stderr, "command buffer (imageIndex=%i)\n", imageIndex);
     VkCommandBufferBeginInfo commandBufferBeginInfo = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
         .flags = 0, // optional
@@ -776,14 +777,14 @@ int main(int argc, char* argv[]) {
 
     swapChainFramebuffers = malloc(sizeof(VkFramebuffer)*swapChainImageCount);
     for (int i = 0; i < swapChainImageCount; i++) {
-        VkImageView attachments[] = {
-            swapchainImageViews[i]
-        };
+        /* VkImageView attachments[] = { */
+        /*     swapchainImageViews[i] */
+        /* }; */
         VkFramebufferCreateInfo framebufferCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
             .renderPass = renderPass,
             .attachmentCount = 1,
-            .pAttachments = attachments,
+            .pAttachments = &swapchainImageViews[i],
             .width = swapChainExtent.width,
             .height = swapChainExtent.height,
             .layers = 1
