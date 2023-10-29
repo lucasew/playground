@@ -563,13 +563,51 @@ int main(int argc, char* argv[]) {
         fprintf(stderr, "vulkan: não foi possivel criar o pipeline layout\n");
     }
 
+    VkAttachmentDescription colorAttachment = {
+        .format = swapChainImageFormat,
+        .samples = VK_SAMPLE_COUNT_1_BIT,
+        .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+        .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+        .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+        .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        .finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+    };
 
-    // Paused at: https://vulkan-tutorial.com/en/Drawing_a_triangle/Graphics_pipeline_basics/Fixed_functions
+    VkAttachmentReference colorAttachmentRef = {
+        .attachment = 0,
+        .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+    };
+
+    // this specify about where to get the color from the shader
+    VkSubpassDescription subpassDescription = {
+        .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
+        .colorAttachmentCount = 1,
+        .pColorAttachments = &colorAttachmentRef
+    };
+
+    VkRenderPassCreateInfo renderPassCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
+        .attachmentCount = 1,
+        .pAttachments = &colorAttachment,
+        .subpassCount = 1,
+        .pSubpasses = &subpassDescription
+    };
+    VkRenderPass renderPass;
+    if (vkCreateRenderPass(device, &renderPassCreateInfo, NULL, &renderPass) != VK_SUCCESS) {
+        fprintf(stderr, "vulkan: can't create render pass\n");
+    }
+
+
+    // Paused at: https://vulkan-tutorial.com/en/Drawing_a_triangle/Graphics_pipeline_basics/Conclusion
     fprintf(stderr, "Chegou agui\n");
     while(!glfwWindowShouldClose(window)) {
         glfwPollEvents();
     }
     fprintf(stderr, "E agui\n");
+
+    vkDestroyPipelineLayout(device, pipelineLayout, NULL);
+    vkDestroyRenderPass(device, renderPass, NULL);
 
     vkDestroyPipelineLayout(device, pipelineLayout, NULL);
 
