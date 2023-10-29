@@ -93,8 +93,62 @@ VkResult setupDebug(VkInstance instance, VkDebugUtilsMessengerCreateInfoEXT *deb
     }
     fprintf(stderr, "setupDebug: vkCreateDebugUtilsMessengerEXT not found\n");
     return VK_ERROR_EXTENSION_NOT_PRESENT;
-
 }
+
+VkPhysicalDevice getDevice(VkInstance instance) {
+    uint32_t deviceCount = 0;
+    vkEnumeratePhysicalDevices(instance, &deviceCount, NULL);
+    if (deviceCount == 0) {
+        return VK_NULL_HANDLE;
+    }
+    VkPhysicalDevice* devices = malloc(sizeof(VkPhysicalDevice)*deviceCount);
+    vkEnumeratePhysicalDevices(instance, &deviceCount, devices);
+    fprintf(stderr, "Number of devices supported: %i\n", deviceCount);
+    VkPhysicalDevice chosenDevice = VK_NULL_HANDLE;
+    int best_score = 0;
+
+    for (int i = 0; i < deviceCount; i++) {
+        VkPhysicalDevice device = devices[i];
+        VkPhysicalDeviceProperties deviceProperties;
+        vkGetPhysicalDeviceProperties(device, &deviceProperties);
+        VkPhysicalDeviceFeatures deviceFeatures;
+        vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
+        fprintf(stderr, "\tDevice: %s (%i, v%i) driver=%i\n", deviceProperties.deviceName, deviceProperties.deviceID, deviceProperties.apiVersion, deviceProperties.driverVersion);
+
+        int score = 0;
+        if (deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
+            score += 1 << 10;
+        }
+        score += deviceProperties.limits.maxImageDimension2D;
+        if (!deviceFeatures.geometryShader) {
+            score = 0;
+        }
+        uint32_t queueFamilyCount = 0;
+        vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, NULL);
+        VkQueueFamilyProperties* queueFamilies = malloc(sizeof(VkQueueFamilyProperties)*queueFamilyCount);
+        vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies);
+        int has_graphics = 0;
+        for (int j = 0; j < queueFamilyCount; j++) {
+            VkQueueFamilyProperties queueFamily = queueFamilies[j];
+            if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+                has_graphics = 1;
+            }
+        }
+        if (!has_graphics) {
+            score = 0;
+        }
+
+
+
+        if (score > best_score) {
+            best_score = score;
+            chosenDevice = device;
+        }
+    }
+    free(devices);
+    return chosenDevice;
+}
+
 
 void destroyDebug(VkInstance instance, VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo, VkDebugUtilsMessengerEXT debugMessenger) {
     if (!debugCreateInfo.pfnUserCallback) {
@@ -154,18 +208,24 @@ int main(int argc, char* argv[]) {
         debugCreateInfo.pfnUserCallback = NULL;
     }
 
-    // Paused at: https://vulkan-tutorial.com/en/Drawing_a_triangle/Setup/Validation_layers
+    VkPhysicalDevice device = getDevice(instance);
+    if (device == VK_NULL_HANDLE) {
+        fprintf(stderr, "falha ao achar um device compatível\n");
+    }
+
+    // Paused at: https://vulkan-tutorial.com/en/Drawing_a_triangle/Setup/Logical_device_and_queues
 
 
     fprintf(stderr, "Chegou agui\n");
     while(!glfwWindowShouldClose(window)) {
         glfwPollEvents();
     }
+    fprintf(stderr, "E agui\n");
 
     // deinit GLFW window
     glfwDestroyWindow(window);
 
-    destroyDebug(instance, debugCreateInfo, debugMessenger);
+    /* destroyDebug(instance, debugCreateInfo, debugMessenger); */
     // deinit GLFW
     glfwTerminate();
     return 0;
