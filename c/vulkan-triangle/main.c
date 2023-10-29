@@ -104,7 +104,7 @@ void showExtensions() {
     uint32_t extensionCount = 0;
     vkEnumerateInstanceExtensionProperties(NULL, &extensionCount, NULL);
     fprintf(stderr, "Number of vulkan extensions supported: %i\n", extensionCount);
-    VkExtensionProperties* extensionProperties = malloc(sizeof(VkExtensionProperties)*extensionCount);
+    VkExtensionProperties* extensionProperties = calloc(extensionCount, sizeof(VkExtensionProperties));
     vkEnumerateInstanceExtensionProperties(NULL, &extensionCount, extensionProperties);
     for (int i = 0; i < extensionCount; i++) {
         VkExtensionProperties property = extensionProperties[i];
@@ -116,7 +116,7 @@ void showExtensions() {
 void showValidationLayers() {
     uint32_t validationLayersCount;
     vkEnumerateInstanceLayerProperties(&validationLayersCount, NULL);
-    VkLayerProperties* validationLayers = malloc(sizeof(VkLayerProperties)*validationLayersCount);
+    VkLayerProperties* validationLayers = calloc(validationLayersCount, sizeof(VkLayerProperties));
     vkEnumerateInstanceLayerProperties(&validationLayersCount, validationLayers);
     fprintf(stderr, "Number of validation layers supported: %i\n", validationLayersCount);
     for (int i = 0; i < validationLayersCount; i++) {
@@ -128,9 +128,9 @@ void showValidationLayers() {
 void getUsedValidationLayers(VkInstanceCreateInfo *createInfo) {
     uint32_t validationLayersCount;
     vkEnumerateInstanceLayerProperties(&validationLayersCount, NULL);
-    VkLayerProperties* validationLayers = malloc(sizeof(VkLayerProperties)*validationLayersCount);
+    VkLayerProperties* validationLayers = calloc(validationLayersCount, sizeof(VkLayerProperties));
     vkEnumerateInstanceLayerProperties(&validationLayersCount, validationLayers);
-    const char **usedValidationLayers = malloc(sizeof(char*)*validationLayersCount);
+    const char **usedValidationLayers = calloc(validationLayersCount, sizeof(char*));
     for (int i = 0; i < validationLayersCount; i++) {
         usedValidationLayers[i] = validationLayers[i].layerName;
     }
@@ -143,7 +143,7 @@ void getUsedExtensions(VkInstanceCreateInfo *createInfo) {
     uint32_t glfwExtensionCount;
     const char **glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
 
-    /* const char **vulkanExtensions = malloc(sizeof(char*)*(glfwExtensionCount+ADDITIONAL_EXTENSIONS)); */
+    /* const char **vulkanExtensions = calloc(glfwExtensionCount+ADDITIONAL_EXTENSIONS, sizeof(char*)); */
     /* for (int i = 0; i < glfwExtensionCount; i++) { */
     /*     vulkanExtensions[i] = glfwExtensions[i]; */
     /* } */
@@ -177,7 +177,7 @@ VkResult setupDebug(VkInstance instance, VkDebugUtilsMessengerCreateInfoEXT *deb
 int getFirstQueueFamilyOfType(VkPhysicalDevice device, VkQueueFlags flag) {
     uint32_t queueFamilyCount = 0;
     vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, NULL);
-    VkQueueFamilyProperties* queueFamilies = malloc(sizeof(VkQueueFamilyProperties)*queueFamilyCount);
+    VkQueueFamilyProperties* queueFamilies = calloc(queueFamilyCount, sizeof(VkQueueFamilyProperties));
     vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies);
 
     int ret = -1; // nothing found
@@ -194,7 +194,7 @@ int getFirstQueueFamilyOfType(VkPhysicalDevice device, VkQueueFlags flag) {
 VkSurfaceFormatKHR getSwapSurfaceFormat(VkPhysicalDevice device, VkSurfaceKHR surface) {
     uint32_t deviceSurfaceFormatsCount;
     vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &deviceSurfaceFormatsCount, NULL);
-    VkSurfaceFormatKHR* formats = malloc(sizeof(VkSurfaceFormatKHR)*deviceSurfaceFormatsCount);
+    VkSurfaceFormatKHR* formats = calloc(deviceSurfaceFormatsCount, sizeof(VkSurfaceFormatKHR));
     vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &deviceSurfaceFormatsCount, formats);
     VkSurfaceFormatKHR ret;
     for (int i = 0; i < deviceSurfaceFormatsCount; i++) {
@@ -212,7 +212,7 @@ VkPresentModeKHR getSwapPresentMode(VkPhysicalDevice device, VkSurfaceKHR surfac
     uint32_t devicePresentModeCount;
     vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &devicePresentModeCount, NULL);
     VkPresentModeKHR ret = VK_PRESENT_MODE_FIFO_KHR;
-    VkPresentModeKHR* modes = malloc(sizeof(VkPresentModeKHR)*devicePresentModeCount);
+    VkPresentModeKHR* modes = calloc(devicePresentModeCount, sizeof(VkPresentModeKHR));
     vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &devicePresentModeCount, modes);
     for (int i = 0; i < devicePresentModeCount; i++) {
         VkPresentModeKHR presentMode = modes[i];
@@ -232,7 +232,7 @@ VkPhysicalDevice getDevice(VkInstance instance, VkSurfaceKHR surface) {
     if (deviceCount == 0) {
         return VK_NULL_HANDLE;
     }
-    VkPhysicalDevice* devices = malloc(sizeof(VkPhysicalDevice)*deviceCount);
+    VkPhysicalDevice* devices = calloc(deviceCount, sizeof(VkPhysicalDevice));
     vkEnumeratePhysicalDevices(instance, &deviceCount, devices);
     fprintf(stderr, "Number of devices supported: %i\n", deviceCount);
     VkPhysicalDevice chosenDevice = VK_NULL_HANDLE;
@@ -546,13 +546,13 @@ int main(int argc, char* argv[]) {
         fprintf(stderr, "can't list swapchain images KHR\n");
     }
     fprintf(stderr, "swapchain image size: %i\n", swapChainImageCount);
-    swapchainImages = malloc(sizeof(VkImage)*swapChainImageCount);
-    swapchainImageViews = malloc(sizeof(VkImageView)*swapChainImageCount);
+    swapchainImages = calloc(swapChainImageCount, sizeof(VkImage));
     if (handleVulkanResult(vkGetSwapchainImagesKHR(device, swapChain, &swapChainImageCount, swapchainImages))) {
         fprintf(stderr, "can't fetch swapchain images KHR\n");
     }
     swapChainImageFormat = surfaceFormat.format;
 
+    swapchainImageViews = calloc(swapChainImageCount, sizeof(VkImageView));
     for (int i = 0; i < swapchainImageCount; i++) {
         VkImageViewCreateInfo imageViewCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
@@ -782,7 +782,7 @@ int main(int argc, char* argv[]) {
         fprintf(stderr, "vulkan: can't create graphics pipeline\n");
     }
 
-    swapChainFramebuffers = malloc(sizeof(VkFramebuffer)*swapChainImageCount);
+    swapChainFramebuffers = calloc(swapChainImageCount, sizeof(VkFramebuffer));
     for (int i = 0; i < swapChainImageCount; i++) {
         VkImageView attachments[] = {
             swapchainImageViews[i]
