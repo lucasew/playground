@@ -47,6 +47,10 @@ VkFramebuffer *swapChainFramebuffers = NULL;
 VkCommandPool commandPool;
 VkCommandBuffer commandBuffer;
 
+VkSemaphore imageAvailableSemaphore;
+VkSemaphore renderFinishedSemaphore;
+VkFence inFlightFence;
+
 #define clamp(x, lo, hi) (x < lo ? lo : x > hi ? hi : x)
 
 static void glfwErrorCallback(int error, const char* description) {
@@ -332,6 +336,44 @@ void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex) {
     if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
         fprintf(stderr, "vulkan: can't run render pass\n");
     }
+}
+
+void drawFrame() {
+    vkWaitForFences(device, 1, &inFlightFence, VK_TRUE, UINT64_MAX); // VK_TRUE == wait for all fences
+    vkResetFences(device, 1, &inFlightFence);
+    uint32_t imageIndex;
+    vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
+    vkResetCommandBuffer(commandBuffer, 0);
+    recordCommandBuffer(commandBuffer, imageIndex);
+
+    VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+
+    VkSemaphore signalSemaphores[] = {renderFinishedSemaphore};
+
+    VkSubmitInfo submitInfo = {
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .waitSemaphoreCount = 1,
+        .pWaitSemaphores = &imageAvailableSemaphore,
+        .pWaitDstStageMask = waitStages,
+        .commandBufferCount = 1,
+        .pCommandBuffers = &commandBuffer,
+        .signalSemaphoreCount = 1,
+        .pSignalSemaphores = signalSemaphores
+    };
+
+    if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFence) != VK_SUCCESS) {
+        fprintf(stderr, "vulkan: can't submit to draw command buffer\n");
+    }
+    VkPresentInfoKHR presentInfo = {
+        .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+        .waitSemaphoreCount = 1,
+        .pWaitSemaphores = signalSemaphores,
+        .swapchainCount = 1,
+        .pSwapchains = &swapChain,
+        .pImageIndices = &imageIndex,
+        .pResults = NULL
+    };
+    vkQueuePresentKHR(presentQueue, &presentInfo);
 }
 
 int main(int argc, char* argv[]) {
@@ -652,12 +694,23 @@ int main(int argc, char* argv[]) {
         .pColorAttachments = &colorAttachmentRef
     };
 
+    VkSubpassDependency subpassDependency = {
+        .srcSubpass = VK_SUBPASS_EXTERNAL,
+        .dstSubpass = 0,
+        .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        .srcAccessMask = 0,
+        .dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
+    };
+
     VkRenderPassCreateInfo renderPassCreateInfo = {
         .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
         .attachmentCount = 1,
         .pAttachments = &colorAttachment,
         .subpassCount = 1,
-        .pSubpasses = &subpassDescription
+        .pSubpasses = &subpassDescription,
+        .dependencyCount = 1,
+        .pDependencies = &subpassDependency
     };
 
     if (vkCreateRenderPass(device, &renderPassCreateInfo, NULL, &renderPass) != VK_SUCCESS) {
@@ -726,15 +779,40 @@ int main(int argc, char* argv[]) {
         fprintf(stderr, "vulkan: can't allocate command buffers\n");
     }
 
+    VkSemaphoreCreateInfo semaphoreCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO
+    };
+
+    VkFenceCreateInfo fenceCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+        .flags =
+            VK_FENCE_CREATE_SIGNALED_BIT // doesn't block on the first pass
+    };
+
+    if (vkCreateSemaphore(device, &semaphoreCreateInfo, NULL, &imageAvailableSemaphore) != VK_SUCCESS) {
+        fprintf(stderr, "vulkan: can't create imageAvailableSemaphore\n");
+    }
+    if (vkCreateSemaphore(device, &semaphoreCreateInfo, NULL, &renderFinishedSemaphore) != VK_SUCCESS) {
+        fprintf(stderr, "vulkan: can't create renderFinishedSemaphore\n");
+    }
+    if (vkCreateFence(device, &fenceCreateInfo, NULL, &inFlightFence) != VK_SUCCESS) {
+        fprintf(stderr, "vulkan: can't create inFlightFence\n");
+    }
+
     // Paused at: https://vulkan-tutorial.com/en/Drawing_a_triangle/Graphics_pipeline_basics/Conclusion
 
 
     fprintf(stderr, "Chegou agui\n");
     while(!glfwWindowShouldClose(window)) {
         glfwPollEvents();
-        draw();
+        drawFrame();
     }
+
     fprintf(stderr, "E agui\n");
+    vkDestroySemaphore(device, imageAvailableSemaphore, NULL);
+    vkDestroySemaphore(device, renderFinishedSemaphore, NULL);
+    vkDestroyFence(device, inFlightFence, NULL);
+
     vkDestroyCommandPool(device, commandPool, NULL);
 
     for (int i = 0; i < swapchainImageCount; i++) {
