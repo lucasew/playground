@@ -3,6 +3,11 @@
 #include<string.h>
 #include<limits.h>
 #include<stdint.h>
+#include<errno.h>
+#include<fcntl.h>
+#include<sys/stat.h>
+#include<sys/mman.h>
+#include<unistd.h>
 
 #define GLFW_INCLUDE_VULKAN
 
@@ -26,6 +31,30 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL vulkanDebugCallback(
         void* pUserData) {
     fprintf(stderr, "vkdebug %i %i: %s\n", severity, type, pCallbackData->pMessage);
     return VK_FALSE;
+}
+
+VkResult readShader(VkDevice device, VkShaderModule *shaderModule, const char* filename) {
+    struct stat sb;
+    int fd = open(filename, O_RDONLY);
+    if (fd == -1) {
+        fprintf(stderr, "can't open file '%s': %s", filename, strerror(errno));
+        return VK_ERROR_MEMORY_MAP_FAILED;
+    }
+    if (fstat(fd, &sb) == -1) {
+        fprintf(stderr, "can't fstat file '%s': %s", filename, strerror(errno));
+        return VK_ERROR_MEMORY_MAP_FAILED;
+    }
+    const uint32_t* addr = mmap(NULL, sb.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+    if (addr == MAP_FAILED) {
+        fprintf(stderr, "can't mmap file '%s': %s", filename, strerror(errno));
+        return VK_ERROR_MEMORY_MAP_FAILED;
+    }
+    VkShaderModuleCreateInfo createInfo;
+    createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    createInfo.codeSize = sb.st_size;
+    createInfo.pCode = addr;
+    close(fd);
+    return vkCreateShaderModule(device, &createInfo, NULL, shaderModule);
 }
 
 
@@ -399,12 +428,43 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    // Paused at: https://vulkan-tutorial.com/en/Drawing_a_triangle/Graphics_pipeline_basics/Introduction
+    VkShaderModule vertexShaderModule;
+    if (readShader(device, &vertexShaderModule, "./vert.spv") != VK_SUCCESS) {
+        fprintf(stderr, "vulkan: can't create vertex shader module\n");
+    }
+
+    VkShaderModule fragmentShaderModule;
+    if (readShader(device, &fragmentShaderModule, "./frag.spv") != VK_SUCCESS) {
+        fprintf(stderr, "vulkan: can't create fragment shader module\n");
+    }
+
+    VkPipelineShaderStageCreateInfo vertexShaderStageCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+        .stage = VK_SHADER_STAGE_VERTEX_BIT,
+        .module = vertexShaderModule,
+        .pName = "main"
+    };
+
+    VkPipelineShaderStageCreateInfo fragmentShaderStageCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+        .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
+        .module = fragmentShaderModule,
+        .pName = "main"
+    };
+
+    VkPipelineShaderStageCreateInfo shaderStages[] = {vertexShaderStageCreateInfo, fragmentShaderStageCreateInfo};
+
+
+
+    // Paused at: https://vulkan-tutorial.com/en/Drawing_a_triangle/Graphics_pipeline_basics/Fixed_functions
     fprintf(stderr, "Chegou agui\n");
     while(!glfwWindowShouldClose(window)) {
         glfwPollEvents();
     }
     fprintf(stderr, "E agui\n");
+
+    vkDestroyShaderModule(device, vertexShaderModule, NULL);
+    vkDestroyShaderModule(device, fragmentShaderModule, NULL);
 
     for (int i = 0; i < swapchainImageCount; i++) {
         vkDestroyImageView(device, swapchainImageViews[i], NULL);
