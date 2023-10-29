@@ -1,6 +1,8 @@
 #include<stdio.h>
 #include<stdlib.h>
 #include<string.h>
+#include<limits.h>
+#include<stdint.h>
 
 #define GLFW_INCLUDE_VULKAN
 
@@ -10,6 +12,8 @@ const char* APP_NAME = "V U L K A N";
 const char* const VULKAN_VALIDATION_LAYERS[] = {
     "VK_LAYER_KHRONOS_validation"
 };
+
+#define clamp(x, lo, hi) (x < lo ? lo : x > hi ? hi : x)
 
 static void glfwErrorCallback(int error, const char* description) {
     fprintf(stderr, "glfwdebug %i: %s\n", error, description);
@@ -50,8 +54,6 @@ void showValidationLayers() {
         fprintf(stderr, "\t Layer: %s (spec:%i, impl=%i): %s\n", layer.layerName, layer.specVersion, layer.implementationVersion, layer.description);
     }
 }
-
-
 
 void getUsedValidationLayers(VkInstanceCreateInfo *createInfo) {
     uint32_t validationLayersCount;
@@ -112,6 +114,40 @@ int getFirstQueueFamilyOfType(VkPhysicalDevice device, VkQueueFlags flag) {
     return ret;
 }
 
+VkSurfaceFormatKHR getSwapSurfaceFormat(VkPhysicalDevice device, VkSurfaceKHR surface) {
+    uint32_t deviceSurfaceFormatsCount;
+    vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &deviceSurfaceFormatsCount, NULL);
+    VkSurfaceFormatKHR* formats = malloc(sizeof(VkSurfaceFormatKHR)*deviceSurfaceFormatsCount);
+    vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &deviceSurfaceFormatsCount, formats);
+    VkSurfaceFormatKHR ret;
+    for (int i = 0; i < deviceSurfaceFormatsCount; i++) {
+        VkSurfaceFormatKHR format = formats[i];
+        if (format.format == VK_FORMAT_B8G8R8A8_SRGB && format.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
+            ret = format;
+            break;
+        }
+    }
+    free(formats);
+    return ret;
+}
+
+VkPresentModeKHR getSwapPresentMode(VkPhysicalDevice device, VkSurfaceKHR surface) {
+    uint32_t devicePresentModeCount;
+    vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &devicePresentModeCount, NULL);
+    VkPresentModeKHR ret = VK_PRESENT_MODE_FIFO_KHR;
+    VkPresentModeKHR* modes = malloc(sizeof(VkPresentModeKHR)*devicePresentModeCount);
+    vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &devicePresentModeCount, modes);
+    for (int i = 0; i < devicePresentModeCount; i++) {
+        VkPresentModeKHR presentMode = modes[i];
+        if (presentMode == VK_PRESENT_MODE_MAILBOX_KHR) {
+            ret = presentMode;
+        }
+    }
+    free(modes);
+    return ret;
+
+}
+
 
 VkPhysicalDevice getDevice(VkInstance instance, VkSurfaceKHR surface) {
     uint32_t deviceCount = 0;
@@ -150,6 +186,19 @@ VkPhysicalDevice getDevice(VkInstance instance, VkSurfaceKHR surface) {
         vkGetPhysicalDeviceSurfaceSupportKHR(device, firstGraphicsQueue, surface, &presentSupport);
         if (presentSupport != VK_TRUE) {
             fprintf(stderr, "device doesn't support presentation along with graphics, skipping...\n");
+            continue;
+        }
+
+
+        uint32_t deviceSurfaceFormatsCount;
+        vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &deviceSurfaceFormatsCount, NULL);
+        if (deviceSurfaceFormatsCount == 0) {
+            continue;
+        }
+
+        uint32_t devicePresentModeCount;
+        vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &devicePresentModeCount, NULL);
+        if (devicePresentModeCount == 0) {
             continue;
         }
 
@@ -275,9 +324,56 @@ int main(int argc, char* argv[]) {
     VkQueue presentQueue;
     vkGetDeviceQueue(device, presentQueueCreateInfo.queueFamilyIndex, 0, &presentQueue);
 
+    VkSurfaceCapabilitiesKHR surfaceCapatibilitesDetails;
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface, &surfaceCapatibilitesDetails);
+
+    VkExtent2D swapChainExtent = surfaceCapatibilitesDetails.currentExtent;
+    if (swapChainExtent.width == UINT32_MAX) {
+        int windowWidth, windowHeight;
+        glfwGetFramebufferSize(window, &windowWidth, &windowHeight);
+        swapChainExtent.width = (uint32_t)windowWidth;
+        swapChainExtent.height = (uint32_t)windowHeight;
+
+        swapChainExtent.width = clamp(swapChainExtent.width, surfaceCapatibilitesDetails.minImageExtent.width, surfaceCapatibilitesDetails.maxImageExtent.width);
+        swapChainExtent.height = clamp(swapChainExtent.height , surfaceCapatibilitesDetails.minImageExtent.height, surfaceCapatibilitesDetails.maxImageExtent.height);
+    }
+    uint32_t swapChainImageCount = clamp(surfaceCapatibilitesDetails.minImageCount + 1, surfaceCapatibilitesDetails.minImageCount, surfaceCapatibilitesDetails.maxImageCount);
+
+    VkSurfaceFormatKHR surfaceFormat = getSwapSurfaceFormat(physicalDevice, surface);
+    VkPresentModeKHR presentMode = getSwapPresentMode(physicalDevice, surface);
 
 
-    // Paused at: https://vulkan-tutorial.com/en/Drawing_a_triangle/Presentation/Swap_chain
+    VkSwapchainCreateInfoKHR swapchainCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+        .surface = surface,
+        .minImageCount = swapChainImageCount,
+        .imageFormat = surfaceFormat.format,
+        .imageColorSpace = surfaceFormat.colorSpace,
+        .imageExtent = swapChainExtent,
+        .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+        // graphics queue == present queue so
+        .imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        .queueFamilyIndexCount = 0,
+        .pQueueFamilyIndices = NULL,
+        .preTransform = surfaceCapatibilitesDetails.currentTransform,
+        .compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR, // do not blend with other windows
+        .presentMode = presentMode,
+        .clipped = VK_TRUE, // render pixels that are not shown?
+        .oldSwapchain = VK_NULL_HANDLE
+    };
+
+    VkSwapchainKHR swapChain;
+    if (vkCreateSwapchainKHR(device, &swapchainCreateInfo, NULL, &swapChain) != VK_SUCCESS) {
+        fprintf(stderr, "can't create swap chain\n");
+    };
+
+    uint32_t swapchainImageCount;
+    vkGetSwapchainImagesKHR(device, swapChain, &swapChainImageCount, NULL);
+    VkImage* swapchainImages = malloc(sizeof(VkImage)*swapChainImageCount);
+    vkGetSwapchainImagesKHR(device, swapChain, &swapChainImageCount, swapchainImages);
+    VkFormat swapChainImageFormat = surfaceFormat.format;
+
+    // Paused at: https://vulkan-tutorial.com/en/Drawing_a_triangle/Presentation/Image_views
 
 
     fprintf(stderr, "Chegou agui\n");
@@ -286,6 +382,7 @@ int main(int argc, char* argv[]) {
     }
     fprintf(stderr, "E agui\n");
 
+    vkDestroySwapchainKHR(device, swapChain, NULL);
     vkDestroySurfaceKHR(instance, surface, NULL);
     vkDestroyInstance(instance, NULL);
     vkDestroyDevice(device, NULL);
