@@ -542,10 +542,15 @@ int main(int argc, char* argv[]) {
     };
 
     uint32_t swapchainImageCount;
-    vkGetSwapchainImagesKHR(device, swapChain, &swapChainImageCount, NULL);
+    if (handleVulkanResult(vkGetSwapchainImagesKHR(device, swapChain, &swapChainImageCount, NULL))) {
+        fprintf(stderr, "can't list swapchain images KHR\n");
+    }
+    fprintf(stderr, "swapchain image size: %i\n", swapChainImageCount);
     swapchainImages = malloc(sizeof(VkImage)*swapChainImageCount);
     swapchainImageViews = malloc(sizeof(VkImageView)*swapChainImageCount);
-    vkGetSwapchainImagesKHR(device, swapChain, &swapChainImageCount, swapchainImages);
+    if (handleVulkanResult(vkGetSwapchainImagesKHR(device, swapChain, &swapChainImageCount, swapchainImages))) {
+        fprintf(stderr, "can't fetch swapchain images KHR\n");
+    }
     swapChainImageFormat = surfaceFormat.format;
 
     for (int i = 0; i < swapchainImageCount; i++) {
@@ -568,9 +573,11 @@ int main(int argc, char* argv[]) {
                 .layerCount = 1
             }
         };
-        if (handleVulkanResult(vkCreateImageView(device, &imageViewCreateInfo, NULL, &swapchainImageViews[i]))) {
+        VkImageView imageView;
+        if (handleVulkanResult(vkCreateImageView(device, &imageViewCreateInfo, NULL, &imageView))) {
             fprintf(stderr, "vulkan: can't create image view\n");
         }
+        swapchainImageViews[i] = imageView;
     }
 
     if (handleVulkanResult(readShader(device, &vertexShaderModule, "./vert.spv"))) {
@@ -777,14 +784,15 @@ int main(int argc, char* argv[]) {
 
     swapChainFramebuffers = malloc(sizeof(VkFramebuffer)*swapChainImageCount);
     for (int i = 0; i < swapChainImageCount; i++) {
-        /* VkImageView attachments[] = { */
-        /*     swapchainImageViews[i] */
-        /* }; */
+        VkImageView attachments[] = {
+            swapchainImageViews[i]
+        };
         VkFramebufferCreateInfo framebufferCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
             .renderPass = renderPass,
             .attachmentCount = 1,
-            .pAttachments = &swapchainImageViews[i],
+            /* .pAttachments = &swapchainImageViews[i], */
+            .pAttachments = attachments,
             .width = swapChainExtent.width,
             .height = swapChainExtent.height,
             .layers = 1

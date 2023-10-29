@@ -5,6 +5,7 @@ pkgs.mkShell {
     gnumake
     vulkan-headers
     vulkan-loader
+    mesa.debug
     vulkan-validation-layers
     glfw
     ccls
