@@ -12,6 +12,7 @@ pkgs.mkShell {
     xorg.libXrandr
     xorg.libXi
     xorg.libXxf86vm
+    shaderc
   ];
 
   VULKAN_SDK = "${pkgs.vulkan-validation-layers}/share/vulkan/explicit_layer.d";
