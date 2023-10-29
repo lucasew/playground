@@ -17,6 +17,35 @@ const char* APP_NAME = "V U L K A N";
 const char* const VULKAN_VALIDATION_LAYERS[] = {
     "VK_LAYER_KHRONOS_validation"
 };
+const char * const DEVICE_EXTENSIONS[] = {
+    "VK_KHR_swapchain"
+};
+
+
+VkInstance instance;
+VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo;
+VkDebugUtilsMessengerEXT debugMessenger;
+VkSurfaceKHR surface;
+VkPhysicalDevice physicalDevice;
+VkDevice device;
+VkQueue graphicsQueue;
+VkQueue presentQueue;
+VkSurfaceCapabilitiesKHR surfaceCapatibilitesDetails;
+VkExtent2D swapChainExtent;
+VkSurfaceFormatKHR surfaceFormat;
+VkPresentModeKHR presentMode;
+VkSwapchainKHR swapChain;
+VkImage* swapchainImages = NULL;
+VkImageView* swapchainImageViews = NULL;
+VkFormat swapChainImageFormat;
+VkShaderModule vertexShaderModule;
+VkShaderModule fragmentShaderModule;
+VkPipelineLayout pipelineLayout;
+VkRenderPass renderPass;
+VkPipeline graphicsPipeline;
+VkFramebuffer *swapChainFramebuffers = NULL;
+VkCommandPool commandPool;
+VkCommandBuffer commandBuffer;
 
 #define clamp(x, lo, hi) (x < lo ? lo : x > hi ? hi : x)
 
@@ -252,6 +281,59 @@ void destroyDebug(VkInstance instance, VkDebugUtilsMessengerCreateInfoEXT debugC
     }
 }
 
+void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex) {
+    VkCommandBufferBeginInfo commandBufferBeginInfo = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .flags = 0, // optional
+        .pInheritanceInfo = NULL, // optional
+    };
+
+    if (vkBeginCommandBuffer(commandBuffer, &commandBufferBeginInfo) != VK_SUCCESS) {
+        fprintf(stderr, "vulkan: can't begin command buffers\n");
+        return;
+    }
+    VkClearValue clearColor = {{{0.0f, 0.0f, 0.0f, 1.0f}}};
+
+    VkRenderPassBeginInfo renderPassInfo = {
+        .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+        .renderPass = renderPass,
+        .framebuffer = swapChainFramebuffers[imageIndex],
+        .renderArea = {
+            .offset = {0, 0},
+            .extent = swapChainExtent
+        },
+        .clearValueCount = 1,
+        .pClearValues = &clearColor
+    };
+    vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+    VkViewport renderViewport = {
+        .x = 0.0f,
+        .y = 0.0f,
+        .width = swapChainExtent.width,
+        .height = swapChainExtent.height,
+        .minDepth = 0.0f,
+        .maxDepth = 1.0f,
+    };
+    vkCmdSetViewport(commandBuffer, 0, 1, &renderViewport);
+    VkRect2D renderScissor = {
+        .offset = {0, 0},
+        .extent = swapChainExtent
+    };
+    vkCmdSetScissor(commandBuffer, 0, 1, &renderScissor);
+    vkCmdDraw(
+        commandBuffer,
+        3, // how many vertexes -- triangle = 3
+        1, // not doing instanced rendering, so 1
+        0, // vertex offset
+        0 // instance offset
+    );
+    vkCmdEndRenderPass(commandBuffer);
+    if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
+        fprintf(stderr, "vulkan: can't run render pass\n");
+    }
+}
+
 int main(int argc, char* argv[]) {
     glfwSetErrorCallback(glfwErrorCallback);
     // init GLFW
@@ -267,7 +349,6 @@ int main(int argc, char* argv[]) {
     showExtensions();
 
 
-    VkInstance instance;
     VkApplicationInfo appInfo = {
         .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
         .pApplicationName = APP_NAME,
@@ -293,19 +374,16 @@ int main(int argc, char* argv[]) {
         fprintf(stderr, "vulkan deu pau criando instância\n");
     }
 
-    VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo;
-    VkDebugUtilsMessengerEXT debugMessenger;
     if (setupDebug(instance, &debugCreateInfo, &debugMessenger) != VK_SUCCESS) {
         fprintf(stderr, "falha ao dar setup no debug\n");
         debugCreateInfo.pfnUserCallback = NULL;
     }
 
-    VkSurfaceKHR surface;
     if (glfwCreateWindowSurface(instance, window, NULL, &surface) != VK_SUCCESS) {
         fprintf(stderr, "vulkan: can't create surface\n");
     }
 
-    VkPhysicalDevice physicalDevice = getDevice(instance, surface);
+    physicalDevice = getDevice(instance, surface);
     if (physicalDevice == VK_NULL_HANDLE) {
         fprintf(stderr, "falha ao achar um device compatível\n");
     }
@@ -327,9 +405,6 @@ int main(int argc, char* argv[]) {
     VkDeviceQueueCreateInfo queueCreateInfos[] = {graphicsQueueCreateInfo, presentQueueCreateInfo};
 
     VkPhysicalDeviceFeatures deviceFeatures = {};
-    const char * const DEVICE_EXTENSIONS[] = {
-        "VK_KHR_swapchain"
-    };
     VkDeviceCreateInfo deviceCreateInfo = {
         .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
         .pQueueCreateInfos = queueCreateInfos,
@@ -340,23 +415,18 @@ int main(int argc, char* argv[]) {
     };
     // TODO: add validation layers here too, not required in newer implementations tho
 
-    VkDevice device;
     if (vkCreateDevice(physicalDevice, &deviceCreateInfo, NULL, &device) != VK_SUCCESS) {
         fprintf(stderr, "vulkan: can't create device\n");
     };
 
     // Maybe I can get some issues this part
-    VkQueue graphicsQueue;
-
     vkGetDeviceQueue(device, graphicsQueueCreateInfo.queueFamilyIndex, 0, &graphicsQueue);
 
-    VkQueue presentQueue;
     vkGetDeviceQueue(device, presentQueueCreateInfo.queueFamilyIndex, 0, &presentQueue);
 
-    VkSurfaceCapabilitiesKHR surfaceCapatibilitesDetails;
     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface, &surfaceCapatibilitesDetails);
 
-    VkExtent2D swapChainExtent = surfaceCapatibilitesDetails.currentExtent;
+    swapChainExtent = surfaceCapatibilitesDetails.currentExtent;
     if (swapChainExtent.width == UINT32_MAX) {
         int windowWidth, windowHeight;
         glfwGetFramebufferSize(window, &windowWidth, &windowHeight);
@@ -368,8 +438,8 @@ int main(int argc, char* argv[]) {
     }
     uint32_t swapChainImageCount = clamp(surfaceCapatibilitesDetails.minImageCount + 1, surfaceCapatibilitesDetails.minImageCount, surfaceCapatibilitesDetails.maxImageCount);
 
-    VkSurfaceFormatKHR surfaceFormat = getSwapSurfaceFormat(physicalDevice, surface);
-    VkPresentModeKHR presentMode = getSwapPresentMode(physicalDevice, surface);
+    surfaceFormat = getSwapSurfaceFormat(physicalDevice, surface);
+    presentMode = getSwapPresentMode(physicalDevice, surface);
 
 
     VkSwapchainCreateInfoKHR swapchainCreateInfo = {
@@ -391,17 +461,16 @@ int main(int argc, char* argv[]) {
         .oldSwapchain = VK_NULL_HANDLE
     };
 
-    VkSwapchainKHR swapChain;
     if (vkCreateSwapchainKHR(device, &swapchainCreateInfo, NULL, &swapChain) != VK_SUCCESS) {
         fprintf(stderr, "can't create swap chain\n");
     };
 
     uint32_t swapchainImageCount;
     vkGetSwapchainImagesKHR(device, swapChain, &swapChainImageCount, NULL);
-    VkImage* swapchainImages = malloc(sizeof(VkImage)*swapChainImageCount);
-    VkImageView* swapchainImageViews = malloc(sizeof(VkImageView)*swapChainImageCount);
+    swapchainImages = malloc(sizeof(VkImage)*swapChainImageCount);
+    swapchainImageViews = malloc(sizeof(VkImageView)*swapChainImageCount);
     vkGetSwapchainImagesKHR(device, swapChain, &swapChainImageCount, swapchainImages);
-    VkFormat swapChainImageFormat = surfaceFormat.format;
+    swapChainImageFormat = surfaceFormat.format;
 
     for (int i = 0; i < swapchainImageCount; i++) {
         VkImageViewCreateInfo imageViewCreateInfo = {
@@ -428,12 +497,10 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    VkShaderModule vertexShaderModule;
     if (readShader(device, &vertexShaderModule, "./vert.spv") != VK_SUCCESS) {
         fprintf(stderr, "vulkan: can't create vertex shader module\n");
     }
 
-    VkShaderModule fragmentShaderModule;
     if (readShader(device, &fragmentShaderModule, "./frag.spv") != VK_SUCCESS) {
         fprintf(stderr, "vulkan: can't create fragment shader module\n");
     }
@@ -558,7 +625,6 @@ int main(int argc, char* argv[]) {
         .pPushConstantRanges = NULL
     };
 
-    VkPipelineLayout pipelineLayout;
     if (vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, NULL, &pipelineLayout) != VK_SUCCESS) {
         fprintf(stderr, "vulkan: não foi possivel criar o pipeline layout\n");
     }
@@ -593,7 +659,7 @@ int main(int argc, char* argv[]) {
         .subpassCount = 1,
         .pSubpasses = &subpassDescription
     };
-    VkRenderPass renderPass;
+
     if (vkCreateRenderPass(device, &renderPassCreateInfo, NULL, &renderPass) != VK_SUCCESS) {
         fprintf(stderr, "vulkan: can't create render pass\n");
     }
@@ -617,19 +683,64 @@ int main(int argc, char* argv[]) {
         .basePipelineIndex = -1 // optional
     };
 
-    VkPipeline graphicsPipeline;
 
     if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, NULL, &graphicsPipeline) != VK_SUCCESS) {
         fprintf(stderr, "vulkan: can't create graphics pipeline\n");
     }
 
+    swapChainFramebuffers = malloc(sizeof(VkFramebuffer)*swapChainImageCount);
+    for (int i = 0; i < swapChainImageCount; i++) {
+        VkImageView attachments[] = {
+            swapchainImageViews[i]
+        };
+        VkFramebufferCreateInfo framebufferCreateInfo = {
+            .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+            .renderPass = renderPass,
+            .attachmentCount = 1,
+            .pAttachments = attachments,
+            .width = swapChainExtent.width,
+            .height = swapChainExtent.height,
+            .layers = 1
+        };
+        if (vkCreateFramebuffer(device, &framebufferCreateInfo, NULL, &swapChainFramebuffers[i]) != VK_SUCCESS) {
+            fprintf(stderr, "vulkan: can't create framebuffer\n");
+        }
+    }
+
+    VkCommandPoolCreateInfo commandPoolCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+        .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+        .queueFamilyIndex = graphicsQueueCreateInfo.queueFamilyIndex
+    };
+    if (vkCreateCommandPool(device, &commandPoolCreateInfo, NULL, &commandPool) != VK_SUCCESS) {
+        fprintf(stderr, "vulkan: can't create command pool\n");
+    }
+
+    VkCommandBufferAllocateInfo commandBufferAllocateInfo = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+        .commandPool = commandPool,
+        .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+        .commandBufferCount = 1
+    };
+    if (vkAllocateCommandBuffers(device, &commandBufferAllocateInfo, &commandBuffer) != VK_SUCCESS) {
+        fprintf(stderr, "vulkan: can't allocate command buffers\n");
+    }
 
     // Paused at: https://vulkan-tutorial.com/en/Drawing_a_triangle/Graphics_pipeline_basics/Conclusion
+
+
     fprintf(stderr, "Chegou agui\n");
     while(!glfwWindowShouldClose(window)) {
         glfwPollEvents();
+        draw();
     }
     fprintf(stderr, "E agui\n");
+    vkDestroyCommandPool(device, commandPool, NULL);
+
+    for (int i = 0; i < swapchainImageCount; i++) {
+        vkDestroyFramebuffer(device, swapChainFramebuffers[i], NULL);
+    }
+    free(swapChainFramebuffers);
 
     vkDestroyPipeline(device, graphicsPipeline, NULL);
     vkDestroyPipelineLayout(device, pipelineLayout, NULL);
