@@ -95,7 +95,25 @@ VkResult setupDebug(VkInstance instance, VkDebugUtilsMessengerCreateInfoEXT *deb
     return VK_ERROR_EXTENSION_NOT_PRESENT;
 }
 
-VkPhysicalDevice getDevice(VkInstance instance) {
+int getFirstQueueFamilyOfType(VkPhysicalDevice device, VkQueueFlags flag) {
+    uint32_t queueFamilyCount = 0;
+    vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, NULL);
+    VkQueueFamilyProperties* queueFamilies = malloc(sizeof(VkQueueFamilyProperties)*queueFamilyCount);
+    vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies);
+
+    int ret = -1; // nothing found
+    for (int i = 0; i < queueFamilyCount; i++) {
+        VkQueueFamilyProperties queueFamily = queueFamilies[i];
+        if (queueFamily.queueFlags & flag) {
+            ret = i;
+        }
+    }
+    free(queueFamilies);
+    return ret;
+}
+
+
+VkPhysicalDevice getDevice(VkInstance instance, VkSurfaceKHR surface) {
     uint32_t deviceCount = 0;
     vkEnumeratePhysicalDevices(instance, &deviceCount, NULL);
     if (deviceCount == 0) {
@@ -121,24 +139,19 @@ VkPhysicalDevice getDevice(VkInstance instance) {
         }
         score += deviceProperties.limits.maxImageDimension2D;
         if (!deviceFeatures.geometryShader) {
-            score = 0;
+            continue;
         }
-        uint32_t queueFamilyCount = 0;
-        vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, NULL);
-        VkQueueFamilyProperties* queueFamilies = malloc(sizeof(VkQueueFamilyProperties)*queueFamilyCount);
-        vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies);
-        int has_graphics = 0;
-        for (int j = 0; j < queueFamilyCount; j++) {
-            VkQueueFamilyProperties queueFamily = queueFamilies[j];
-            if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
-                has_graphics = 1;
-            }
-        }
-        if (!has_graphics) {
-            score = 0;
-        }
+        int firstGraphicsQueue = getFirstQueueFamilyOfType(device, VK_QUEUE_GRAPHICS_BIT);
 
-
+        if (firstGraphicsQueue == -1) {
+            continue;
+        }
+        VkBool32 presentSupport = VK_FALSE;
+        vkGetPhysicalDeviceSurfaceSupportKHR(device, firstGraphicsQueue, surface, &presentSupport);
+        if (presentSupport != VK_TRUE) {
+            fprintf(stderr, "device doesn't support presentation along with graphics, skipping...\n");
+            continue;
+        }
 
         if (score > best_score) {
             best_score = score;
@@ -148,6 +161,7 @@ VkPhysicalDevice getDevice(VkInstance instance) {
     free(devices);
     return chosenDevice;
 }
+
 
 
 void destroyDebug(VkInstance instance, VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo, VkDebugUtilsMessengerEXT debugMessenger) {
@@ -208,12 +222,62 @@ int main(int argc, char* argv[]) {
         debugCreateInfo.pfnUserCallback = NULL;
     }
 
-    VkPhysicalDevice device = getDevice(instance);
-    if (device == VK_NULL_HANDLE) {
+    VkSurfaceKHR surface;
+    if (glfwCreateWindowSurface(instance, window, NULL, &surface) != VK_SUCCESS) {
+        fprintf(stderr, "vulkan: can't create surface\n");
+    }
+
+    VkPhysicalDevice physicalDevice = getDevice(instance, surface);
+    if (physicalDevice == VK_NULL_HANDLE) {
         fprintf(stderr, "falha ao achar um device compatível\n");
     }
 
-    // Paused at: https://vulkan-tutorial.com/en/Drawing_a_triangle/Setup/Logical_device_and_queues
+    float queuePriority = 1.0f;
+    VkDeviceQueueCreateInfo graphicsQueueCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+        .queueFamilyIndex = getFirstQueueFamilyOfType(physicalDevice, VK_QUEUE_GRAPHICS_BIT),
+        .queueCount = 1,
+        .pQueuePriorities = &queuePriority
+    };
+    VkDeviceQueueCreateInfo presentQueueCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+        .queueFamilyIndex = getFirstQueueFamilyOfType(physicalDevice, VK_QUEUE_GRAPHICS_BIT),
+        .queueCount = 1,
+        .pQueuePriorities = &queuePriority
+    };
+
+    VkDeviceQueueCreateInfo queueCreateInfos[] = {graphicsQueueCreateInfo, presentQueueCreateInfo};
+
+    VkPhysicalDeviceFeatures deviceFeatures = {};
+    const char * const DEVICE_EXTENSIONS[] = {
+        "VK_KHR_swapchain"
+    };
+    VkDeviceCreateInfo deviceCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+        .pQueueCreateInfos = queueCreateInfos,
+        .queueCreateInfoCount = 2,
+        .pEnabledFeatures = &deviceFeatures,
+        .enabledExtensionCount = 1,
+        .ppEnabledExtensionNames = DEVICE_EXTENSIONS
+    };
+    // TODO: add validation layers here too, not required in newer implementations tho
+
+    VkDevice device;
+    if (vkCreateDevice(physicalDevice, &deviceCreateInfo, NULL, &device) != VK_SUCCESS) {
+        fprintf(stderr, "vulkan: can't create device\n");
+    };
+
+    // Maybe I can get some issues this part
+    VkQueue graphicsQueue;
+
+    vkGetDeviceQueue(device, graphicsQueueCreateInfo.queueFamilyIndex, 0, &graphicsQueue);
+
+    VkQueue presentQueue;
+    vkGetDeviceQueue(device, presentQueueCreateInfo.queueFamilyIndex, 0, &presentQueue);
+
+
+
+    // Paused at: https://vulkan-tutorial.com/en/Drawing_a_triangle/Presentation/Swap_chain
 
 
     fprintf(stderr, "Chegou agui\n");
@@ -221,6 +285,10 @@ int main(int argc, char* argv[]) {
         glfwPollEvents();
     }
     fprintf(stderr, "E agui\n");
+
+    vkDestroySurfaceKHR(instance, surface, NULL);
+    vkDestroyInstance(instance, NULL);
+    vkDestroyDevice(device, NULL);
 
     // deinit GLFW window
     glfwDestroyWindow(window);
