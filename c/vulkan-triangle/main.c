@@ -10,8 +10,8 @@
 #include<unistd.h>
 
 #define GLFW_INCLUDE_VULKAN
-
 #include<GLFW/glfw3.h>
+#include"vk_enum_string_helper.h"
 
 const char* APP_NAME = "V U L K A N";
 const char* const VULKAN_VALIDATION_LAYERS[] = {
@@ -55,6 +55,14 @@ VkFence inFlightFence;
 
 static void glfwErrorCallback(int error, const char* description) {
     fprintf(stderr, "glfwdebug %i: %s\n", error, description);
+}
+
+int handleVulkanResult(VkResult result) {
+    int is_fail = result != VK_SUCCESS;
+    if (is_fail) {
+        fprintf(stderr, "vulkan fail %s\n", string_VkResult(result));
+    }
+    return is_fail;
 }
 
 static VKAPI_ATTR VkBool32 VKAPI_CALL vulkanDebugCallback(
@@ -130,16 +138,23 @@ void getUsedValidationLayers(VkInstanceCreateInfo *createInfo) {
     createInfo->ppEnabledLayerNames = usedValidationLayers;
 }
 
+#define ADDITIONAL_EXTENSIONS 2
 void getUsedExtensions(VkInstanceCreateInfo *createInfo) {
     uint32_t glfwExtensionCount;
     const char **glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
 
-    const char **vulkanExtensions = malloc(sizeof(char*)*(glfwExtensionCount+1));
-    memcpy(vulkanExtensions, glfwExtensions, sizeof(char*)*glfwExtensionCount);
-    vulkanExtensions[glfwExtensionCount] = VK_EXT_DEBUG_UTILS_EXTENSION_NAME;
+    /* const char **vulkanExtensions = malloc(sizeof(char*)*(glfwExtensionCount+ADDITIONAL_EXTENSIONS)); */
+    /* for (int i = 0; i < glfwExtensionCount; i++) { */
+    /*     vulkanExtensions[i] = glfwExtensions[i]; */
+    /* } */
+    /* vulkanExtensions[glfwExtensionCount] = VK_EXT_DEBUG_UTILS_EXTENSION_NAME; */
+    /* vulkanExtensions[glfwExtensionCount+1] = "VK_KHR_swapchain"; */
 
-    createInfo->enabledExtensionCount = glfwExtensionCount + 1;
-    createInfo->ppEnabledExtensionNames = vulkanExtensions;
+    /* createInfo->enabledExtensionCount = glfwExtensionCount + ADDITIONAL_EXTENSIONS; */
+    /* createInfo->ppEnabledExtensionNames = vulkanExtensions; */
+    createInfo->enabledExtensionCount = glfwExtensionCount;
+    createInfo->ppEnabledExtensionNames = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+
 }
 VkResult setupDebug(VkInstance instance, VkDebugUtilsMessengerCreateInfoEXT *debugCreateInfo, VkDebugUtilsMessengerEXT *debugMessenger) {
     debugCreateInfo->sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
@@ -152,7 +167,7 @@ VkResult setupDebug(VkInstance instance, VkDebugUtilsMessengerCreateInfoEXT *deb
     debugCreateInfo->pUserData = NULL;
 
     PFN_vkCreateDebugUtilsMessengerEXT handler = (PFN_vkCreateDebugUtilsMessengerEXT) vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
-    if (handler) {
+    if (handler != NULL) {
         return handler(instance, debugCreateInfo, NULL, debugMessenger);
     }
     fprintf(stderr, "setupDebug: vkCreateDebugUtilsMessengerEXT not found\n");
@@ -292,7 +307,7 @@ void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex) {
         .pInheritanceInfo = NULL, // optional
     };
 
-    if (vkBeginCommandBuffer(commandBuffer, &commandBufferBeginInfo) != VK_SUCCESS) {
+    if (handleVulkanResult(vkBeginCommandBuffer(commandBuffer, &commandBufferBeginInfo))) {
         fprintf(stderr, "vulkan: can't begin command buffers\n");
         return;
     }
@@ -333,7 +348,7 @@ void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex) {
         0 // instance offset
     );
     vkCmdEndRenderPass(commandBuffer);
-    if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
+    if (handleVulkanResult(vkEndCommandBuffer(commandBuffer))) {
         fprintf(stderr, "vulkan: can't run render pass\n");
     }
 }
@@ -361,27 +376,31 @@ void drawFrame() {
         .pSignalSemaphores = signalSemaphores
     };
 
-    if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFence) != VK_SUCCESS) {
+    if (handleVulkanResult(vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFence))) {
         fprintf(stderr, "vulkan: can't submit to draw command buffer\n");
     }
+    VkSwapchainKHR swapChains[] = {swapChain};
     VkPresentInfoKHR presentInfo = {
         .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
         .waitSemaphoreCount = 1,
         .pWaitSemaphores = signalSemaphores,
         .swapchainCount = 1,
-        .pSwapchains = &swapChain,
+        .pSwapchains = swapChains,
         .pImageIndices = &imageIndex,
         .pResults = NULL
     };
-    vkQueuePresentKHR(presentQueue, &presentInfo);
+    if (handleVulkanResult(vkQueuePresentKHR(presentQueue, &presentInfo))) {
+        fprintf(stderr, "vulkan: can't present frame\n");
+    }
 }
 
 int main(int argc, char* argv[]) {
-    glfwSetErrorCallback(glfwErrorCallback);
     // init GLFW
     if (!glfwInit()) {
         fprintf(stderr, "glfw didn't initialize\n");
+        return 1;
     }
+    glfwSetErrorCallback(glfwErrorCallback);
     // init GLFW window
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     GLFWwindow* window = glfwCreateWindow(800, 600, APP_NAME, NULL, NULL);
@@ -400,11 +419,15 @@ int main(int argc, char* argv[]) {
         .apiVersion = VK_API_VERSION_1_0
     };
 
+    uint32_t glfwExtensionCount;
     VkInstanceCreateInfo createInfo = {
         .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
         .pApplicationInfo = &appInfo,
-        .enabledLayerCount = 0
+        .enabledLayerCount = 0,
+        .enabledExtensionCount = glfwExtensionCount,
+        .ppEnabledExtensionNames = glfwGetRequiredInstanceExtensions(&glfwExtensionCount),
     };
+
     getUsedExtensions(&createInfo);
     showValidationLayers();
     /* getUsedValidationLayers(&createInfo); */
@@ -412,16 +435,26 @@ int main(int argc, char* argv[]) {
     /* createInfo.enabledLayerCount = 1; */
     /* createInfo.ppEnabledLayerNames = VULKAN_VALIDATION_LAYERS; */
 
-    if (vkCreateInstance(&createInfo, NULL, &instance) != VK_SUCCESS) {
+    fprintf(stderr, "vulkan: enabled stuff\n");
+    for (int i = 0; i < createInfo.enabledExtensionCount; i++) {
+        const char* extension = createInfo.ppEnabledExtensionNames[i];
+        fprintf(stderr, "\textension: %s\n", extension);
+    };
+    for (int i = 0; i < createInfo.enabledLayerCount; i++) {
+        const char* layer = createInfo.ppEnabledLayerNames[i];
+        fprintf(stderr, "\tlayer: %s\n", layer);
+    };
+
+    if (handleVulkanResult(vkCreateInstance(&createInfo, NULL, &instance))) {
         fprintf(stderr, "vulkan deu pau criando instância\n");
     }
 
-    if (setupDebug(instance, &debugCreateInfo, &debugMessenger) != VK_SUCCESS) {
-        fprintf(stderr, "falha ao dar setup no debug\n");
-        debugCreateInfo.pfnUserCallback = NULL;
-    }
+    /* if (handleVulkanResult(setupDebug(instance, &debugCreateInfo, &debugMessenger))) { */
+    /*     fprintf(stderr, "falha ao dar setup no debug\n"); */
+    /*     debugCreateInfo.pfnUserCallback = NULL; */
+    /* } */
 
-    if (glfwCreateWindowSurface(instance, window, NULL, &surface) != VK_SUCCESS) {
+    if (handleVulkanResult(glfwCreateWindowSurface(instance, window, NULL, &surface))) {
         fprintf(stderr, "vulkan: can't create surface\n");
     }
 
@@ -457,7 +490,7 @@ int main(int argc, char* argv[]) {
     };
     // TODO: add validation layers here too, not required in newer implementations tho
 
-    if (vkCreateDevice(physicalDevice, &deviceCreateInfo, NULL, &device) != VK_SUCCESS) {
+    if (handleVulkanResult(vkCreateDevice(physicalDevice, &deviceCreateInfo, NULL, &device))) {
         fprintf(stderr, "vulkan: can't create device\n");
     };
 
@@ -503,7 +536,7 @@ int main(int argc, char* argv[]) {
         .oldSwapchain = VK_NULL_HANDLE
     };
 
-    if (vkCreateSwapchainKHR(device, &swapchainCreateInfo, NULL, &swapChain) != VK_SUCCESS) {
+    if (handleVulkanResult(vkCreateSwapchainKHR(device, &swapchainCreateInfo, NULL, &swapChain))) {
         fprintf(stderr, "can't create swap chain\n");
     };
 
@@ -534,16 +567,16 @@ int main(int argc, char* argv[]) {
                 .layerCount = 1
             }
         };
-        if (vkCreateImageView(device, &imageViewCreateInfo, NULL, &swapchainImageViews[i]) != VK_SUCCESS) {
+        if (handleVulkanResult(vkCreateImageView(device, &imageViewCreateInfo, NULL, &swapchainImageViews[i]))) {
             fprintf(stderr, "vulkan: can't create image view\n");
         }
     }
 
-    if (readShader(device, &vertexShaderModule, "./vert.spv") != VK_SUCCESS) {
+    if (handleVulkanResult(readShader(device, &vertexShaderModule, "./vert.spv"))) {
         fprintf(stderr, "vulkan: can't create vertex shader module\n");
     }
 
-    if (readShader(device, &fragmentShaderModule, "./frag.spv") != VK_SUCCESS) {
+    if (handleVulkanResult(readShader(device, &fragmentShaderModule, "./frag.spv"))) {
         fprintf(stderr, "vulkan: can't create fragment shader module\n");
     }
 
@@ -667,7 +700,7 @@ int main(int argc, char* argv[]) {
         .pPushConstantRanges = NULL
     };
 
-    if (vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, NULL, &pipelineLayout) != VK_SUCCESS) {
+    if (handleVulkanResult(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, NULL, &pipelineLayout))) {
         fprintf(stderr, "vulkan: não foi possivel criar o pipeline layout\n");
     }
 
@@ -713,7 +746,7 @@ int main(int argc, char* argv[]) {
         .pDependencies = &subpassDependency
     };
 
-    if (vkCreateRenderPass(device, &renderPassCreateInfo, NULL, &renderPass) != VK_SUCCESS) {
+    if (handleVulkanResult(vkCreateRenderPass(device, &renderPassCreateInfo, NULL, &renderPass))) {
         fprintf(stderr, "vulkan: can't create render pass\n");
     }
 
@@ -737,7 +770,7 @@ int main(int argc, char* argv[]) {
     };
 
 
-    if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, NULL, &graphicsPipeline) != VK_SUCCESS) {
+    if (handleVulkanResult(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, NULL, &graphicsPipeline))) {
         fprintf(stderr, "vulkan: can't create graphics pipeline\n");
     }
 
@@ -755,7 +788,7 @@ int main(int argc, char* argv[]) {
             .height = swapChainExtent.height,
             .layers = 1
         };
-        if (vkCreateFramebuffer(device, &framebufferCreateInfo, NULL, &swapChainFramebuffers[i]) != VK_SUCCESS) {
+        if (handleVulkanResult(vkCreateFramebuffer(device, &framebufferCreateInfo, NULL, &swapChainFramebuffers[i]))) {
             fprintf(stderr, "vulkan: can't create framebuffer\n");
         }
     }
@@ -765,7 +798,7 @@ int main(int argc, char* argv[]) {
         .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
         .queueFamilyIndex = graphicsQueueCreateInfo.queueFamilyIndex
     };
-    if (vkCreateCommandPool(device, &commandPoolCreateInfo, NULL, &commandPool) != VK_SUCCESS) {
+    if (handleVulkanResult(vkCreateCommandPool(device, &commandPoolCreateInfo, NULL, &commandPool))) {
         fprintf(stderr, "vulkan: can't create command pool\n");
     }
 
@@ -775,7 +808,7 @@ int main(int argc, char* argv[]) {
         .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
         .commandBufferCount = 1
     };
-    if (vkAllocateCommandBuffers(device, &commandBufferAllocateInfo, &commandBuffer) != VK_SUCCESS) {
+    if (handleVulkanResult(vkAllocateCommandBuffers(device, &commandBufferAllocateInfo, &commandBuffer))) {
         fprintf(stderr, "vulkan: can't allocate command buffers\n");
     }
 
@@ -789,13 +822,13 @@ int main(int argc, char* argv[]) {
             VK_FENCE_CREATE_SIGNALED_BIT // doesn't block on the first pass
     };
 
-    if (vkCreateSemaphore(device, &semaphoreCreateInfo, NULL, &imageAvailableSemaphore) != VK_SUCCESS) {
+    if (handleVulkanResult(vkCreateSemaphore(device, &semaphoreCreateInfo, NULL, &imageAvailableSemaphore))) {
         fprintf(stderr, "vulkan: can't create imageAvailableSemaphore\n");
     }
-    if (vkCreateSemaphore(device, &semaphoreCreateInfo, NULL, &renderFinishedSemaphore) != VK_SUCCESS) {
+    if (handleVulkanResult(vkCreateSemaphore(device, &semaphoreCreateInfo, NULL, &renderFinishedSemaphore))) {
         fprintf(stderr, "vulkan: can't create renderFinishedSemaphore\n");
     }
-    if (vkCreateFence(device, &fenceCreateInfo, NULL, &inFlightFence) != VK_SUCCESS) {
+    if (handleVulkanResult(vkCreateFence(device, &fenceCreateInfo, NULL, &inFlightFence))) {
         fprintf(stderr, "vulkan: can't create inFlightFence\n");
     }
 
@@ -807,6 +840,7 @@ int main(int argc, char* argv[]) {
         glfwPollEvents();
         drawFrame();
     }
+    vkDeviceWaitIdle(device);
 
     fprintf(stderr, "E agui\n");
     vkDestroySemaphore(device, imageAvailableSemaphore, NULL);
