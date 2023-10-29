@@ -598,6 +598,31 @@ int main(int argc, char* argv[]) {
         fprintf(stderr, "vulkan: can't create render pass\n");
     }
 
+    VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+        .stageCount = 2,
+        .pStages = shaderStages,
+        .pVertexInputState = &vertexInputStateCreateInfo,
+        .pInputAssemblyState = &inputAssemblyCreateInfo,
+        .pViewportState = &viewportStateCreateInfo,
+        .pRasterizationState = &rasterizationStateCreateInfo,
+        .pMultisampleState = &multisampleStateCreateInfo,
+        .pDepthStencilState = NULL, // optional
+        .pColorBlendState = &colorBlendStateCreateInfo,
+        .pDynamicState = &dynamicStateCreateInfo,
+        .layout = pipelineLayout,
+        .renderPass = renderPass,
+        .subpass = 0,
+        .basePipelineHandle = VK_NULL_HANDLE,
+        .basePipelineIndex = -1 // optional
+    };
+
+    VkPipeline graphicsPipeline;
+
+    if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, NULL, &graphicsPipeline) != VK_SUCCESS) {
+        fprintf(stderr, "vulkan: can't create graphics pipeline\n");
+    }
+
 
     // Paused at: https://vulkan-tutorial.com/en/Drawing_a_triangle/Graphics_pipeline_basics/Conclusion
     fprintf(stderr, "Chegou agui\n");
@@ -606,6 +631,7 @@ int main(int argc, char* argv[]) {
     }
     fprintf(stderr, "E agui\n");
 
+    vkDestroyPipeline(device, graphicsPipeline, NULL);
     vkDestroyPipelineLayout(device, pipelineLayout, NULL);
     vkDestroyRenderPass(device, renderPass, NULL);
 
