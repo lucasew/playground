@@ -401,6 +401,7 @@ void drawFrame() {
         .pImageIndices = &imageIndex,
         .pResults = NULL
     };
+    // VK_SUBOPTIMAL_KHR is still success :)
     if (handleVulkanResult(vkQueuePresentKHR(presentQueue, &presentInfo))) {
         fprintf(stderr, "vulkan: can't present frame\n");
     }
@@ -891,8 +892,6 @@ int main(int argc, char* argv[]) {
     vkDestroyPipelineLayout(device, pipelineLayout, NULL);
     vkDestroyRenderPass(device, renderPass, NULL);
 
-    vkDestroyPipelineLayout(device, pipelineLayout, NULL);
-
     vkDestroyShaderModule(device, vertexShaderModule, NULL);
     vkDestroyShaderModule(device, fragmentShaderModule, NULL);
 
@@ -904,8 +903,10 @@ int main(int argc, char* argv[]) {
 
     vkDestroySwapchainKHR(device, swapChain, NULL);
     vkDestroySurfaceKHR(instance, surface, NULL);
-    vkDestroyInstance(instance, NULL);
+
     vkDestroyDevice(device, NULL);
+
+    vkDestroyInstance(instance, NULL);
 
     // deinit GLFW window
     glfwDestroyWindow(window);
