@@ -16,6 +16,7 @@ pkgs.mkShell {
     shaderc
     gdb
   ];
+  # hardeningDisable = [ "fortify" ];
 
   VULKAN_SDK = "${pkgs.vulkan-validation-layers}/share/vulkan/explicit_layer.d";
 }

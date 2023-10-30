@@ -108,6 +108,7 @@ void showExtensions() {
     vkEnumerateInstanceExtensionProperties(NULL, &extensionCount, NULL);
     fprintf(stderr, "Number of vulkan extensions supported: %i\n", extensionCount);
     VkExtensionProperties* extensionProperties = calloc(extensionCount, sizeof(VkExtensionProperties));
+    assert(extensionProperties != NULL);
     vkEnumerateInstanceExtensionProperties(NULL, &extensionCount, extensionProperties);
     for (int i = 0; i < extensionCount; i++) {
         VkExtensionProperties property = extensionProperties[i];
@@ -120,6 +121,7 @@ void showValidationLayers() {
     uint32_t validationLayersCount;
     vkEnumerateInstanceLayerProperties(&validationLayersCount, NULL);
     VkLayerProperties* validationLayers = calloc(validationLayersCount, sizeof(VkLayerProperties));
+    assert(validationLayers != NULL);
     vkEnumerateInstanceLayerProperties(&validationLayersCount, validationLayers);
     fprintf(stderr, "Number of validation layers supported: %i\n", validationLayersCount);
     for (int i = 0; i < validationLayersCount; i++) {
@@ -132,8 +134,10 @@ void getUsedValidationLayers(VkInstanceCreateInfo *createInfo) {
     uint32_t validationLayersCount;
     vkEnumerateInstanceLayerProperties(&validationLayersCount, NULL);
     VkLayerProperties* validationLayers = calloc(validationLayersCount, sizeof(VkLayerProperties));
+    assert(validationLayers != NULL);
     vkEnumerateInstanceLayerProperties(&validationLayersCount, validationLayers);
     const char **usedValidationLayers = calloc(validationLayersCount, sizeof(char*));
+    assert(usedValidationLayers != NULL);
     for (int i = 0; i < validationLayersCount; i++) {
         usedValidationLayers[i] = validationLayers[i].layerName;
     }
@@ -181,6 +185,7 @@ int getFirstQueueFamilyOfType(VkPhysicalDevice device, VkQueueFlags flag) {
     uint32_t queueFamilyCount = 0;
     vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, NULL);
     VkQueueFamilyProperties* queueFamilies = calloc(queueFamilyCount, sizeof(VkQueueFamilyProperties));
+    assert(queueFamilies != NULL);
     vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies);
 
     int ret = -1; // nothing found
@@ -198,6 +203,7 @@ VkSurfaceFormatKHR getSwapSurfaceFormat(VkPhysicalDevice device, VkSurfaceKHR su
     uint32_t deviceSurfaceFormatsCount;
     vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &deviceSurfaceFormatsCount, NULL);
     VkSurfaceFormatKHR* formats = calloc(deviceSurfaceFormatsCount, sizeof(VkSurfaceFormatKHR));
+    assert(formats != NULL);
     vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &deviceSurfaceFormatsCount, formats);
     VkSurfaceFormatKHR ret;
     for (int i = 0; i < deviceSurfaceFormatsCount; i++) {
@@ -216,6 +222,7 @@ VkPresentModeKHR getSwapPresentMode(VkPhysicalDevice device, VkSurfaceKHR surfac
     vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &devicePresentModeCount, NULL);
     VkPresentModeKHR ret = VK_PRESENT_MODE_FIFO_KHR;
     VkPresentModeKHR* modes = calloc(devicePresentModeCount, sizeof(VkPresentModeKHR));
+    assert(modes != NULL);
     vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &devicePresentModeCount, modes);
     for (int i = 0; i < devicePresentModeCount; i++) {
         VkPresentModeKHR presentMode = modes[i];
@@ -236,6 +243,7 @@ VkPhysicalDevice getDevice(VkInstance instance, VkSurfaceKHR surface) {
         return VK_NULL_HANDLE;
     }
     VkPhysicalDevice* devices = calloc(deviceCount, sizeof(VkPhysicalDevice));
+    assert(devices != NULL);
     vkEnumeratePhysicalDevices(instance, &deviceCount, devices);
     fprintf(stderr, "Number of devices supported: %i\n", deviceCount);
     VkPhysicalDevice chosenDevice = VK_NULL_HANDLE;
@@ -398,6 +406,9 @@ void drawFrame() {
     }
 }
 
+#pragma GCC push_options
+#pragma GCC optimize ("O0")
+
 int main(int argc, char* argv[]) {
     // init GLFW
     if (!glfwInit()) {
@@ -544,19 +555,25 @@ int main(int argc, char* argv[]) {
         fprintf(stderr, "can't create swap chain\n");
     };
 
-    uint32_t swapchainImageCount;
     if (handleVulkanResult(vkGetSwapchainImagesKHR(device, swapChain, &swapChainImageCount, NULL))) {
         fprintf(stderr, "can't list swapchain images KHR\n");
     }
     fprintf(stderr, "swapchain image size: %i\n", swapChainImageCount);
     swapchainImages = calloc(swapChainImageCount, sizeof(VkImage));
+    assert(swapchainImages != NULL);
+
     if (handleVulkanResult(vkGetSwapchainImagesKHR(device, swapChain, &swapChainImageCount, swapchainImages))) {
         fprintf(stderr, "can't fetch swapchain images KHR\n");
     }
     swapChainImageFormat = surfaceFormat.format;
 
     swapchainImageViews = calloc(swapChainImageCount, sizeof(VkImageView));
-    for (int i = 0; i < swapchainImageCount; i++) {
+    assert(swapchainImageViews != NULL);
+    for (int i = 0; i < swapChainImageCount; i++) {
+        assert(swapchainImages[i] != NULL);
+        assert((uint64_t)swapchainImages[i] != 0x31);
+        /* swapchainImageViews[i] = NULL; */
+
         VkImageViewCreateInfo imageViewCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
             .image = swapchainImages[i],
@@ -576,11 +593,13 @@ int main(int argc, char* argv[]) {
                 .layerCount = 1
             }
         };
+        /* assert(swapchainImageViews[i] == NULL); // ok */
         if (handleVulkanResult(vkCreateImageView(device, &imageViewCreateInfo, NULL, &swapchainImageViews[i]))) {
             fprintf(stderr, "vulkan: can't create image view\n");
         }
-        assert(swapchainImageViews[i] != NULL);
+        assert(swapchainImageViews[i] != NULL); // ok
     }
+    assert(swapchainImageViews[0] != NULL); // erro
 
     if (handleVulkanResult(readShader(device, &vertexShaderModule, "./vert.spv"))) {
         fprintf(stderr, "vulkan: can't create vertex shader module\n");
@@ -785,7 +804,9 @@ int main(int argc, char* argv[]) {
     }
 
     swapChainFramebuffers = calloc(swapChainImageCount, sizeof(VkFramebuffer));
+    assert(swapChainFramebuffers != NULL);
     for (int i = 0; i < swapChainImageCount; i++) {
+        /* assert(swapchainImageViews[i] != NULL); */
         /* VkImageView attachments[] = { */
         /*     swapchainImageViews[i] */
         /* }; */
@@ -799,7 +820,7 @@ int main(int argc, char* argv[]) {
             .height = swapChainExtent.height,
             .layers = 1
         };
-        assert(framebufferCreateInfo.pAttachments[0] != NULL);
+        /* assert(framebufferCreateInfo.pAttachments[0] != NULL); */
         if (handleVulkanResult(vkCreateFramebuffer(device, &framebufferCreateInfo, NULL, &swapChainFramebuffers[i]))) {
             fprintf(stderr, "vulkan: can't create framebuffer\n");
         }
@@ -861,7 +882,7 @@ int main(int argc, char* argv[]) {
 
     vkDestroyCommandPool(device, commandPool, NULL);
 
-    for (int i = 0; i < swapchainImageCount; i++) {
+    for (int i = 0; i < swapChainImageCount; i++) {
         vkDestroyFramebuffer(device, swapChainFramebuffers[i], NULL);
     }
     free(swapChainFramebuffers);
@@ -875,7 +896,7 @@ int main(int argc, char* argv[]) {
     vkDestroyShaderModule(device, vertexShaderModule, NULL);
     vkDestroyShaderModule(device, fragmentShaderModule, NULL);
 
-    for (int i = 0; i < swapchainImageCount; i++) {
+    for (int i = 0; i < swapChainImageCount; i++) {
         vkDestroyImageView(device, swapchainImageViews[i], NULL);
     }
     free(swapchainImageViews);
@@ -894,3 +915,5 @@ int main(int argc, char* argv[]) {
     glfwTerminate();
     return 0;
 }
+#pragma GCC pop_options
+
