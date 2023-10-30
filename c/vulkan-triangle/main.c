@@ -8,6 +8,7 @@
 #include<sys/stat.h>
 #include<sys/mman.h>
 #include<unistd.h>
+#include<assert.h>
 
 #define GLFW_INCLUDE_VULKAN
 #include<GLFW/glfw3.h>
@@ -20,6 +21,8 @@ const char* const VULKAN_VALIDATION_LAYERS[] = {
 const char * const DEVICE_EXTENSIONS[] = {
     "VK_KHR_swapchain"
 };
+
+const VkOffset2D zeroOffset2D = { .x = 0, .y = 0 };
 
 
 VkInstance instance;
@@ -319,7 +322,7 @@ void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex) {
         .renderPass = renderPass,
         .framebuffer = swapChainFramebuffers[imageIndex],
         .renderArea = {
-            .offset = {0, 0},
+            .offset = zeroOffset2D,
             .extent = swapChainExtent
         },
         .clearValueCount = 1,
@@ -337,7 +340,7 @@ void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex) {
     };
     vkCmdSetViewport(commandBuffer, 0, 1, &renderViewport);
     VkRect2D renderScissor = {
-        .offset = {0, 0},
+        .offset = zeroOffset2D,
         .extent = swapChainExtent
     };
     vkCmdSetScissor(commandBuffer, 0, 1, &renderScissor);
@@ -415,7 +418,7 @@ int main(int argc, char* argv[]) {
         .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
         .pApplicationName = APP_NAME,
         .applicationVersion = VK_MAKE_VERSION(1, 0, 0),
-        .pEngineName = "MWM D229-4 fundido no sol",
+        .pEngineName = "de Marea Turbo",
         .engineVersion = VK_MAKE_VERSION(1, 0, 0),
         .apiVersion = VK_API_VERSION_1_0
     };
@@ -573,11 +576,10 @@ int main(int argc, char* argv[]) {
                 .layerCount = 1
             }
         };
-        VkImageView imageView;
-        if (handleVulkanResult(vkCreateImageView(device, &imageViewCreateInfo, NULL, &imageView))) {
+        if (handleVulkanResult(vkCreateImageView(device, &imageViewCreateInfo, NULL, &swapchainImageViews[i]))) {
             fprintf(stderr, "vulkan: can't create image view\n");
         }
-        swapchainImageViews[i] = imageView;
+        assert(swapchainImageViews[i] != NULL);
     }
 
     if (handleVulkanResult(readShader(device, &vertexShaderModule, "./vert.spv"))) {
@@ -784,19 +786,20 @@ int main(int argc, char* argv[]) {
 
     swapChainFramebuffers = calloc(swapChainImageCount, sizeof(VkFramebuffer));
     for (int i = 0; i < swapChainImageCount; i++) {
-        VkImageView attachments[] = {
-            swapchainImageViews[i]
-        };
+        /* VkImageView attachments[] = { */
+        /*     swapchainImageViews[i] */
+        /* }; */
         VkFramebufferCreateInfo framebufferCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
             .renderPass = renderPass,
             .attachmentCount = 1,
-            /* .pAttachments = &swapchainImageViews[i], */
-            .pAttachments = attachments,
+            .pAttachments = &swapchainImageViews[i],
+            /* .pAttachments = attachments, */
             .width = swapChainExtent.width,
             .height = swapChainExtent.height,
             .layers = 1
         };
+        assert(framebufferCreateInfo.pAttachments[0] != NULL);
         if (handleVulkanResult(vkCreateFramebuffer(device, &framebufferCreateInfo, NULL, &swapChainFramebuffers[i]))) {
             fprintf(stderr, "vulkan: can't create framebuffer\n");
         }
