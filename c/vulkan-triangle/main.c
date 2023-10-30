@@ -478,6 +478,9 @@ int main(int argc, char* argv[]) {
     if (physicalDevice == VK_NULL_HANDLE) {
         fprintf(stderr, "falha ao achar um device compatível\n");
     }
+    VkPhysicalDeviceProperties selectedPhysicalDeviceProperties;
+    vkGetPhysicalDeviceProperties(physicalDevice, &selectedPhysicalDeviceProperties);
+    fprintf(stderr, "vulkan: using device %s\n", selectedPhysicalDeviceProperties.deviceName);
 
     float queuePriority = 1.0f;
     VkDeviceQueueCreateInfo graphicsQueueCreateInfo = {
