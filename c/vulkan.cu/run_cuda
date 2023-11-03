@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+nvcc baseline.cu
+LD_LIBRARY_PATH=/run/opengl-driver/lib ./a.out
