@@ -1,0 +1,38 @@
+\usepackage{background,quoting,setspace}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[brazil]{babel}
+\usepackage{graphicx}
+\usepackage[many]{tcolorbox}
+%\usepackage[svgnames,dvipsnames,x11names,table,xcdraw]{xcolor} %para tabelas com cor de fundo 
+\usepackage{lmodern}% or any other vector / postscript font
+\usepackage{lipsum}
+
+\setbeamercolor{structure}{fg=black}
+\setbeamercolor{normal text}{fg=black,bg=white}
+\setbeamertemplate{background canvas}{\includegraphics[width=\paperwidth,height=\paperheight]{Imagem.png}}
+
+\newcommand{\cabecalho}[2]{\vspace*{\fill}\LARGE\bfseries{\begin{center} {#1}\\ \normalsize {#2} \end{center}}\par}
+
+\newcommand{\titulotrabalho}[1]{\vspace*{\fill}\large \bfseries{\centering\MakeUppercase{#1}\par}}
+
+\newcommand{\autor}[1]{\vspace*{\fill}\large \bfseries\hspace{\fill}{#1}\par}
+
+\newcommand{\orientadores}[2]{\vspace*{26pt}\normalsize \bfseries\hspace{\fill}{#1}\par\hspace{\fill}{#2}\vspace*{\fill}}
+
+
+
+    \newenvironment{lamina}[1]
+    {
+    \vspace*{5em}
+    \begin{minipage}[t][7cm][t]{\textwidth}
+    {\LARGE\bfseries\centering\MakeUppercase{#1}\par\vspace{1em}\normalsize}
+    }
+    {
+    \vspace{\fill}\end{minipage}
+    }
+    
+\def\pinta{\cellcolor[HTML]{9B9B9B}}
+
+\newcommand{\caixa}[1]{\fbox{\parbox{\dimexpr\linewidth-2\fboxsep-2\fboxrule\relax}{\centering {#1} }}}
+

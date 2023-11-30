@@ -1,0 +1,147 @@
+% ------------------------------------------------------------------------
+% TCC: Modelo de Apresentação de Trabalho Monográfico Acadêmico  
+% 
+% Template v2.5 por Francisco Reinaldo 
+%		(https://orcid.org/0000-0001-6161-6755)
+%		(http://lattes.cnpq.br/7401534350061823)
+% Ajustes extra by Lucas Eduardo Wendt
+% Adaptado da versão 1, em aula, de: Rodrigo de Moraes
+% ------------------------------------------------------------------------
+% Agradecimentos a Overleaf pela oportunidade 
+% ------------------------------------------------------------------------
+\documentclass[13pt,xcolor=table]{beamer}
+\input{macros.tex}
+
+\begin{document}
+
+%---------------------------------------
+
+\begin{frame} %Slide CAPA
+	\cabecalho{Curso}{Departamento}
+	\titulotrabalho{Título}
+	\autor{Autor}
+	\orientadores{Orientador: Prof. Beltrano}{}
+\end{frame}
+
+
+%---------------------------------------
+
+\begin{frame}
+	\begin{lamina}{Definição do Problema}
+		Alunos com
+		\begin{itemize}
+			\item dificuldade em operações básicas
+			\item alta taxa de reprovação em Matemática
+			\item pouca utilização de ferramentas tecnológicas
+			\item baixa interatividade coletiva
+		\end{itemize}
+	\end{lamina}
+\end{frame}
+
+%-------------------------------------
+
+\begin{frame}
+	\begin{lamina}{Objetivo Geral}
+		\vspace{3em}
+    		\caixa{Atrair o interesse dos alunos \\em expressões matemáticas}
+	\end{lamina}
+\end{frame}
+
+%-------------------------------------
+
+\begin{frame}
+	\begin{lamina}{Objetivo Específicos}
+		\begin{itemize}
+			\item Levantar dificuldades dos alunos em compreender os conceitos matemáticos
+			\item Utilizar Gamificação
+			\item Desenvolver um jogo que ajude a ensinar as quatro operações básicas da matemática
+			\item Demonstrar a aplicação do conceito de gamificação em um {\it software} educacional
+		\end{itemize}
+	\end{lamina}
+\end{frame}
+
+%-------------------------------------
+
+\begin{frame}
+	\begin{lamina}{Justificativa}
+		\begin{itemize}
+			\item Gamificação desperta atenção do aluno
+			\item O professor participará como mediador das atividades gamificadas
+			\item A gamificação utiliza-se de matemática a todo momento
+		\end{itemize}
+	\end{lamina}
+\end{frame}
+
+%-------------------------------------
+
+\begin{frame}
+	\begin{lamina}{Materiais e Métodos}
+		\begin{itemize}
+			\item Ferramenta para implementação: Godot
+			\item Método de desenvolvimento: Cascata
+		\end{itemize}
+	\end{lamina}
+\end{frame}
+
+%-------------------------------------
+
+\begin{frame}
+	\begin{lamina}{Cronograma}
+		
+		
+		\begin{tabular}{|p{4.5cm}|p{1.4em}|p{1.4em}|p{1.4em}|p{1.4em}|p{1.4em}|p{1.4em}|}
+			\hline
+			\textbf{Etapas}                          & \textbf{Fev} & \textbf{Mar} & \textbf{Abr} & \textbf{Mai} & \textbf{Jun} & \textbf{Jul} \\ \hline
+			Levantamento de Dados                    & \pinta       & \pinta       &              &              &              &              \\ \hline
+			Identificar Literatura Disponível       &              & \pinta       & \pinta       & \pinta       &              &              \\ \hline
+			Organizar Informações                  &              & \pinta       & \pinta       & \pinta       &              &              \\ \hline
+			Prototipar o \textit{Software }          &              &              & \pinta       & \pinta       &              &              \\ \hline
+			Elaborar Mini Capítulos para o Software &              &              & \pinta       & \pinta       &              &              \\ \hline
+			Concluir o\textit{ Software }            &              &              &              & \pinta       & \pinta       & \pinta       \\ \hline
+		\end{tabular}
+		
+	\end{lamina}
+\end{frame}
+
+%-----------------------------------------
+
+\begin{frame}
+	\begin{lamina}{Resultados Esperados}
+		\begin{itemize}
+			\item Permitir aumentar o interesse pela disciplina em questão
+			\item Permitir ampliar a comunicação entre professor e aluno
+			\item Familiarizar ao professor o uso de ferramentas tecnológicas em sala de aula
+			\item Multiplataforma
+		\end{itemize}
+	\end{lamina}
+\end{frame}
+
+%-------------------------------------
+
+\begin{frame}<presentation:0>
+	\nocite{d1996educaccao}
+\end{frame}
+
+
+\begin{frame}
+	\begin{lamina}{Bibliografia}
+		\bibliographystyle{plainnat}
+		\bibliography{bib}
+	\end{lamina}
+\end{frame}
+
+%--------------------------------------------
+
+\begin{frame}
+	\begin{lamina}{Agradecimentos}
+		\begin{itemize}\Large
+			\item Ao Orientador, Prof. Doutor Eng. Francisco Antonio Fernandes Reinaldo
+			\item Aos membros da banca, Profs. MSc. Maicon Felipe Malacarne e Prof. MSc. Celso Hotz
+		\end{itemize}
+		\vspace{2pt}
+		\centering \includegraphics[keepaspectratio=true,scale=0.25]{overleaf}
+	\end{lamina}
+\end{frame}
+
+
+\end{document}
