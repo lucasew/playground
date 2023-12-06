@@ -1,0 +1,9 @@
+service: 'service:svc'
+include:
+  - '*.py'
+  - static/*
+python:
+  packages:
+    - bentoml==1.1.10
+    - fastapi
+    - Pillow
