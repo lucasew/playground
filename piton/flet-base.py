@@ -1,11 +1,14 @@
 #!/usr/bin/env nix-shell
 #!nix-shell -i python3 -p python3Packages.flet
 
-import flet
-from flet import Page
+import logging
+logging.basicConfig(level=logging.DEBUG)
+
+import flet as ft
+from flet import Page, Text
 
 def main(page: Page):
     page.title = "Teste"
     page.add(Text(value="Teste"))
 
-flet.app(target=main)
+ft.app(target=main, view=ft.AppView.FLET_APP)
