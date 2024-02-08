@@ -1,0 +1,11 @@
+services:
+  db:
+    image: lucasew/rinha202401-tigerbeetle-db
+    build:
+      dockerfile: ./Dockerfile.tigerbeetle
+    deploy:
+      # resources:
+      #   limits:
+      #     memory: 1024M
+    volumes:
+      - ./data:/data
