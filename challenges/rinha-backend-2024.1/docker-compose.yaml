@@ -1,6 +1,8 @@
 services:
   db:
     image: lucasew/rinha202401-tigerbeetle-db
+    ports:
+      - "3001:3000"
     build:
       dockerfile: ./Dockerfile.tigerbeetle
     deploy:
