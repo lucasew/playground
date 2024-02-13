@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -104,6 +105,8 @@ type ExtratoTransacao struct {
 	TimestampTransacao time.Time `json:"realizada_em"`
 }
 
+var ErrNotFound = errors.New("not found")
+
 func (a *App) GetSaldo(cliente int) (SubmitTransactionResponse, error) {
 	var response SubmitTransactionResponse
 	account, err := a.tigerbeetle.LookupAccounts([]types.Uint128{
@@ -112,22 +115,19 @@ func (a *App) GetSaldo(cliente int) (SubmitTransactionResponse, error) {
 	if err != nil {
 		return response, err
 	}
+	if len(account) == 0 {
+		return response, ErrNotFound
+	}
 	response.Limite = account[0].UserData64
 	response.Saldo = 0
 	saldoParcial := big.NewInt(0)
 
 	stepInt := &big.Int{}
 	stepInt.SetBytes(account[0].CreditsPending[:])
-	saldoParcial.Add(saldoParcial, stepInt)
-
-	stepInt.SetBytes(account[0].CreditsPosted[:])
-	saldoParcial.Add(saldoParcial, stepInt)
-
-	stepInt.SetBytes(account[0].DebitsPending[:])
-	saldoParcial.Sub(saldoParcial, stepInt)
-
-	stepInt.SetBytes(account[0].DebitsPosted[:])
-	saldoParcial.Sub(saldoParcial, stepInt)
+	saldoParcial.Add(saldoParcial, (&account[0].CreditsPending).BigInt())
+	saldoParcial.Add(saldoParcial, (&account[0].CreditsPosted).BigInt())
+	saldoParcial.Sub(saldoParcial, (&account[0].DebitsPending).BigInt())
+	saldoParcial.Sub(saldoParcial, (&account[0].DebitsPosted).BigInt())
 
 	response.Saldo = int64(saldoParcial.Uint64()) - int64(response.Limite)
 
@@ -136,7 +136,7 @@ func (a *App) GetSaldo(cliente int) (SubmitTransactionResponse, error) {
 
 func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	urlParts := strings.Split(r.URL.Path, "/")
-	spew.Dump(urlParts)
+	// spew.Dump(urlParts)
 	if len(urlParts) > 1 && urlParts[0] == "" {
 		urlParts = urlParts[1:]
 	}
@@ -168,9 +168,10 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
+		var transfer types.TransferEventResult
 		switch request.Tipo {
 		case "d":
-			err = a.Transfer(
+			transfer, err = a.Transfer(
 				uint64(clienteId),
 				TIGERBEETLE_FUNDING_ACCOUNT_ID,
 				request.Valor,
@@ -178,7 +179,7 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				request.Descricao,
 			)
 		case "c":
-			err = a.Transfer(
+			transfer, err = a.Transfer(
 				TIGERBEETLE_FUNDING_ACCOUNT_ID,
 				uint64(clienteId),
 				request.Valor,
@@ -198,8 +199,13 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		w.WriteHeader(http.StatusOK)
 		w.Header().Set("Content-Type", "application/json")
+		if transfer.Result == types.TransferOK {
+			w.WriteHeader(http.StatusOK)
+		} else {
+			w.WriteHeader(http.StatusBadRequest)
+		}
+		// spew.Dump(transfer.Result.String())
 		encoder.Encode(response)
 		return
 	}
@@ -215,6 +221,14 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}.ToUint32(),
 		}
 		saldo, err := a.GetSaldo(clienteId)
+		if err == ErrNotFound {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 		ret := ExtratoReponse{
 			Saldo: ExtratoSaldoResponse{
 				Total:            saldo.Saldo,
@@ -232,7 +246,7 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			descricaoSize := descricaoBytes[0]
 			descricao := ""
 			if descricaoSize < 16 && descricaoSize > 0 {
-				descricao = string(descricaoBytes[1:descricaoSize])
+				descricao = string(descricaoBytes[1 : descricaoSize+1])
 			}
 			if transfer.CreditAccountID.String() == accountID.String() {
 				tipo = "c"
@@ -243,7 +257,7 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				Descricao:          descricao,
 				TimestampTransacao: time.UnixMicro(int64(transfer.Timestamp) / 1000),
 			})
-			spew.Dump(transfer, i)
+			// spew.Dump(transfer, i)
 
 		}
 
@@ -257,7 +271,7 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// var ret ExtratoRespons
 		history, err := a.tigerbeetle.GetAccountHistory(filter)
 		log.Printf("%s", err)
-		spew.Dump(history)
+		// spew.Dump(history)
 		return
 		// spew.Dump(transfers_filtered)
 
@@ -316,22 +330,19 @@ func (a *App) Setup() error {
 	}
 
 	accountsResult, err := a.tigerbeetle.CreateAccounts(contas)
-	spew.Dump(accountsResult)
+	// spew.Dump(accountsResult)
 	if err != nil {
 		return err
 	}
 	transferenciasResult, err := a.tigerbeetle.CreateTransfers(transferencias)
-	spew.Dump(transferenciasResult)
+	// spew.Dump(transferenciasResult)
 	return err
 }
 
-func (a *App) Transfer(from uint64, to uint64, amount uint64, id uint64, description string) error {
+func (a *App) Transfer(from uint64, to uint64, amount uint64, id uint64, description string) (result types.TransferEventResult, err error) {
 	if id == 0 {
 		id = uint64(time.Now().UnixMicro())
 	}
-	// TODO: como caraglios codificar descrição?
-
-	/*transfers*/
 	descsize := 16
 	descbytes := make([]byte, descsize)
 
@@ -344,7 +355,7 @@ func (a *App) Transfer(from uint64, to uint64, amount uint64, id uint64, descrip
 	for i := 0; i < descriptionSize; i++ {
 		descbytes[i+1] = descriptionAsBytes[i]
 	}
-	_, err := a.tigerbeetle.CreateTransfers([]types.Transfer{
+	transfer, err := a.tigerbeetle.CreateTransfers([]types.Transfer{
 		{
 			ID:              types.ToUint128(id),
 			DebitAccountID:  types.ToUint128(from),
@@ -355,8 +366,10 @@ func (a *App) Transfer(from uint64, to uint64, amount uint64, id uint64, descrip
 			UserData128:     types.Uint128(descbytes),
 		},
 	})
-	// spew.Dump(transfers)
-	return err
+	if len(transfer) != 0 {
+		result = transfer[0]
+	}
+	return result, err
 }
 
 func (a *App) Close() error {
