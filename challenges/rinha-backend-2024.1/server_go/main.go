@@ -26,6 +26,7 @@ var (
 	// só pra fazer o go parar de me encher os patavá
 	_ = spew.Config
 	_ = time.Sleep
+	_ = debug.Stack()
 )
 
 var (
@@ -35,7 +36,7 @@ var (
 )
 
 const (
-	TIGERBETTLE_MAX_CONCURRENCY = 2048
+	TIGERBETTLE_MAX_CONCURRENCY = 128
 )
 
 var TIGERBEETLE_ACCOUNT_FILTER_FLAGS = types.AccountFilterFlags{

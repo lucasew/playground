@@ -18,13 +18,17 @@ services:
     - ./data:/data
   backend1:
     image: lucasew/rinha202401-backend
+    restart: always
     environment:
       - "TB_ADDRESS=db:3000"
+      - "GOMEMLIMIT=80MiB"
     build:
       dockerfile: ./Dockerfile.go-backend
   backend2:
     image: lucasew/rinha202401-backend
+    restart: always
     environment:
       - "TB_ADDRESS=db:3000"
+      - "GOMEMLIMIT=80MiB"
     build:
       dockerfile: ./Dockerfile.go-backend
