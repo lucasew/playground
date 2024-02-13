@@ -9,8 +9,10 @@ import (
 	"math/big"
 	"net/http"
 	"os"
+	"runtime/pprof"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
@@ -29,6 +31,7 @@ var (
 var (
 	httpAddr        string
 	tigerbeetleHost string
+	profileFile     string
 )
 
 const (
@@ -43,10 +46,21 @@ func init() {
 	flag.StringVar(&httpAddr, "addr", fmt.Sprintf(":%s", portFromEnv), "Address where to listen for the server")
 
 	flag.StringVar(&tigerbeetleHost, "t", os.Getenv("TB_ADDRESS"), "How to connect to tigerbeetle")
+	flag.StringVar(&profileFile, "p", "", "Where to save profiler data. Default: dont profile")
 	flag.Parse()
 }
 
 func main() {
+	if profileFile != "" {
+		f, err := os.Create(profileFile)
+		if err != nil {
+			log.Fatalf("can't create profiler file: %s", err)
+		}
+		pprof.StartCPUProfile(f)
+		defer pprof.StopCPUProfile()
+		defer f.Close()
+	}
+
 	app, err := NewApp()
 	if err != nil {
 		log.Fatalf("can't prepare server: %s", err)
@@ -65,6 +79,7 @@ func main() {
 }
 
 type App struct {
+	sync.Mutex
 	tigerbeetle tigerbeetle_go.Client
 }
 
@@ -77,7 +92,7 @@ func NewApp() (*App, error) {
 }
 
 type SubmitTransactionRequest struct {
-	Valor     uint64 `json:"valor"`
+	Valor     int64  `json:"valor"`
 	Tipo      string `json:"tipo"`
 	Descricao string `json:"descricao"`
 }
@@ -109,9 +124,11 @@ var ErrNotFound = errors.New("not found")
 
 func (a *App) GetSaldo(cliente int) (SubmitTransactionResponse, error) {
 	var response SubmitTransactionResponse
+	a.Lock()
 	account, err := a.tigerbeetle.LookupAccounts([]types.Uint128{
 		types.ToUint128(uint64(cliente)),
 	})
+	a.Unlock()
 	if err != nil {
 		return response, err
 	}
@@ -161,11 +178,15 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		var request SubmitTransactionRequest
 		err := decoder.Decode(&request)
 		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
+			w.WriteHeader(http.StatusUnprocessableEntity)
 			return
 		}
 		if len(request.Descricao) > 10 {
-			w.WriteHeader(http.StatusBadRequest)
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			return
+		}
+		if request.Valor <= 0 {
+			w.WriteHeader(http.StatusUnprocessableEntity)
 			return
 		}
 		var transfer types.TransferEventResult
@@ -174,7 +195,7 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			transfer, err = a.Transfer(
 				uint64(clienteId),
 				TIGERBEETLE_FUNDING_ACCOUNT_ID,
-				request.Valor,
+				uint64(request.Valor),
 				0,
 				request.Descricao,
 			)
@@ -182,12 +203,12 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			transfer, err = a.Transfer(
 				TIGERBEETLE_FUNDING_ACCOUNT_ID,
 				uint64(clienteId),
-				request.Valor,
+				uint64(request.Valor),
 				0,
 				request.Descricao,
 			)
 		default:
-			w.WriteHeader(http.StatusBadRequest)
+			w.WriteHeader(http.StatusUnprocessableEntity)
 			return
 		}
 		if err != nil {
@@ -195,16 +216,22 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		response, err := a.GetSaldo(clienteId)
+		if err == ErrNotFound {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		if transfer.Result == types.TransferOK {
-			w.WriteHeader(http.StatusOK)
-		} else {
-			w.WriteHeader(http.StatusBadRequest)
-		}
+		w.WriteHeader(http.StatusOK)
+		_ = transfer
+		// if transfer.Result == types.TransferOK {
+		// 	w.WriteHeader(http.StatusOK)
+		// } else {
+		// 	w.WriteHeader(http.StatusUnprocessableEntity)
+		// }
 		// spew.Dump(transfer.Result.String())
 		encoder.Encode(response)
 		return
@@ -217,7 +244,7 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			Flags: types.AccountFilterFlags{
 				Debits:   true,
 				Credits:  true,
-				Reversed: false,
+				Reversed: true,
 			}.ToUint32(),
 		}
 		saldo, err := a.GetSaldo(clienteId)
@@ -238,9 +265,11 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			UltimasTransacoes: make([]ExtratoTransacao, 0, 10),
 		}
 
+		a.Lock()
 		transfers_filtered, err := a.tigerbeetle.GetAccountTransfers(filter)
+		a.Unlock()
 		log.Printf("%s", err)
-		for i, transfer := range transfers_filtered {
+		for _, transfer := range transfers_filtered {
 			tipo := "d"
 			descricaoBytes := transfer.UserData128.Bytes()
 			descricaoSize := descricaoBytes[0]
@@ -269,8 +298,8 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		// log.Printf("%s", err)
 		// var ret ExtratoRespons
-		history, err := a.tigerbeetle.GetAccountHistory(filter)
-		log.Printf("%s", err)
+		// history, err := a.tigerbeetle.GetAccountHistory(filter)
+		// log.Printf("%s", err)
 		// spew.Dump(history)
 		return
 		// spew.Dump(transfers_filtered)
@@ -329,12 +358,13 @@ func (a *App) Setup() error {
 		Flags:  0, // sem restrições
 	}
 
-	accountsResult, err := a.tigerbeetle.CreateAccounts(contas)
+	/*accountsResult*/
+	_, err := a.tigerbeetle.CreateAccounts(contas)
 	// spew.Dump(accountsResult)
 	if err != nil {
 		return err
 	}
-	transferenciasResult, err := a.tigerbeetle.CreateTransfers(transferencias)
+	/*transferenciasResult*/ _, err = a.tigerbeetle.CreateTransfers(transferencias)
 	// spew.Dump(transferenciasResult)
 	return err
 }

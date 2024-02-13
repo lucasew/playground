@@ -10,4 +10,4 @@ services:
       #   limits:
       #     memory: 1024M
     volumes:
-      - ./data:/data
+    - ./data:/data
