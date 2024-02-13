@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"log"
 	"math/big"
+	"net"
 	"net/http"
 	"os"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
@@ -18,8 +20,6 @@ import (
 	"github.com/pkg/profile"
 	tigerbeetle_go "github.com/tigerbeetle/tigerbeetle-go"
 	"github.com/tigerbeetle/tigerbeetle-go/pkg/types"
-	// "github.com/tigerbeetle/tigerbeetle-go"
-	// "github.com/tigerbeetle/tigerbeetle-go/pkg/types"
 )
 
 var (
@@ -35,8 +35,16 @@ var (
 )
 
 const (
-	TIGERBETTLE_MAX_CONCURRENCY = 64
+	TIGERBETTLE_MAX_CONCURRENCY = 2048
 )
+
+var TIGERBEETLE_ACCOUNT_FILTER_FLAGS = types.AccountFilterFlags{
+	Debits:   true,
+	Credits:  true,
+	Reversed: true,
+}.ToUint32()
+
+var U128_0 = types.ToUint128(0)
 
 func init() {
 	portFromEnv := os.Getenv("PORT")
@@ -48,9 +56,29 @@ func init() {
 	flag.StringVar(&tigerbeetleHost, "t", os.Getenv("TB_ADDRESS"), "How to connect to tigerbeetle")
 	flag.StringVar(&profileFile, "p", "", "Where to save profiler data. Default: dont profile")
 	flag.Parse()
+
+	host := strings.Split(tigerbeetleHost, ":")[0]
+	if net.ParseIP(host) == nil {
+		addrs, err := net.LookupHost(host)
+		if err != nil {
+			log.Fatalf("can't resolve tigerbeetle host \"%s\": %s", host, err)
+		}
+		for _, addr := range addrs {
+			ip := net.ParseIP(addr)
+			if ip == nil {
+				continue
+			}
+			ip = ip.To4()
+			if ip == nil {
+				continue
+			}
+			tigerbeetleHost = strings.Replace(tigerbeetleHost, host, ip.String(), 1)
+		}
+	}
 }
 
 func main() {
+	// debug.SetGCPercent(-1)
 	if profileFile != "" {
 		defer profile.Start(profile.ProfilePath(profileFile)).Stop()
 	}
@@ -78,7 +106,7 @@ type App struct {
 }
 
 func NewApp() (*App, error) {
-	client, err := tigerbeetle_go.NewClient(types.ToUint128(0), strings.Split(tigerbeetleHost, ","), TIGERBETTLE_MAX_CONCURRENCY)
+	client, err := tigerbeetle_go.NewClient(U128_0, strings.Split(tigerbeetleHost, ","), TIGERBETTLE_MAX_CONCURRENCY)
 	if err != nil {
 		return nil, err
 	}
@@ -116,13 +144,19 @@ type ExtratoTransacao struct {
 
 var ErrNotFound = errors.New("not found")
 
+func PointerifyBigInt(n big.Int) *big.Int {
+	ret := &big.Int{}
+	ret.SetBytes(n.Bytes())
+	return ret
+}
+
 func (a *App) GetSaldo(cliente int) (SubmitTransactionResponse, error) {
 	var response SubmitTransactionResponse
-	a.Lock()
+	// a.Lock()
 	account, err := a.tigerbeetle.LookupAccounts([]types.Uint128{
 		types.ToUint128(uint64(cliente)),
 	})
-	a.Unlock()
+	// a.Unlock()
 	if err != nil {
 		return response, err
 	}
@@ -135,12 +169,21 @@ func (a *App) GetSaldo(cliente int) (SubmitTransactionResponse, error) {
 
 	stepInt := &big.Int{}
 	stepInt.SetBytes(account[0].CreditsPending[:])
-	saldoParcial.Add(saldoParcial, (&account[0].CreditsPending).BigInt())
-	saldoParcial.Add(saldoParcial, (&account[0].CreditsPosted).BigInt())
-	saldoParcial.Sub(saldoParcial, (&account[0].DebitsPending).BigInt())
-	saldoParcial.Sub(saldoParcial, (&account[0].DebitsPosted).BigInt())
+	creditsPending := PointerifyBigInt(account[0].CreditsPending.BigInt())
+	creditsPosted := PointerifyBigInt(account[0].CreditsPosted.BigInt())
+	debitsPending := PointerifyBigInt(account[0].DebitsPending.BigInt())
+	debitsPosted := PointerifyBigInt(account[0].DebitsPosted.BigInt())
+	saldoParcial.Add(saldoParcial, creditsPending)
+	creditsPending = nil
+	saldoParcial.Add(saldoParcial, creditsPosted)
+	creditsPosted = nil
+	saldoParcial.Add(saldoParcial, debitsPending)
+	debitsPending = nil
+	saldoParcial.Add(saldoParcial, debitsPosted)
+	debitsPosted = nil
 
 	response.Saldo = int64(saldoParcial.Uint64()) - int64(response.Limite)
+	saldoParcial = nil
 
 	return response, nil
 }
@@ -206,6 +249,7 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err != nil {
+			log.Printf("err post: %s", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -215,17 +259,17 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err != nil {
+			log.Printf("err saldo: %s", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_ = transfer
-		// if transfer.Result == types.TransferOK {
-		// 	w.WriteHeader(http.StatusOK)
-		// } else {
-		// 	w.WriteHeader(http.StatusUnprocessableEntity)
-		// }
+		if transfer.Result == types.TransferOK {
+			w.WriteHeader(http.StatusOK)
+		} else {
+			w.WriteHeader(http.StatusUnprocessableEntity)
+		}
+		// _ = transfer
 		// spew.Dump(transfer.Result.String())
 		encoder.Encode(response)
 		return
@@ -235,11 +279,7 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		filter := types.AccountFilter{
 			AccountID: accountID,
 			Limit:     10,
-			Flags: types.AccountFilterFlags{
-				Debits:   true,
-				Credits:  true,
-				Reversed: true,
-			}.ToUint32(),
+			Flags:     TIGERBEETLE_ACCOUNT_FILTER_FLAGS,
 		}
 		saldo, err := a.GetSaldo(clienteId)
 		if err == ErrNotFound {
@@ -247,6 +287,7 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err != nil {
+			log.Printf("err saldo: %s", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -259,10 +300,9 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			UltimasTransacoes: make([]ExtratoTransacao, 0, 10),
 		}
 
-		a.Lock()
+		// a.Lock()
 		transfers_filtered, err := a.tigerbeetle.GetAccountTransfers(filter)
-		a.Unlock()
-		log.Printf("%s", err)
+		// a.Unlock()
 		for _, transfer := range transfers_filtered {
 			tipo := "d"
 			descricaoBytes := transfer.UserData128.Bytes()
@@ -275,7 +315,7 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				tipo = "c"
 			}
 			ret.UltimasTransacoes = append(ret.UltimasTransacoes, ExtratoTransacao{
-				Valor:              transfer.Amount.BigInt().Uint64(),
+				Valor:              PointerifyBigInt(transfer.Amount.BigInt()).Uint64(),
 				Tipo:               tipo,
 				Descricao:          descricao,
 				TimestampTransacao: time.UnixMicro(int64(transfer.Timestamp) / 1000),
@@ -283,6 +323,7 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			// spew.Dump(transfer, i)
 
 		}
+		transfers_filtered = nil
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
@@ -290,17 +331,10 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			log.Printf("%s", err)
 		}
-		// log.Printf("%s", err)
-		// var ret ExtratoRespons
-		// history, err := a.tigerbeetle.GetAccountHistory(filter)
-		// log.Printf("%s", err)
-		// spew.Dump(history)
+		ret.UltimasTransacoes = nil
 		return
-		// spew.Dump(transfers_filtered)
-
 	}
 	w.WriteHeader(http.StatusNotFound)
-	// fmt.Fprintf(w, "foi!")
 }
 
 // pra dar crédito/limite pras contas precisa de uma conta de funding
@@ -328,38 +362,39 @@ func (a *App) Setup() error {
 	}
 	contas := make([]types.Account, len(limites)+1)
 	transferencias := make([]types.Transfer, len(limites))
+	FUNDING_ACCOUNT_ID := types.ToUint128(TIGERBEETLE_FUNDING_ACCOUNT_ID)
 	for i, limite := range limites {
+		ACCOUNT_ID := types.ToUint128(i)
 		contas[i-1] = types.Account{
-			ID:         types.ToUint128(i),
+			ID:         ACCOUNT_ID,
 			Ledger:     TIGERBEETLE_DEFAULT_LEDGER,
 			Code:       TIGERBEETLE_DEFAULT_CODE,
 			UserData64: limite,
 			Flags:      TIGERBEETLE_USER_ACCOUNTS_FLAGS,
 		}
 		transferencias[i-1] = types.Transfer{
-			ID:              types.ToUint128(i),
-			DebitAccountID:  types.ToUint128(TIGERBEETLE_FUNDING_ACCOUNT_ID),
-			CreditAccountID: types.ToUint128(i),
+			ID:              ACCOUNT_ID,
+			DebitAccountID:  FUNDING_ACCOUNT_ID,
+			CreditAccountID: ACCOUNT_ID,
 			Amount:          types.ToUint128(limite),
 			Ledger:          TIGERBEETLE_DEFAULT_LEDGER,
 			Code:            TIGERBEETLE_DEFAULT_CODE,
 		}
 	}
 	contas[len(limites)] = types.Account{
-		ID:     types.ToUint128(TIGERBEETLE_FUNDING_ACCOUNT_ID),
+		ID:     FUNDING_ACCOUNT_ID,
 		Ledger: TIGERBEETLE_DEFAULT_LEDGER,
 		Code:   TIGERBEETLE_DEFAULT_CODE,
 		Flags:  0, // sem restrições
 	}
 
-	/*accountsResult*/
 	_, err := a.tigerbeetle.CreateAccounts(contas)
-	// spew.Dump(accountsResult)
 	if err != nil {
 		return err
 	}
-	/*transferenciasResult*/ _, err = a.tigerbeetle.CreateTransfers(transferencias)
-	// spew.Dump(transferenciasResult)
+	contas = nil
+	_, err = a.tigerbeetle.CreateTransfers(transferencias)
+	transferencias = nil
 	return err
 }
 
@@ -379,7 +414,7 @@ func (a *App) Transfer(from uint64, to uint64, amount uint64, id uint64, descrip
 	for i := 0; i < descriptionSize; i++ {
 		descbytes[i+1] = descriptionAsBytes[i]
 	}
-	transfer, err := a.tigerbeetle.CreateTransfers([]types.Transfer{
+	transferQuery := []types.Transfer{
 		{
 			ID:              types.ToUint128(id),
 			DebitAccountID:  types.ToUint128(from),
@@ -389,10 +424,14 @@ func (a *App) Transfer(from uint64, to uint64, amount uint64, id uint64, descrip
 			Code:            TIGERBEETLE_DEFAULT_CODE,
 			UserData128:     types.Uint128(descbytes),
 		},
-	})
+	}
+	transfer, err := a.tigerbeetle.CreateTransfers(transferQuery)
 	if len(transfer) != 0 {
 		result = transfer[0]
 	}
+	descbytes = nil
+	transfer = nil
+	transferQuery = nil
 	return result, err
 }
 
