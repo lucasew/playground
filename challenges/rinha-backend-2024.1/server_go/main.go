@@ -9,13 +9,13 @@ import (
 	"math/big"
 	"net/http"
 	"os"
-	"runtime/pprof"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/pkg/profile"
 	tigerbeetle_go "github.com/tigerbeetle/tigerbeetle-go"
 	"github.com/tigerbeetle/tigerbeetle-go/pkg/types"
 	// "github.com/tigerbeetle/tigerbeetle-go"
@@ -35,7 +35,7 @@ var (
 )
 
 const (
-	TIGERBETTLE_MAX_CONCURRENCY = 256
+	TIGERBETTLE_MAX_CONCURRENCY = 64
 )
 
 func init() {
@@ -52,13 +52,7 @@ func init() {
 
 func main() {
 	if profileFile != "" {
-		f, err := os.Create(profileFile)
-		if err != nil {
-			log.Fatalf("can't create profiler file: %s", err)
-		}
-		pprof.StartCPUProfile(f)
-		defer pprof.StopCPUProfile()
-		defer f.Close()
+		defer profile.Start(profile.ProfilePath(profileFile)).Stop()
 	}
 
 	app, err := NewApp()
