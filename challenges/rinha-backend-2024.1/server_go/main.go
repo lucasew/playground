@@ -36,7 +36,7 @@ var (
 )
 
 const (
-	TIGERBETTLE_MAX_CONCURRENCY = 128
+	TIGERBETTLE_MAX_CONCURRENCY = 256
 )
 
 var TIGERBEETLE_ACCOUNT_FILTER_FLAGS = types.AccountFilterFlags{
@@ -212,6 +212,8 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	decoder := json.NewDecoder(r.Body)
 	encoder := json.NewEncoder(w)
+
+	accountID := types.ToUint128(uint64(clienteId))
 	if r.Method == http.MethodPost && urlParts[2] == "transacoes" {
 		var request SubmitTransactionRequest
 		err := decoder.Decode(&request)
@@ -275,7 +277,6 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		encoder.Encode(response)
 		return
 	}
-	accountID := types.ToUint128(uint64(clienteId))
 	if r.Method == http.MethodGet && urlParts[2] == "extrato" {
 		filter := types.AccountFilter{
 			AccountID: accountID,
