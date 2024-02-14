@@ -30,13 +30,10 @@ var (
 )
 
 var (
-	httpAddr        string
-	tigerbeetleHost string
-	profileFile     string
-)
-
-const (
-	TIGERBETTLE_MAX_CONCURRENCY = 512
+	httpAddr                    string
+	tigerbeetleHost             string
+	profileFile                 string
+	TIGERBETTLE_MAX_CONCURRENCY uint = 512
 )
 
 var TIGERBEETLE_ACCOUNT_FILTER_FLAGS = types.AccountFilterFlags{
@@ -52,10 +49,18 @@ func init() {
 	if portFromEnv == "" {
 		portFromEnv = "3001"
 	}
+	TIGERBETTLE_MAX_CONCURRENCY = 512
+	concurrencyFromEnv := os.Getenv("TIGERBEETLE_MAX_CONCURRENCY")
+	concurrencyFromEnvInt, err := strconv.Atoi(concurrencyFromEnv)
+	if concurrencyFromEnv != "" && err != nil {
+		TIGERBETTLE_MAX_CONCURRENCY = uint(concurrencyFromEnvInt)
+	}
+
 	flag.StringVar(&httpAddr, "addr", fmt.Sprintf(":%s", portFromEnv), "Address where to listen for the server")
 
 	flag.StringVar(&tigerbeetleHost, "t", os.Getenv("TB_ADDRESS"), "How to connect to tigerbeetle")
 	flag.StringVar(&profileFile, "p", "", "Where to save profiler data. Default: dont profile")
+	flag.UintVar(&TIGERBETTLE_MAX_CONCURRENCY, "c", TIGERBETTLE_MAX_CONCURRENCY, "Max concurrent connections to tigerbeetle")
 	flag.Parse()
 
 	host := strings.Split(tigerbeetleHost, ":")[0]
