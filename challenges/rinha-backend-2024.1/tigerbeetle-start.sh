@@ -13,4 +13,6 @@ if [ ! -f /data/0_0.tigerbeetle ]; then
 fi
 
 echo "[*] Starting tigerbeetle on port $PORT..."
-exec $TIGERBEETLE start --addresses=0.0.0.0:$PORT --cache-grid=16MB /data/0_0.tigerbeetle 
+exec $TIGERBEETLE start --addresses=0.0.0.0:$PORT  /data/0_0.tigerbeetle 
+
+# --cache-grid=16MB

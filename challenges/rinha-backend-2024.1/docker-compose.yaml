@@ -1,4 +1,13 @@
 services:
+  loadbalancer:
+    image: nginx
+    ports:
+      - "9999:9999"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+    depends_on:
+      - backend1
+      - backend2
   db:
     image: lucasew/rinha202401-tigerbeetle
     build:

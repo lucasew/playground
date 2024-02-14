@@ -2,10 +2,12 @@ FROM golang:1.21
 
 RUN mkdir -p /usr/src && apt update && apt install -y git curl xz-utils
 WORKDIR /usr/src
-RUN git clone https://github.com/tigerbeetle/tigerbeetle && cd tigerbeetle && git checkout 4db58aa3d62d00f3ffb601077dcf7c62d889e918
+RUN git clone https://github.com/tigerbeetle/tigerbeetle && cd tigerbeetle && git checkout batiati-barebones && git tag v420.69
 WORKDIR /usr/src/tigerbeetle
 RUN \
 	git status && \
+	sed -i 's;^.*git checkout.*$;;' bootstrap.sh && \
+	sed -i 's;^.*try generate_readmes.*$;;' src/scripts/ci.zig && \
 	./bootstrap.sh -build && \
 	/usr/src/tigerbeetle/zig/zig build scripts -- ci --language=go
 # COPY tigerbeetle-start.sh /
