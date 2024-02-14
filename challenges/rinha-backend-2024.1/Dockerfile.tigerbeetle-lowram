@@ -1,0 +1,13 @@
+FROM golang:1.21
+
+RUN mkdir -p /usr/src && apt update && apt install -y git curl xz-utils
+WORKDIR /usr/src
+RUN git clone https://github.com/tigerbeetle/tigerbeetle && cd tigerbeetle && git checkout 4db58aa3d62d00f3ffb601077dcf7c62d889e918
+WORKDIR /usr/src/tigerbeetle
+RUN \
+	git status && \
+	./bootstrap.sh -build && \
+	/usr/src/tigerbeetle/zig/zig build scripts -- ci --language=go
+# COPY tigerbeetle-start.sh /
+# RUN chmod +x /tigerbeetle-start.sh
+ENTRYPOINT ["true"]

@@ -1,4 +1,0 @@
-FROM ghcr.io/tigerbeetle/tigerbeetle:0.14.179
-COPY tigerbeetle-start.sh /
-RUN chmod +x /tigerbeetle-start.sh
-ENTRYPOINT ["/tigerbeetle-start.sh"]
