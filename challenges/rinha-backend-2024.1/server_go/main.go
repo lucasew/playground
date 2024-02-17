@@ -230,6 +230,8 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusUnprocessableEntity)
 			return
 		}
+		// TODO: valor é forçado pra int automaticamente
+		// Floats vão ser aceitos e arrendondados pra baixo
 		if request.Valor <= 0 {
 			w.WriteHeader(http.StatusUnprocessableEntity)
 			return

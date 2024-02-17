@@ -9,7 +9,7 @@ services:
       - backend1
       - backend2
   db:
-    image: ghcr.io/lucasew/playground/rinha202401-tigerbeetle
+    image: ghcr.io/lucasew/playground-rinha202401-tigerbeetle
     build:
       dockerfile: ./Dockerfile.tigerbeetle-lowram
     entrypoint: /tigerbeetle-start.sh
@@ -21,7 +21,7 @@ services:
     - ./data:/data
     - ./tigerbeetle-start.sh:/tigerbeetle-start.sh
   backend1:
-    image: ghcr.io/lucasew/playground/rinha202401-backend
+    image: ghcr.io/lucasew/playground-rinha202401-backend
     restart: always
     environment:
       - "TB_ADDRESS=db:3000"
@@ -31,7 +31,7 @@ services:
     depends_on:
       - db
   backend2:
-    image: ghcr.io/lucasew/playground/rinha202401-backend
+    image: ghcr.io/lucasew/playground-rinha202401-backend
     restart: always
     environment:
       - "TB_ADDRESS=db:3000"

@@ -4,7 +4,7 @@ WORKDIR /usr/src/app
 
 COPY server_go/go.mod server_go/go.sum ./
 COPY server_go ./
-COPY --from=ghcr.io/lucasew/playground/rinha202401-tigerbeetle /usr/src/tigerbeetle/src/clients/go/ vendor/github.com/tigerbeetle/tigerbeetle-go
+COPY --from=ghcr.io/lucasew/playground-rinha202401-tigerbeetle /usr/src/tigerbeetle/src/clients/go/ vendor/github.com/tigerbeetle/tigerbeetle-go
 RUN go build -v -o server ./...
 
 ENTRYPOINT ["/usr/src/app/server"]
