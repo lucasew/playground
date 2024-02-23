@@ -11,5 +11,6 @@ RUN \
 	./bootstrap.sh -build && \
 	/usr/src/tigerbeetle/zig/zig build scripts -- ci --language=go
 # COPY tigerbeetle-start.sh /
+RUN mkdir /data && chmod 777 -R /data
 # RUN chmod +x /tigerbeetle-start.sh
 ENTRYPOINT ["true"]
