@@ -1,0 +1,10 @@
+[language-server.teste]
+command = "teste-lsp.py"
+
+[[language]]
+name = "teste"
+scope = "source.teste"
+file-types = ["teste"]
+comment-tokens = "#"
+indent = {tab-width = 2, unit = "  "}
+language-servers = ["teste"]
