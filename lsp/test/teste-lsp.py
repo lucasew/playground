@@ -9,7 +9,53 @@ import os
 
 sys.stderr = open('log.txt', 'a')
 
-stdin = os.fdopen(sys.stdin.fileno(), mode='rb', buffering=0)
+stdin_buf_queue = asyncio.Queue()
+
+running = True
+
+async def read_stdin_hook(buf):
+    print('buf', buf, file=sys.stderr, flush=True)
+    if not buf:
+        return
+    stdin_buf_queue.put(buf)
+
+
+stdin_lines_queue = asyncio.Queue()
+async def read_stdin_queue_lines():
+    buf = b""
+    while True:
+        if not stdin_buf_queue.empty():
+            block = stdin_buf_queue.get_nowait()
+            if block is not None:
+                buf += block
+        if b'\n' in buf:
+            nl_index = buf.index(b'\n')
+            line = buf[:nl_index].decode('utf-8')
+            buf = buf[nl_index:]
+            stdin_lines_queue.put(buf)
+            continue
+        if is_json_valid(buf.decode('utf-8')):
+            line = buf.decode('utf-8')
+            buf = b""
+            stdin_lines_queue.put(line)
+            print("<<<", line, file=sys.stderr, flush=True)
+            continue
+
+
+stdout_line_queue = asyncio.Queue()
+async def write_stdout_queue():
+    while True:
+        try:
+            item = stdout_line_queue.get_nowait()
+            if not isinstance(item, str):
+                item = json.dumps(item)
+            print(">>>", item, file=sys.stderr, flush=True)
+            print(item, flush=True)
+        except asyncio.QueueEmpty:
+            if running:
+                await asyncio.sleep(0.1)
+            else:
+                break
 
 
 class LSPErrorCodes(enum.Enum):
@@ -92,16 +138,14 @@ async def handle_call(data):
         result = handler(params)
         if isinstance(result, asyncio.Future):
             result = await result
-        ret = dict(
+        stdout_line_queue.put(dict(
             jsonrpc="2.0",
             id=req_id,
             result=result,
             error=None
-        )
-        print(json.dumps(ret), flush=True)
-        print("<<<", ret, file=sys.stderr, flush=True)
+        ))
     except LSPException as e:
-        ret = dict(
+        stdout_line_queue.put(dict(
             jsonrpc="2.0",
             id=req_id,
             result=None,
@@ -110,9 +154,7 @@ async def handle_call(data):
                 message=e.message,
                 data=e.data
             )
-        )
-        print(json.dumps(ret), flush=True)
-        print("<<<", ret, file=sys.stderr, flush=True)
+        ))
 
 def handle_message(data):
     req_id = data['id']
@@ -126,36 +168,19 @@ def is_json_valid(data):
         return False
 
 async def main():
+    asyncio.get_event_loop().add_reader(sys.stdin.fileno(), read_stdin_hook)
+    read_stdin_lines_task = asyncio.create_task(read_stdin_queue_lines())
+    write_stdout_task = asyncio.create_task(write_stdout_queue())
     print('started', handlers, file=sys.stderr, flush=True)
-    buf = b""
     while True:
-        line = None
-        if not (b"\n" in buf or is_json_valid(buf.decode('utf-8'))):
-            block = stdin.read(1) 
-            if not block:
-                if len(buf) == 0:
-                    break
-            buf += block
-        if b'\n' in buf:
-            line = buf[:buf.index(b'\n')+1].decode('utf-8')
-            buf = buf[buf.index(b'\n')+1:]
-            if not is_json_valid(line):
-                print(line, file=sys.stderr, flush=True)
-                continue
-        else:
-            line = buf.decode('utf-8')
-            if is_json_valid(line):
-                buf = b""
-            else:
-                continue
-        if not line:
-            continue
-        print('line', line, file=sys.stderr, flush=True)
-        data = json.loads(line)
-        print('>>>', line, file=sys.stderr, flush=True)
-        # print(tasks, file=sys.stderr, flush=True)
-        handle_message(data)
-
+        try:
+            line = stdin_lines_queue.get_nowait()
+            data = json.loads(line)
+            handle_message(data)
+        except json.JSONDecodeError as e:
+            print(e, file=sys.stderr, flush=True)
+        except asyncio.QueueEmpty:
+            await asyncio.sleep(0.1)
 
 asyncio.run(main())
 print('finshed', file=sys.stderr, flush=True)
