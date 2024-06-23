@@ -6,57 +6,15 @@ import asyncio
 import enum
 from pathlib import Path
 import os
+import threading
+import functools
 
 sys.stderr = open('log.txt', 'a')
 
-stdin_buf_queue = asyncio.Queue()
+log = functools.partial(print, file=sys.stderr, flush=True)
 
-running = True
-
-async def read_stdin_hook(buf):
-    print('buf', buf, file=sys.stderr, flush=True)
-    if not buf:
-        return
-    stdin_buf_queue.put(buf)
-
-
-stdin_lines_queue = asyncio.Queue()
-async def read_stdin_queue_lines():
-    buf = b""
-    while True:
-        if not stdin_buf_queue.empty():
-            block = stdin_buf_queue.get_nowait()
-            if block is not None:
-                buf += block
-        if b'\n' in buf:
-            nl_index = buf.index(b'\n')
-            line = buf[:nl_index].decode('utf-8')
-            buf = buf[nl_index:]
-            stdin_lines_queue.put(buf)
-            continue
-        if is_json_valid(buf.decode('utf-8')):
-            line = buf.decode('utf-8')
-            buf = b""
-            stdin_lines_queue.put(line)
-            print("<<<", line, file=sys.stderr, flush=True)
-            continue
-
-
-stdout_line_queue = asyncio.Queue()
-async def write_stdout_queue():
-    while True:
-        try:
-            item = stdout_line_queue.get_nowait()
-            if not isinstance(item, str):
-                item = json.dumps(item)
-            print(">>>", item, file=sys.stderr, flush=True)
-            print(item, flush=True)
-        except asyncio.QueueEmpty:
-            if running:
-                await asyncio.sleep(0.1)
-            else:
-                break
-
+stdin = os.fdopen(sys.stdin.fileno(), buffering=0, mode='rb')
+stdout = os.fdopen(sys.stdout.fileno(), buffering=0, mode='wb')
 
 class LSPErrorCodes(enum.Enum):
     ParseError = -32700
@@ -92,6 +50,9 @@ def initialize(data):
             codeActionProvider=True,
             hoverProvider=True,
             completionProvider=dict(),
+            executeCommandProvider=dict(
+              commands=[]  
+            ),
             signatureHelpProvider=dict(
                 triggerCharacters=["ç"],
             ),
@@ -112,9 +73,49 @@ def cancel_request(data):
     if task is not None:
         task.cancel()
 
+@lsp_handler("textDocument/codeAction")
+def code_action(data):
+    select_range = data['range']
+    is_same_line = select_range['start']['line'] == select_range['end']['line'] and (select_range['end']['character'] - select_range['start']['character']) == 1
+    is_next_line = (select_range['end']['line'] - select_range['start']['line']) == 1 and select_range['end']['character'] == 0
+    is_one_char_selection = is_same_line or is_next_line
+    return [
+        dict(
+            title="Print current uid",
+            kind="refactor",
+            edit=dict(
+                changes={
+                    data['textDocument']['uri']: [
+                        dict(
+                             range=dict(
+                                 start=select_range['start'],
+                                 end=select_range['start'] if is_one_char_selection else select_range['end']
+                             ),
+                             newText=str(os.getuid())
+                         )
+                    ]
+                }
+            ),
+        )
+    ]
+
+# @lsp_handler("workspace/executeCommand")
+# def execute_command(data):
+#     command = data['command']
+#     arguments = data['arguments']
+#     if command == "whoami" and arguments[0].startswith("file:///"):
+#         file = arguments[0]
+#         file = file.replace('file://', '')
+#         log('file', file)
+#         with open(file, 'a') as f:
+#             print(os.getuid(), file=f)
+#     raise LSPException("no such command", code=LSPErrorCodes.MethodNotFound)
+    
+
 @lsp_handler("textDocument/hover")
 def on_hover(data):
-    return dict(value="never gonna give **you up**")
+    return dict(contents="# hover\n\nnever gonna give **you up**")
+
 
 class LSPException(Exception):
     def __init__(self, message, code=LSPErrorCodes.InternalError, data=None):
@@ -127,38 +128,123 @@ class LSPException(Exception):
 tasks = {}        
 
 async def handle_call(data):
+    log(data)
     method = data['method']
     params = data.get('params')
-    req_id = data['id']
+    req_id = data.get('id')
     handler = handlers.get(method)
+    log("call", req_id, method, params)
     try:
         if handler is None:
             raise LSPException("no such method", code=LSPErrorCodes.MethodNotFound)
-        print(handler, file=sys.stderr, flush=True)
+        log(handler)
         result = handler(params)
         if isinstance(result, asyncio.Future):
             result = await result
-        stdout_line_queue.put(dict(
+        ret = dict(
             jsonrpc="2.0",
             id=req_id,
             result=result,
             error=None
-        ))
+        )
+        log(">>>", ret)
+        writer.write(ret)
+        # sys.stdout.write(json.dumps(ret).encode('utf-8'))
+        
     except LSPException as e:
-        stdout_line_queue.put(dict(
+        ret = dict(
             jsonrpc="2.0",
             id=req_id,
             result=None,
             error=dict(
-                code=e.code,
+                code=e.code.value,
                 message=e.message,
                 data=e.data
             )
-        ))
+        )
+        log(">>>", ret)
+        writer.write(ret)
+        # sys.stdout.write(json.dumps(ret).encode('utf-8'))
 
-def handle_message(data):
-    req_id = data['id']
-    tasks[req_id] = asyncio.create_task(handle_call(data))
+# https://github.com/python-lsp/python-lsp-jsonrpc/blob/786d8dd8f830dbd83a17962c0167183a6609e72f/pylsp_jsonrpc/streams.py
+class JsonRpcStreamReader:
+    def __init__(self, rfile):
+        self._rfile = rfile
+
+    def close(self):
+        self._rfile.close()
+
+    def _read_message(self):
+        """Reads the contents of a message.
+
+        Returns:
+            body of message if parsable else None
+        """
+        line = self._rfile.readline()
+
+        if not line:
+            return None
+
+        content_length = self._content_length(line)
+
+        # Blindly consume all header lines
+        while line and line.strip():
+            line = self._rfile.readline()
+
+        if not line:
+            return None
+
+        # Grab the body
+        return self._rfile.read(content_length)
+
+    @staticmethod
+    def _content_length(line):
+        """Extract the content length from an input line."""
+        if line.startswith(b'Content-Length: '):
+            _, value = line.split(b'Content-Length: ')
+            value = value.strip()
+            try:
+                return int(value)
+            except ValueError as e:
+                raise ValueError(f"Invalid Content-Length header: {value}") from e
+
+        return None
+
+class JsonRpcStreamWriter:
+    def __init__(self, wfile, **json_dumps_args):
+        self._wfile = wfile
+        self._wfile_lock = threading.Lock()
+        self._json_dumps_args = json_dumps_args
+
+    def close(self):
+        with self._wfile_lock:
+            self._wfile.close()
+
+    def write(self, message):
+        with self._wfile_lock:
+            if self._wfile.closed:
+                return
+            try:
+                body = json.dumps(message, **self._json_dumps_args)
+
+                # Ensure we get the byte length, not the character length
+                content_length = len(body) if isinstance(body, bytes) else len(body.encode('utf-8'))
+
+                response = (
+                    f"Content-Length: {content_length}\r\n"
+                    f"Content-Type: application/vscode-jsonrpc; charset=utf8\r\n\r\n"
+                    f"{body}"
+                )
+
+                self._wfile.write(response.encode('utf-8'))
+                self._wfile.flush()
+            except Exception:  # pylint: disable=broad-except
+                log("Failed to write message to output file %s", message)
+
+async def handle_message(data):
+    await handle_call(data)
+    # req_id = data['id']
+    # tasks[req_id] = asyncio.create_task(handle_call(data))
 
 def is_json_valid(data):
     try:
@@ -167,22 +253,21 @@ def is_json_valid(data):
     except json.JSONDecodeError:
         return False
 
+reader = JsonRpcStreamReader(stdin)
+writer = JsonRpcStreamWriter(stdout)
+
 async def main():
-    asyncio.get_event_loop().add_reader(sys.stdin.fileno(), read_stdin_hook)
-    read_stdin_lines_task = asyncio.create_task(read_stdin_queue_lines())
-    write_stdout_task = asyncio.create_task(write_stdout_queue())
-    print('started', handlers, file=sys.stderr, flush=True)
+    log('started', handlers)
     while True:
-        try:
-            line = stdin_lines_queue.get_nowait()
-            data = json.loads(line)
-            handle_message(data)
-        except json.JSONDecodeError as e:
-            print(e, file=sys.stderr, flush=True)
-        except asyncio.QueueEmpty:
-            await asyncio.sleep(0.1)
+        message = reader._read_message()
+        if message is None:
+            continue
+        log("got here")
+        message = json.loads(message)
+        log("<<<", message)
+        await handle_message(message)
 
 asyncio.run(main())
-print('finshed', file=sys.stderr, flush=True)
+log('finshed')
 
 sys.stderr.close()
