@@ -96,6 +96,13 @@ T</p>
 alert("você ganhou um iphone 16")
 </script>
 
+<script>
+for (let i = 0; i < 10; i++) {
+    console.log(i);
+    // debugger;
+}
+</script>
+
 
 <p>Nome: <span id="nome">Não definido</span></p>
 
