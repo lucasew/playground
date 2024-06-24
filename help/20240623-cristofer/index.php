@@ -84,6 +84,9 @@ $lugar = "coisa";
 <?php
 echo $$lugar; // $coisa -> "aaaaa"
 
+$$lugar = "bbbbb";
+echo $coisa;
+
 echo $_SERVER['QUERY_STRING'];
 ?>
 </p>
