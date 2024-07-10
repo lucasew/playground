@@ -1,4 +1,5 @@
 export ZITI_HOME=$(pwd)/state
+export ZITI_NETWORK=up-and-running
 
 export ZITI_HOME=${ZITI_HOME}
 export ZITI_CTRL_ADVERTISED_ADDRESS=127.0.0.1
@@ -16,7 +17,16 @@ export ADMIN_PW=admin
 
 mkdir -p $ZITI_HOME/{db,etc/ca/intermediate/{certs,private}}
 
-ziti_setup {
+function ziti_setup {
+  ziti pki create ca --pki-root=$ZITI_PKI --ca-file=$ZITI_CA_NAME
+  ziti pki create server \
+    --pki-root=$ZITI_PKI \
+    --ca-name $ZITI_CA_NAME \
+    --server-file "${ZITI_NETWORK}-ctrl-server" \
+    --dns "${ZITI_CTRL_HOSTNAME}" \
+    --ip "127.0.0.1" \
+    --server-name "${ZITI_NETWORK} Controller"
+
   ziti create config controller --output $ZITI_HOME/db/ctrl-config.yml
   ziti controller edge init $ZITI_HOME/db/ctrl-config.yml -u $ADMIN_NAME -p $ADMIN_PW
 
@@ -24,14 +34,14 @@ ziti_setup {
   ziti create config router edge --routerName router01 --output $ZITI_HOME/db/router01-config.yml
 }
 
-ziti_start_controller {
+function ziti_start_controller {
   ziti controller run $ZITI_HOME/db/ctrl-config.yml
 }
 
-ziti_login_controller {
+function ziti_login_controller {
   ziti edge login -u $ADMIN_NAME -p $ADMIN_PW
 }
 
-ziti_start_router {
+function ziti_start_router {
   ziti router enroll --jwt $ZITI_HOME/router01.jwt $ZITI_HOME/db/router01-config.yml
 }
