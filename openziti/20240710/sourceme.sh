@@ -1,17 +1,37 @@
-export ZITI_NETWORK=up-and-running
 export ZITI_HOME=$(pwd)/state
 
 export ZITI_HOME=${ZITI_HOME}
-export ZITI_NETWORK=${ZITI_NETWORK}
-export ZITI_ID="${ZITI_HOME}/identities.yml"
-export ZITI_CA_NAME="${ZITI_NETWORK}"
-export ZITI_PKI="${ZITI_HOME}/pki"
-export ZITI_CA_FILE="${ZITI_PKI}/${ZITI_CA_NAME}/certs/${ZITI_CA_NAME}.cert"
-export ZITI_CTRL_HOSTNAME="${ZITI_NETWORK}-ctrl.ziti.netfoundry.io"
-export ZITI_ER01_HOSTNAME="${ZITI_NETWORK}-er01.ziti.netfoundry.io"
-export ZITI_R01_HOSTNAME="${ZITI_NETWORK}-r01.ziti.netfoundry.io"
-export ZITI_EDGE_API_PORT=1280
-export ZITI_EDGE_API_HOSTNAME="${ZITI_CTRL_HOSTNAME}:${ZITI_EDGE_API_PORT}"
+export ZITI_CTRL_ADVERTISED_ADDRESS=127.0.0.1
+export ZITI_CTRL_EDGE_ADVERTISED_HOST_PORT=127.0.0.1:1280
+export ZITI_EDGE_CTRL_ADVERTISED_HOST_PORT=127.0.0.1:1280
+export ZITI_PKI_CTRL_CERT=$ZITI_HOME/etc/ca/intermediate/certs/ctrl-client.cert.pem
+export ZITI_PKI_CTRL_SERVER_CERT=$ZITI_HOME/etc/ca/intermediate/certs/ctrl-server.cert.pem
+export ZITI_PKI_CTRL_KEY=$ZITI_HOME/etc/ca/intermediate/private/ctrl.key.pem
+export ZITI_PKI_CTRL_CA=$ZITI_HOME/etc/ca/intermediate/certs/ca-chain.cert.pem
+export ZITI_PKI_SIGNER_CERT=$ZITI_HOME/etc/ca/intermediate/certs/intermediate.cert.pem
+export ZITI_PKI_SIGNER_KEY=$ZITI_HOME/etc/ca/intermediate/private/intermediate.key.decrypted.pem
 
-mkdir -p $ZITI_HOME/db
-mkdir -p $ZITI_PKI
+export ADMIN_NAME=admin
+export ADMIN_PW=admin
+
+mkdir -p $ZITI_HOME/{db,etc/ca/intermediate/{certs,private}}
+
+ziti_setup {
+  ziti create config controller --output $ZITI_HOME/db/ctrl-config.yml
+  ziti controller edge init $ZITI_HOME/db/ctrl-config.yml -u $ADMIN_NAME -p $ADMIN_PW
+
+  ziti edge create edge-router router01 --jwt-output-file $ZITI_HOME/router01.jwt --tunneler-enabled
+  ziti create config router edge --routerName router01 --output $ZITI_HOME/db/router01-config.yml
+}
+
+ziti_start_controller {
+  ziti controller run $ZITI_HOME/db/ctrl-config.yml
+}
+
+ziti_login_controller {
+  ziti edge login -u $ADMIN_NAME -p $ADMIN_PW
+}
+
+ziti_start_router {
+  ziti router enroll --jwt $ZITI_HOME/router01.jwt $ZITI_HOME/db/router01-config.yml
+}
