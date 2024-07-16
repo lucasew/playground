@@ -1,0 +1,7 @@
+#!/usr/bin/env -S java --source 17
+
+class main {
+  public static void main(String []args) {
+    System.out.println("funciona?");
+  }
+}
