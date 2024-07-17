@@ -1,0 +1,20 @@
+#!/usr/bin/env -S java --source 11 -Djava.system.class.loader=InternalClassLoader
+// --class-path https://repo1.maven.org/maven2/log4j/log4j/1.2.17/log4j-1.2.17.jar
+// -verbose
+//  --class-path /tmp/log4j-1.2.17.jar
+
+import org.apache.log4j.Logger;
+class main {
+
+  final static Logger logger = Logger.getLogger(main.class);
+
+  public static void main(String []args) {
+    System.out.println("funciona?");
+    System.out.println(Thread.currentThread().getContextClassLoader());
+    System.out.println(System.getProperty("sun.java.command"));
+    System.out.println(System.getenv("JAVA_MAIN_CLASS"));
+    logger.info("Test");
+  }
+}
+
+
