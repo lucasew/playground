@@ -5,7 +5,9 @@ import tempfile
 import sys
 from pathlib import Path
 from collections import defaultdict
+import itertools
 import json
+import os
 
 def hash_string(s):
     import hashlib
@@ -14,9 +16,17 @@ def hash_string(s):
     h = hashlib.md5(s)
     return h.hexdigest()
 
+def batched(iterable, n):
+    # batched('ABCDEFG', 3) → ABC DEF G
+    if n < 1:
+        raise ValueError('n must be at least one')
+    iterator = iter(iterable)
+    while batch := tuple(itertools.islice(iterator, n)):
+        yield batch
+
 parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
 
-parser.add_argument("chord")
+parser.add_argument("chord", nargs='+')
 parser.add_argument('--chords-url', default="https://raw.githubusercontent.com/tombatossals/chords-db/master/lib/guitar.json")
 
 args = parser.parse_args()
@@ -66,21 +76,31 @@ def structure_position(position, title=""):
         lines.append(" ".join([str(x) for x in line]))
 
     lines.append("{:^%is}".replace('%i', str(len(lines[0]))).format(title))
-    return "\n".join(lines)
+    return lines
     # print(position)
-
-selected_chord = args.chord
 
 chords = get_chords()
 
-chord = chords['chords'].get(selected_chord)
-if chord is None:
-    print("No such chord, available: ", chords['chords'].keys())
-    exit(1)
+blocks = []
+for selected_chord in args.chord:
+    chord = chords['chords'].get(selected_chord)
+    if chord is None:
+        print("No such chord, available: ", chords['chords'].keys())
+        continue
 
-for position in chord['positions']:
-    print(structure_position(position, title=selected_chord))
-    print()
-    # print(selected_chord)
+    for position in chord['positions']:
+        blocks.append(structure_position(position, title=selected_chord))
 
+if len(blocks) == 0:
+    exit(0)
 
+block_column_size = len(blocks[0][0]) + 2
+block_amount = os.get_terminal_size().columns // block_column_size
+
+for line in list(batched(blocks, block_amount)):
+    for items in zip(*line):
+        print("  ".join(items))
+
+# print(block_amount)
+# print(blocks)
+# jrint()
