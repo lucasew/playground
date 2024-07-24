@@ -40,7 +40,7 @@ def get_chords():
     data['chords'] = chord_specs
     return data
 
-def print_position(position, title=""):
+def structure_position(position, title=""):
     baseFret = position['baseFret']
     items = defaultdict(lambda: " ")
     for i in range(6):
@@ -64,8 +64,9 @@ def print_position(position, title=""):
             items[5, i],
         ]
         lines.append(" ".join([str(x) for x in line]))
-    print("\n".join(lines))
-    print("{:^%is}".replace('%i', str(len(lines[0]))).format(title))
+
+    lines.append("{:^%is}".replace('%i', str(len(lines[0]))).format(title))
+    return "\n".join(lines)
     # print(position)
 
 selected_chord = args.chord
@@ -78,7 +79,7 @@ if chord is None:
     exit(1)
 
 for position in chord['positions']:
-    print_position(position, title=selected_chord)
+    print(structure_position(position, title=selected_chord))
     print()
     # print(selected_chord)
 
