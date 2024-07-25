@@ -84,7 +84,8 @@ class Chord():
                 for j in range(0, self.baseFret + 5):
                     items[i, j] = 'x'
                 continue
-            items[i, self.baseFret + self.frets[i]] = self.fingers[i]
+            if self.baseFret + self.frets[i] > 1:
+                items[i, self.baseFret + self.frets[i]] = self.fingers[i]
         lines = []
         for i in range(self.baseFret, self.baseFret + 5):
             line = [
@@ -128,5 +129,5 @@ for selected_chord in args.chord:
     if chord is None:
         print("No such chord, available: ", chords['chords'].keys())
         continue
-    print(ChordList(*chord['positions']))
+    print(ChordList(*chord['positions'], title=selected_chord))
 
