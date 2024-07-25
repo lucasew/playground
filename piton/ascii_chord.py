@@ -102,32 +102,31 @@ class Chord():
         lines.append("{:^%is}".replace('%i', str(len(lines[0]))).format(self.title))
         return "\n".join(lines)
 
+class ChordList():
+    def __init__(self, *chords, title=""):
+        # print(chords)
+        self.chords = []
+        for chord in chords:
+            if isinstance(chord, dict):
+                chord = Chord(**chord, title=title)
+            assert isinstance(chord, Chord)
+            self.chords.append(chord)
+    def __repr__(self):
+        blocks = [str(c).split('\n') for c in self.chords]
+        block_column_size = len(blocks[0][0]) + 2
+        block_amount = os.get_terminal_size().columns // block_column_size
+        lines = []
+        for line in list(batched(blocks, block_amount)):
+            for items in zip(*line):
+                lines.append("  ".join(items))
+        return '\n'.join(lines)
+
 chords = get_chords()
 
-blocks = []
 for selected_chord in args.chord:
     chord = chords['chords'].get(selected_chord)
     if chord is None:
         print("No such chord, available: ", chords['chords'].keys())
         continue
+    print(ChordList(*chord['positions']))
 
-    for position in chord['positions']:
-        block = Chord(**position, title=selected_chord)
-        print(block)
-        print(position)
-        block = str(block).split('\n')
-        blocks.append(block)
-
-if len(blocks) == 0:
-    exit(0)
-
-block_column_size = len(blocks[0][0]) + 2
-block_amount = os.get_terminal_size().columns // block_column_size
-
-for line in list(batched(blocks, block_amount)):
-    for items in zip(*line):
-        print("  ".join(items))
-
-# print(block_amount)
-# print(blocks)
-# jrint()
