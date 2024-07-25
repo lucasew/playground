@@ -64,9 +64,21 @@ class Chord():
         self.fingers = kwargs['fingers']
         self.title = title
 
+        self.capo = 0
+        if kwargs.get('capo'):
+            self.capo = kwargs.get('barres', [0])[0]
+
+
+    @property
+    def suggested_capotraste(self):
+        interest_frets = [ f  for f in self.frets if f > 0]
+        min_fret = min(*interest_frets)
+        return min_fret + self.baseFret
+
     def __repr__(self):
         items = defaultdict(lambda: " ")
         for i in range(6):
+            items[i, self.capo + self.baseFret] = '='
             items[i, 1] = '-'
             if self.frets[i] < 0:
                 for j in range(0, self.baseFret + 5):
@@ -90,36 +102,6 @@ class Chord():
         lines.append("{:^%is}".replace('%i', str(len(lines[0]))).format(self.title))
         return "\n".join(lines)
 
-
-def structure_position(position, title=""):
-    baseFret = position['baseFret']
-    items = defaultdict(lambda: " ")
-    for i in range(6):
-        items[i, 1] = '-'
-        if position['frets'][i] < 0:
-            for j in range(0, baseFret + 5):
-                items[i, j] = 'x'
-            continue
-        items[i,baseFret + position['frets'][i]] = position['fingers'][i]
-
-    lines = []
-    for i in range(baseFret, baseFret + 5):
-    # for i in range(0, baseFret + 5):
-        line = [
-            str(i).rjust(2, ' '),
-            items[0, i],
-            items[1, i],
-            items[2, i],
-            items[3, i],
-            items[4, i],
-            items[5, i],
-        ]
-        lines.append(" ".join([str(x) for x in line]))
-
-    lines.append("{:^%is}".replace('%i', str(len(lines[0]))).format(title))
-    return lines
-    # print(position)
-
 chords = get_chords()
 
 blocks = []
@@ -130,12 +112,10 @@ for selected_chord in args.chord:
         continue
 
     for position in chord['positions']:
-        c = Chord(**position, title=selected_chord)
-        block = structure_position(position, title=selected_chord)
+        block = Chord(**position, title=selected_chord)
+        print(block)
         print(position)
-        print(c)
-        print()
-        print("\n".join(block))
+        block = str(block).split('\n')
         blocks.append(block)
 
 if len(blocks) == 0:
