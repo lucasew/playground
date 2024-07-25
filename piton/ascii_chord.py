@@ -16,6 +16,7 @@ def hash_string(s):
     h = hashlib.md5(s)
     return h.hexdigest()
 
+
 def batched(iterable, n):
     # batched('ABCDEFG', 3) → ABC DEF G
     if n < 1:
@@ -49,6 +50,46 @@ def get_chords():
             chord_specs["".join([key, suffix])] = group_value
     data['chords'] = chord_specs
     return data
+
+class Chord():
+    def __init__(self, title="", **kwargs):
+        assert 'frets' in kwargs and len(kwargs['frets']) == 6, "Faltando frets"
+        assert 'fingers' in kwargs and len(kwargs['fingers']) == 6, "Faltando frets"
+
+        baseFret = kwargs.get('baseFret', 1)
+        assert isinstance(baseFret, int), 'baseFret deve ser inteiro'
+        self.baseFret = baseFret
+
+        self.frets = kwargs['frets']
+        self.fingers = kwargs['fingers']
+        self.title = title
+
+    def __repr__(self):
+        items = defaultdict(lambda: " ")
+        for i in range(6):
+            items[i, 1] = '-'
+            if self.frets[i] < 0:
+                for j in range(0, self.baseFret + 5):
+                    items[i, j] = 'x'
+                continue
+            items[i, self.baseFret + self.frets[i]] = self.fingers[i]
+        lines = []
+        for i in range(self.baseFret, self.baseFret + 5):
+            line = [
+                str(i).rjust(2, ' '),
+                items[0, i],
+                items[1, i],
+                items[2, i],
+                items[3, i],
+                items[4, i],
+                items[5, i],
+            ]
+
+            lines.append(" ".join([str(x) for x in line]))
+
+        lines.append("{:^%is}".replace('%i', str(len(lines[0]))).format(self.title))
+        return "\n".join(lines)
+
 
 def structure_position(position, title=""):
     baseFret = position['baseFret']
@@ -89,7 +130,13 @@ for selected_chord in args.chord:
         continue
 
     for position in chord['positions']:
-        blocks.append(structure_position(position, title=selected_chord))
+        c = Chord(**position, title=selected_chord)
+        block = structure_position(position, title=selected_chord)
+        print(position)
+        print(c)
+        print()
+        print("\n".join(block))
+        blocks.append(block)
 
 if len(blocks) == 0:
     exit(0)
