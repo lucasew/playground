@@ -1,0 +1,27 @@
+# Teste
+
+```elixir
+Mix.install([
+  {:axon, "~> 0.7.0"}
+])
+```
+
+## Section
+
+```elixir
+{backend, _rest} = Nx.default_backend()
+```
+
+```elixir
+IO.inspect backend
+```
+
+```elixir
+inputs = Nx.iota({2, 8}, type: :f32)
+```
+
+```elixir
+inputs
+|> Nx.multiply(2)
+|> Nx.tan
+```

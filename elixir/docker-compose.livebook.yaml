@@ -1,0 +1,20 @@
+services:
+  livebook:
+    image: ghcr.io/livebook-dev/livebook:0.14.1-cuda12
+    ports:
+      - 8092:8090
+      - 8093:8091
+    volumes:
+      - "./:/data"
+    environment:
+      - LIVEBOOK_PORT=8090
+      - LIVEBOOK_IFRAME_PORT=8091
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: "all"
+              capabilities: [gpu]
+              
+ 
