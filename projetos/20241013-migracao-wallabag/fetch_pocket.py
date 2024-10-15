@@ -17,7 +17,7 @@ def index_gen():
         yield offset
         offset += batch_size
 for offset in index_gen():
-    file_name = output_dir / f"fetch_{offset:04}.json"
+    file_name = output_dir / f"fetch_{offset:06}.json"
     if file_name.exists():
         continue
     print(f"fetch offset={offset}")
