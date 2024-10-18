@@ -31,4 +31,3 @@ def handle_irc(c):
 with socket.create_connection((args.host, args.port)) as sock:
     with context.wrap_socket(sock, server_hostname=args.host) as ssock:
         handle_irc(ssock)
-        print(ssock.read().decode('utf-8'))
