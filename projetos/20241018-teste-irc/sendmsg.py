@@ -23,7 +23,7 @@ def handle_irc(c):
     c.send(f"USER {botnick} {botnick} {botnick} :This is a fun bot!\n".encode('utf-8')) #user authentication
     c.send(f"NICK {botnick}\n".encode('utf-8'))                            #sets nick
     c.send("PRIVMSG nickserv :iNOOPE\r\n".encode('utf-8'))    #auth
-    c.send(f"JOIN {channel}\n".encode('utf-8'))        #join the chan
+    # c.send(f"JOIN {channel}\n".encode('utf-8'))        #join the chan
     for line in sys.stdin:
         c.send(f"PRIVMSG {channel} :{line}\r\n".encode('utf-8'))
     c.send("".encode('utf-8'))
