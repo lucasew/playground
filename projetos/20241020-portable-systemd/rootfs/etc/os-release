@@ -1,0 +1,18 @@
+ANSI_COLOR="1;34"
+BUG_REPORT_URL="https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+BUILD_ID="69.420"
+DOCUMENTATION_URL="https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+HOME_URL="https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+ID=teste
+IMAGE_ID=""
+IMAGE_VERSION=""
+LOGO="vlc"
+NAME=TesteOS
+PRETTY_NAME="TesteOS 69.420"
+SUPPORT_END="2024-12-31"
+SUPPORT_URL="https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+VERSION="69.420 (Nice)"
+VERSION_CODENAME=Nice
+VERSION_ID="69.420"
+PORTABLE_ID=teste
+PORTABLE_PRETTY_NAME="Teste Socket Activation"

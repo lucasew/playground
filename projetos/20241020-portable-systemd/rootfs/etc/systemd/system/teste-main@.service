@@ -1,0 +1,9 @@
+[Unit]
+After=network.target
+Description=Socket activated test with systemd-portable
+
+[Service]
+ExecStart=/teste
+# StandardError=journal
+# StandardInput=socket
+# StandardOutput=socket
