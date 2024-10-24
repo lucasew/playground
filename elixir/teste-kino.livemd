@@ -1,0 +1,23 @@
+# Kino teste
+
+```elixir
+Mix.install([
+  {:kino, "~> 0.14.2"}
+])
+```
+
+## Section
+
+```elixir
+button = Kino.Control.button("teste")
+Kino.Control.subscribe(button, :button)
+button
+```
+
+```elixir
+receive do
+  message -> dbg(message)
+end
+
+Process.info(self(), :messages)
+```
