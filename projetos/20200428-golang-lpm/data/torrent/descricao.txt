@@ -1,0 +1,2 @@
+cada pasta aqui vai ter o infohash de um torrent
+dentro da pasta fica o conteúdo do torrent

@@ -1,0 +1,8 @@
+%w: site de onde veio
+%i: video id
+%c: container video
+%v: qualidade video
+%a: bitrate audio
+%s: {stereo,mono}
+
+%w-%i.%c.%v.%a-%s

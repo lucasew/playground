@@ -1,0 +1,2 @@
+libreadline.so -> para dinamico
+libreadline.a -> para estático

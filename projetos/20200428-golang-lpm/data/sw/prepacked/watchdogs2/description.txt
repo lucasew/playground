@@ -1,0 +1,3 @@
+Poderia realizar instalação de programas portabilizáveis partindo do torrent do programa. 
+Por exemplo repacks geralmente vem em instaladores. 
+Neste caso o torrent já teria o repack extraído.
