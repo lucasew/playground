@@ -1,0 +1,50 @@
+# Bumblebee STT
+
+```elixir
+Mix.install([
+  {:bumblebee, "~> 0.6.0"},
+  {:telegram, github: "visciang/telegram", tag: "2.0.0"},
+  {:exla, "~> 0.9.1"},
+  {:kino_bumblebee, "~> 0.5.1"}
+])
+```
+
+## Section
+
+```elixir
+System.cmd("apt", ["update"])
+System.cmd("apt", ["install", "ffmpeg", "-y"])
+```
+
+```elixir
+
+audio_input = Kino.Input.file("Audio a ser transcrito")
+
+```
+
+```elixir
+Nx.default_backend(EXLA.Backend)
+{:ok, whisper} = Bumblebee.load_model({:hf, "openai/whisper-tiny"})
+{:ok, featurizer} = Bumblebee.load_featurizer({:hf, "openai/whisper-tiny"})
+{:ok, tokenizer} = Bumblebee.load_tokenizer({:hf, "openai/whisper-tiny"})
+{:ok, generation_config} = Bumblebee.load_generation_config({:hf, "openai/whisper-tiny"})
+
+serving =
+  Bumblebee.Audio.speech_to_text_whisper(whisper, featurizer, tokenizer, generation_config,
+    defn_options: [compiler: EXLA],
+    # chunk_num_seconds: 5
+  )
+# IO.puts(inspect(audio_input))
+
+%{file_ref: input} = Kino.Input.read(audio_input)
+data = input
+  |> Kino.Input.file_path()
+  
+IO.inspect(data)
+
+
+Nx.Serving.run(serving, {:file, data})
+
+
+
+```
