@@ -6,6 +6,17 @@ Mix.install([
   {:telegram, github: "visciang/telegram", tag: "2.0.0"},
   {:exla, "~> 0.9.1"},
   {:kino_bumblebee, "~> 0.5.1"}
+], [
+  config: [
+    exla: [
+      clients: [
+        cuda: [
+          platform: :cuda,
+          preallocate: false
+        ]
+      ]
+    ]
+  ]
 ])
 ```
 
@@ -24,6 +35,7 @@ audio_input = Kino.Input.file("Audio a ser transcrito")
 
 ```elixir
 Nx.default_backend(EXLA.Backend)
+
 {:ok, whisper} = Bumblebee.load_model({:hf, "openai/whisper-medium"})
 {:ok, featurizer} = Bumblebee.load_featurizer({:hf, "openai/whisper-medium"})
 {:ok, tokenizer} = Bumblebee.load_tokenizer({:hf, "openai/whisper-medium"})
@@ -31,7 +43,10 @@ Nx.default_backend(EXLA.Backend)
 
 serving =
   Bumblebee.Audio.speech_to_text_whisper(whisper, featurizer, tokenizer, generation_config,
-    defn_options: [compiler: EXLA],
+    defn_options: [
+      compiler: EXLA,
+      preallocate: false
+    ],
     language: "pt"
     # chunk_num_seconds: 5
   )
@@ -46,6 +61,15 @@ IO.inspect(data)
 
 Nx.Serving.run(serving, {:file, data})
 
+# doesn't work to release vram
+whisper = nil
+featurizer = nil
+tokenizer = nil
+generation_config = nil
+serving = nil
+:erlang.garbage_collect()
+```
 
-
+```elixir
+serving
 ```
