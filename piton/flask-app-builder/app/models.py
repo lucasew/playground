@@ -61,6 +61,9 @@ class VersionedFileStorage(Model):
     blob_id = Column(ForeignKey(DataBlob.hash))
     blob: Mapped['DataBlob'] = relationship('DataBlob', back_populates='usages')
 
+    def size(self):
+        return len(self.blob.data)
+
     def download(self):
         return Markup(
             '<a target="_blank" href="'

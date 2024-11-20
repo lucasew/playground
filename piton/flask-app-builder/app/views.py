@@ -28,15 +28,16 @@ class VersionedFileStorage(ModelView):
         'name': "Nome do arquivo",
         'version': 'Versão do arquivo',
         'blob': 'Arquivo',
+        'size': 'Tamanho',
         'blob_id': 'SHA256'
     }
 
 
     add_columns = ['file']
     edit_columns = ['name', 'file']
-    list_columns = ['name', 'version', 'download']
+    list_columns = ['name', 'version', 'size', 'download']
     show_fieldsets = [
-        ('Dados do arquivo', {'fields': ['name', 'version', 'download', 'blob_id']})
+        ('Dados do arquivo', {'fields': ['name', 'version', 'size', 'download', 'blob_id']})
     ]
 
     @expose("/download/<pk>")
@@ -46,6 +47,15 @@ class VersionedFileStorage(ModelView):
         response = make_response(item.blob.data, 200)
         response.headers['Content-Disposition'] = f"attachment; filename={item.name}"
         return response
+
+    def _get_blob(self, data):
+        item = models.DataBlob(data=data)
+        try:
+            self.datamodel.add(item)
+            self.datamodel.commit()
+        except Exception as e:
+            print(e)
+        return self.datamodel.session.get(models.DataBlob, item.hash)
 
     def _add(self): # https://github.com/dpgaspar/Flask-AppBuilder/blob/fab9013003a41c4e80da04f072201a8c7cc99187/flask_appbuilder/baseviews.py#L1208
         is_valid_form = True
@@ -68,14 +78,10 @@ class VersionedFileStorage(ModelView):
                     # print('data', dir(data))
                     # print('data', data.filename)
                     # print('data', data.stream, type(data.stream))
-
                     item.name = "" if 'name' not in form else form.name.data
                     if item.name == "":
                         item.name = file.filename
-                    item.blob = models.DataBlob(
-                        data=file
-                    )
-
+                    item.blob = self._get_blob(file)
                     self.pre_add(item)
                 except Exception as e:
                     flash(str(e), "danger")
@@ -114,9 +120,7 @@ class VersionedFileStorage(ModelView):
                     print('item_id a', item.id)
                     item = self.datamodel.obj()
                     print('item_id b', item.id)
-                    item.blob = models.DataBlob(
-                        data=file
-                    )
+                    item.blob = self._get_blob(file)
                     old_name = item.name
                     item.name = "" if 'name' not in form else form.name.data
                     if item.name == "":
