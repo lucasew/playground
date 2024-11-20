@@ -10,6 +10,25 @@ class CounterApi(ModelRestApi):
 
 appbuilder.add_api(CounterApi)
 
+class FileStorageModelView(ModelView):
+    datamodel = SQLAInterface(models.FileStorage)
+
+    label_columns = {
+        "name": "Nome do arquivo",
+        "file": "O arquivo"
+    }
+
+    list_columns = ["name", "file"]
+
+
+appbuilder.add_view(
+    FileStorageModelView,
+    "Lista arquivos",
+    icon="fa-paperclip",
+    category="Exemplos"
+)
+
+
 class CounterModelView(ModelView):
     datamodel = SQLAInterface(models.Counter)
 
@@ -23,7 +42,7 @@ class CounterModelView(ModelView):
         ('Sumário', {'fields': ['name', 'value']})
     ]
 
-    @action("increment", "Incrementar contador", "Dale?", "plus")
+    @action("increment", "Incrementar contador", "Dale?", "fa-plus")
     def increment(self, items):
         for item in items:
             item.value += 1
@@ -31,7 +50,7 @@ class CounterModelView(ModelView):
         db.session.commit()
         return redirect(self.get_redirect())
 
-    @action("decrement", "Decrementar contador", "Dale?", "minus")
+    @action("decrement", "Decrementar contador", "Dale?", "fa-minus")
     def decrement(self, items):
         for item in items:
             item.value -= 1
@@ -45,6 +64,7 @@ appbuilder.add_view(
     icon="fa-list",
     category="Exemplos"
 )
+
 
 """
     Create your Model based REST API::

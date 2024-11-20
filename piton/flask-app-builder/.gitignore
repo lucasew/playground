@@ -7,3 +7,4 @@ env
 venv
 *.sublime*
 app.db
+app/static/uploads
