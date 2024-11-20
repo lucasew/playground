@@ -56,7 +56,7 @@ def add_hash_to_blob(mapper, connect, target):
 
 class VersionedFileStorage(Model):
     id = Column(Integer(), primary_key=True)
-    name = Column(String(), unique=True, nullable=False)
+    name = Column(String(), nullable=False)
     version = Column(Integer(), nullable=False, default=lambda: int(time.time()))
     blob_id = Column(ForeignKey(DataBlob.hash))
     blob: Mapped['DataBlob'] = relationship('DataBlob', back_populates='usages')
