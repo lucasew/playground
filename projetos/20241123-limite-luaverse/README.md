@@ -17,4 +17,4 @@ diff= 1/10000000000 -5505102572.151208 5505102572.185229
 diff= 1/100000000000 -55051025721.66521 55051025721.69918
 ```
 
-Basicamente +- $\inf$ (confere com o Symbolab)
+Basicamente +- $$\inf$$ (confere com o Symbolab)
