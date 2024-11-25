@@ -1,0 +1,14 @@
+flags_a = a b c d
+
+flags_b = a b "c d"
+
+rule lines
+  command = ./lines.sh $flags
+  pool = console
+
+
+build a : lines
+  flags = $flags_a
+
+build b : lines
+  flags = $flags_b
