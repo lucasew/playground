@@ -17,14 +17,12 @@ fn main() {
     for error in ast.errors() {
         println!("error: {}", error)
     }
-    for w in find_invalid_withs(ast.syntax()) {
-        println!("invalid {:?} {:?}", w, w.to_string())
+    if let Some(invalid_with) = find_invalid_withs(ast.syntax()) {
+        println!("invalid {:?} {:?}", invalid_with, invalid_with.to_string())
     }
 }
 
-fn find_invalid_withs(
-    syntax: SyntaxNode<NixLanguage>,
-) -> impl Iterator<Item = SyntaxNode<NixLanguage>> {
+fn find_invalid_withs(syntax: SyntaxNode<NixLanguage>) -> Option<SyntaxNode<NixLanguage>> {
     syntax
         .descendants()
         .filter(|node| node.kind() == rnix::SyntaxKind::NODE_WITH)
@@ -32,22 +30,24 @@ fn find_invalid_withs(
             node.descendants()
                 .map(|child| {
                     if child == *node {
-                        return false;
+                        return None;
                     }
-                    let is_invalid = match child.kind() {
-                        SyntaxKind::NODE_WITH => true,
-                        SyntaxKind::NODE_LET_IN => true,
-                        SyntaxKind::NODE_ATTR_SET => true,
-                        _ => false,
+                    let node_if_invalid = match child.kind() {
+                        SyntaxKind::NODE_WITH => Some(node),
+                        SyntaxKind::NODE_LET_IN => Some(node),
+                        SyntaxKind::NODE_ATTR_SET => Some(node),
+                        _ => None,
                     };
                     println!(
                         "validate with={:?} subexpr={:?} invalid={:?}",
                         node.to_string(),
                         child.to_string(),
-                        is_invalid
+                        node_if_invalid
                     );
-                    is_invalid
+                    node_if_invalid
                 })
-                .any(|cond| cond)
+                .any(|cond| cond != None)
         })
+        .take(1)
+        .last()
 }
