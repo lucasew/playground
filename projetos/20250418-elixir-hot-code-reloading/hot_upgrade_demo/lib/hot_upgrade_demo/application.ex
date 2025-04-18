@@ -11,7 +11,7 @@ defmodule HotUpgradeDemo.Application do
       # Starts a worker by calling: HotUpgradeDemo.Worker.start_link(arg)
       # {HotUpgradeDemo.Worker, arg}
       HotUpgradeDemo.Counter,
-      # HotUpgradeDemo.Counter2
+      HotUpgradeDemo.Counter2
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html
