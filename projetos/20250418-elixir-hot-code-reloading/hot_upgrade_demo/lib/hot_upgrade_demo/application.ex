@@ -10,6 +10,8 @@ defmodule HotUpgradeDemo.Application do
     children = [
       # Starts a worker by calling: HotUpgradeDemo.Worker.start_link(arg)
       # {HotUpgradeDemo.Worker, arg}
+      HotUpgradeDemo.Counter,
+      # HotUpgradeDemo.Counter2
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html
