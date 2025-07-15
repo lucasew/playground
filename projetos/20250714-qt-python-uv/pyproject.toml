@@ -1,0 +1,9 @@
+[project]
+name = "20250714-qt-python-uv"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "pyqt6==6.9.0",
+]
