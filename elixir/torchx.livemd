@@ -1,0 +1,24 @@
+# Teste Torchx
+
+```elixir
+Mix.install(
+  [
+    {:torchx, "~> 0.9.2"},
+    {:bumblebee, "~> 0.6.0"},
+    {:nx, "~> 0.9.2"}
+  ],
+  config: [
+    nx: [default_backend: {Torchx.Backend, device: :vulkan}]
+  ]
+)
+```
+
+## Section
+
+```elixir
+Torchx.device_count(:vulkan)
+```
+
+```elixir
+Nx.tensor([1,1,1])
+```

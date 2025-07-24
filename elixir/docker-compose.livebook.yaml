@@ -1,6 +1,6 @@
 services:
   livebook:
-    image: ghcr.io/livebook-dev/livebook:0.14.1-cuda12
+    image: ghcr.io/livebook-dev/livebook:0.16.1-cuda12
     ports:
       - 8092:8090
       - 8093:8091
@@ -9,6 +9,9 @@ services:
     environment:
       - LIVEBOOK_PORT=8090
       - LIVEBOOK_IFRAME_PORT=8091
+      - LIVEBOOK_IP=0.0.0.0
+      # - LIBTORCH_TARGET=cu121
+      # extra apt packages: libcurand-11-8 libcurand-dev-11-8 build-essential erlang-dev
     devices:
       - nvidia.com/gpu=all
               
