@@ -1,0 +1,18 @@
+[project]
+name = "rinha-backend-2025-1"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi[standard]>=0.116.1",
+    "redis>=6.2.0",
+    "requests>=2.32.4",
+    "uvicorn>=0.35.0",
+]
+
+[project.scripts]
+app = "rinha.__main__:main"
+
+[tool.uv]
+package = true
