@@ -1,0 +1,16 @@
+#!/usr/bin/env -S uv run --no-cache --script
+# /// script
+# dependencies = [
+#   "another"
+# ]
+# 
+# [tool.uv.sources]
+# another = { path = "./a_lib" }
+#
+# ///
+
+import another
+
+if __name__ == '__main__':
+    print(dir(another))
+    print(another.VAL)
