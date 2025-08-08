@@ -1,0 +1,9 @@
+[project]
+name = "20250805-mlflow-model-assets"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "mlflow>=3.2.0",
+]
