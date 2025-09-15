@@ -1,0 +1,5 @@
+[tools]
+go = "latest"
+
+[tasks.genc]
+run = "go run modernc.org/ccgo/v4 main.c"
