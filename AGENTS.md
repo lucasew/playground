@@ -27,6 +27,23 @@
 - **Cada projeto movido deve ter seu próprio commit**
 - **Usar mensagens descritivas**: `refactor: move [projeto] to PROJETOS/`
 
+### Enriquecimento de Contexto
+
+- **SEMPRE capturar a data do último commit** usando `git log -1 --format="%ad" --date=short -- [arquivo]`
+- **SEMPRE capturar a mensagem do último commit** usando `git log -1 --format="%s" -- [arquivo]`
+- **Usar essas informações para enriquecer o contexto** na sugestão do projeto
+- **Ajuda a entender o propósito e histórico** de cada projeto
+
+### Fluxo de Trabalho
+
+1. **Atualizar AGENTS.md** com novas instruções se necessário
+2. **Fazer commit do AGENTS.md** antes de sugerir próximo projeto
+3. **Capturar data e mensagem do último commit** do projeto
+4. **Sugerir projeto** com contexto enriquecido
+5. **Executar migração** após aprovação
+6. **Fazer commit da migração**
+7. **Repetir processo**
+
 ### Pastas que devem permanecer na raiz (nomes maiúsculos):
 - `ARQUIVO/`
 - `MODELOS/`
@@ -36,7 +53,7 @@
 ### Pastas que devem ser migradas para `PROJETOS/`:
 - `arduino/` ✅ (removido - sketch padrão)
 - `assembly/` ✅ (movido para 20230530-assembly-print-vector)
-- `auxilio_pipeline/`
+- `auxilio_pipeline/` ✅ (movido para 20201114-auxilio-emergencial-pipeline)
 - `be-careful`
 - `blender/`
 - `browser/`
