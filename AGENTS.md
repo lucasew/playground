@@ -48,13 +48,14 @@
 - `ARQUIVO/`
 - `MODELOS/`
 - `PROJETOS/`
+- `be-careful` (arquivo especial - manter na raiz)
 - Outras pastas com nomes em maiúsculo
 
 ### Pastas que devem ser migradas para `PROJETOS/`:
 - `arduino/` ✅ (removido - sketch padrão)
 - `assembly/` ✅ (movido para 20230530-assembly-print-vector)
 - `auxilio_pipeline/` ✅ (movido para 20201114-auxilio-emergencial-pipeline)
-- `be-careful`
+- `be-careful` ✅ (mantido na raiz - arquivo especial)
 - `blender/`
 - `browser/`
 - `c/`
