@@ -33,7 +33,7 @@
 3. **Execução (após aprovação):**
    ```bash
    mkdir -p PROJETOS/YYYYMMDD-nome-projeto
-   mv [caminho-original]/* PROJETOS/YYYYMMDD-nome-projeto/
+   cp -r [caminho-original]/. PROJETOS/YYYYMMDD-nome-projeto/
    rm -rf [pasta-vazia]  # se ficou vazia
    git add .
    git commit -m "refactor: move [projeto] to PROJETOS/"
