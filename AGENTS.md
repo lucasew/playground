@@ -33,7 +33,9 @@
 3. **Execução (após aprovação):**
    ```bash
    mkdir -p PROJETOS/YYYYMMDD-nome-projeto
-   cp -r [caminho-original]/. PROJETOS/YYYYMMDD-nome-projeto/
+   # Para copiar tudo incluindo hidden files: cp -r [caminho-original]/. PROJETOS/YYYYMMDD-nome-projeto/
+   # Para copiar arquivos específicos incluindo hidden: cp [arquivos-especificos] [caminho-original]/.hidden PROJETOS/YYYYMMDD-nome-projeto/
+   # Exemplo: cp main.py .gitignore PROJETOS/YYYYMMDD-nome-projeto/
    rm -rf [pasta-vazia]  # se ficou vazia
    git add .
    git commit -m "refactor: move [projeto] to PROJETOS/"
