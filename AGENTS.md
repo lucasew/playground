@@ -28,6 +28,7 @@
    - Apresentar contexto e proposta
    - AGUARDAR APROVAÇÃO do usuário
    - NUNCA executar sem aprovação prévia
+   - **Exceção:** Remover pastas vazias após migração é sempre permitido, mesmo sem aprovação extra
 
 3. **Execução (após aprovação):**
    ```bash
@@ -41,7 +42,6 @@
 4. **Limpar após migração:**
    - Sempre remover diretórios vazios imediatamente após migração
    - Exceto se contiverem `.gitkeep`
-   - Remover pastas vazias é sempre permitido, mesmo sem aprovação extra
 
 5. **Após commit de migração:**
    - Se o passo de migração já estiver commitado, pode automaticamente procurar o próximo passo de migração sem aguardar nova ordem do usuário.
