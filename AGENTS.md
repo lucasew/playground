@@ -42,6 +42,9 @@
    - Sempre remover diretórios vazios
    - Exceto se contiverem `.gitkeep`
 
+5. **Após commit de migração:**
+   - Se o passo de migração já estiver commitado, pode automaticamente procurar o próximo passo de migração sem aguardar nova ordem do usuário.
+
 ## Regras de Commits
 
 - **Um commit por projeto** - nunca combinar migrações
