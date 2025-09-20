@@ -1,88 +1,97 @@
 # AGENTS.md - Instruções para Assistentes
 
-## Organização
+## Regras Básicas
 
-### Regras para Reorganização do Repositório
+1. **Objetivo Principal**: Mover projetos para pasta `PROJETOS/`
+2. **Não Mover**: Pastas com nome MAIÚSCULO (`ARQUIVO/`, `MODELOS/`, `PROJETOS/`)
+3. **Exceções Adicionais**: 
+   - `exercism/` - manter como está
+   - `be-careful` - manter na raiz
+4. **Fluxo de Trabalho**:
+   - Sugerir projeto → Aguardar aprovação → Executar → Commit
 
-1. **Objetivo**: Concentrar todos os projetos na pasta `PROJETOS`
-2. **Restrição**: NÃO mover nenhuma pasta com nome maiúsculo (ex: `ARQUIVO`, `MODELOS`, `PROJETOS`)
-3. **Processo**: Migração projeto por projeto no bate-papo
-   - Assistente sugere projeto para mover
-   - Usuário analisa e aprova
-   - Assistente executa a alteração
-4. **Estrutura atual**: Projetos estão espalhados por pastas de tecnologia (ex: `golang/`, `rust/`, `python/`, etc.)
-5. **Estrutura desejada**: Todos os projetos organizados dentro de `PROJETOS/`
+## Padrões de Nomenclatura
 
-### Padrão de Nomenclatura para Projetos
+### Formato de Projetos Migrados
+```
+YYYYMMDD-descrição-do-projeto/
+```
 
-- **Formato**: `YYYYMMDD-descrição-do-projeto/`
-- **Data**: Usar a data do último commit do arquivo/projeto (não data de criação)
-- **Descrição**: Nome descritivo em kebab-case que identifica o projeto
+- **Data**: Último commit (usar `git log -1 --format="%ad" --date=short -- [path]`)
+- **Descrição**: Nome kebab-case descritivo
 - **Exemplo**: `20221201-arduino-bluetooth-hid/`
 
-### Regra de Commit Obrigatório
+## Regras de Commit
 
-- **SEMPRE fazer commit após cada migração de projeto**
-- **NÃO tentar emendar a próxima fase antes da anterior estar commitada**
-- **Cada projeto movido deve ter seu próprio commit**
-- **Usar mensagens descritivas**: `refactor: move [projeto] to PROJETOS/`
+- **Um commit por projeto** - nunca agrupar múltiplas migrações
+- **Fazer commit imediatamente após migração**
+- **Mensagem padrão**: `refactor: move [projeto] to PROJETOS/`
+- **Simples e direto** - evitar textos longos
 
-### Mensagens de Commit
+## Processo de Migração
 
-- **Manter mensagens simples e diretas**
-- **Não complicar demais as descrições**
-- **Formato básico**: `refactor: move [projeto] to PROJETOS/`
-- **Adicionar linha adicional apenas se necessário** para contexto específico
-- **Evitar textos longos e desnecessários**
+### 1. Analisar Projeto
+```bash
+# Obter data e mensagem do último commit
+git log -1 --format="%ad" --date=short -- [caminho]
+git log -1 --format="%s" -- [caminho]
 
-### Enriquecimento de Contexto
+# Verificar conteúdo do projeto
+list_directory [caminho]
+```
 
-- **SEMPRE capturar a data do último commit** usando `git log -1 --format="%ad" --date=short -- [arquivo]`
-- **SEMPRE capturar a mensagem do último commit** usando `git log -1 --format="%s" -- [arquivo]`
-- **Usar essas informações para enriquecer o contexto** na sugestão do projeto
-- **Ajuda a entender o propósito e histórico** de cada projeto
+### 2. Avaliar Criticamente
+- Ser honesto sobre qualidade/utilidade
+- Sugerir remover projetos obsoletos
+- Não exagerar no valor dos projetos
 
-### Avaliação Crítica de Projetos
+### 3. Sugerir Migração
+- Apresentar contexto e data
+- **AGUARDAR APROVAÇÃO** do usuário
+- **Nunca executar sem aprovação prévia**
 
-- **Ser crítico e honesto** sobre a qualidade/utilidade dos projetos
-- **Não "puxar saco"** - avaliar objetivamente
-- **Identificar projetos que podem ser removidos** ao invés de movidos
-- **Questionar se vale a pena manter** projetos antigos/obsoletos
-- **Sugerir remoção** quando apropriado
+### 4. Executar Migração
+```bash
+# Criar diretório de destino
+mkdir -p PROJETOS/YYYYMMDD-nome-projeto
 
-### Fluxo de Trabalho
+# Mover arquivos
+mv [caminho-original]/* PROJETOS/YYYYMMDD-nome-projeto/
 
-1. **Atualizar AGENTS.md** com novas instruções se necessário
-2. **Fazer commit do AGENTS.md** antes de sugerir próximo projeto
-3. **Capturar data e mensagem do último commit** do projeto
-4. **Sugerir projeto** com contexto enriquecido e avaliação crítica
-5. **Executar migração** após aprovação
-6. **Fazer commit da migração**
-7. **Repetir processo**
+# Commit
+git add .
+git commit -m "refactor: move [projeto] to PROJETOS/"
+```
 
-### Pastas que devem permanecer na raiz (nomes maiúsculos):
-- `ARQUIVO/`
-- `MODELOS/`
-- `PROJETOS/`
-- `be-careful` (arquivo especial - manter na raiz)
-- Outras pastas com nomes em maiúsculo
+### 5. Remover Pastas Vazias
+- Sempre deletar diretórios vazios após migração
+- Exceção: pastas com `.gitkeep`
 
-### Pastas que devem ser migradas para `PROJETOS/`:
+### Status das Pastas
+
+#### Não Mover (Manter na Raiz):
+- `ARQUIVO/` - pasta maiúscula
+- `MODELOS/` - pasta maiúscula  
+- `PROJETOS/` - pasta maiúscula
+- `be-careful` - arquivo especial
+- `exercism/` - exceção solicitada
+
+#### Já Migradas:
 - `arduino/` ✅ (removido - sketch padrão)
-- `assembly/` ✅ (movido para 20230530-assembly-print-vector)
-- `auxilio_pipeline/` ✅ (movido para 20201114-auxilio-emergencial-pipeline)
-- `be-careful` ✅ (mantido na raiz - arquivo especial)
-- `blender/` ✅ (movido para 4 projetos separados)
-- `browser/` ✅ (movido para 20210305-golang-chromedp-gdocs-typing)
+- `assembly/` ✅ (20230530-assembly-print-vector)
+- `auxilio_pipeline/` ✅ (20201114-auxilio-emergencial-pipeline)
+- `blender/` ✅ (4 projetos separados)
+- `browser/` ✅ (20210305-golang-chromedp-gdocs-typing)
+- `elixir/` ✅ (3 projetos separados)
+
+#### Pendentes de Migração:
 - `c/`
-- `cgi/`
+- `cgi/` 
 - `challenges/`
 - `cmake/`
 - `docker/`
 - `docker-compose/`
 - `electron/`
-- `elixir/`
-- `exercism/`
 - `f-sharp/`
 - `facul/`
 - `gemini/`
