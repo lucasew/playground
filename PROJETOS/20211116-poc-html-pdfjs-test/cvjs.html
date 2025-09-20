@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+    <script src="http://mozilla.github.io/pdf.js/build/pdf.js" crossorigin="anonymous"></script>
+    <script src="opencv.js" type="text/javascript"></script>
+    <link href="http://mozilla.github.io/pdf.js/web/viewer.css" rel="stylesheet" type="text/css" />
+    <style type="text/css">
+        canvas {
+            border: 1px solid black;
+            direction: ltr;
+        }
+        #textLayerContainer {
+            position: absolute;
+        }
+        #textLayerContainer  span {
+            position: absolute;
+        }
+        #extraCanvasContainer {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>PDF.js Previous/Next example</h1>
+
+    <div>
+        <button id="prevButton">Previous</button>
+        <button id="nextButton">Next</button>
+        &nbsp; &nbsp;
+        <span>Page: <span id="page_num"></span> / <span id="page_count"></span></span>
+    </div>
+
+    <input id="pdfInput" type="file"/>
+    <br>
+    <canvas id="mainCanvas"></canvas>
+    <canvas id="experimentCanvas"></canvas>
+    <div id="textLayerContainer"></div>
+    <div id="extraCanvasContainer"></div>
+
+    <script>
+        let pdfjsLib = window['pdfjs-dist/build/pdf'];
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'http://mozilla.github.io/pdf.js/build/pdf.worker.js';
+        const mainCanvas = document.getElementById('mainCanvas')
+        const experimentCanvas = document.getElementById('experimentCanvas')
+        const pdfInput = document.getElementById('pdfInput')
+        const textLayerContainer = document.getElementById('textLayerContainer')
+        const extraCanvasContainer = document.getElementById('extraCanvasContainer')
+        function normalizeToEven(number) {
+            return number % 2 == 0 ? number : number + 1
+        }
+        function reset() {
+            textLayerContainer.innerHTML = ''
+        }
+        function withRender(fn) {
+            return () => {
+                console.log("function")
+                fn()
+                console.log("render")
+                render()
+            }
+        }
+        function withNextTick(fn) {
+            return function(...args) {
+                return new Promise((res, rej) => {
+                    setTimeout(async () => {
+                        try {
+                            const ret = await Promise.resolve(fn(...args))
+                            res(ret)
+                        } catch (e) {
+                            rej(e)
+                        }
+                    }, 0)
+                })
+            }
+        }
+        function removeAllByQuery(query) {
+            const rm = (e) => e.parentElement.removeChild(e)
+            if (query instanceof Element) {
+                return rm(query)
+            }
+            document.querySelectorAll(query).forEach(rm)
+        }
+        pdfInput.addEventListener('change', render)
+        function getSelectedPDFFile() {
+            if (pdfInput.files[0]) {
+                return new Promise((res, rej) => {
+                    let reader = new FileReader()
+                    reader.onload = async (e) => {
+                        res(reader.result)
+                    }
+                    reader.readAsArrayBuffer(pdfInput.files[0])
+                    reader.onerror = rej
+                })
+            }
+            return Promise.resolve(null)
+        }
+        let pageNum = 1
+        document.getElementById('prevButton').addEventListener('click', withRender(() => pageNum--))
+        document.getElementById('nextButton').addEventListener('click', withRender(() => pageNum++))
+        function subsection2rect(pt) {
+            const [x, y, w, h] = pt
+            return new cv.Rect(x, y, w, h)
+        }
+        function getSubsection(a, b) {
+            const [ax, ay, aw, ah] = a
+            const [bx, by, bw, bh] = b
+            if (bx + bw > aw) {
+                throw new Error(`bx + bw (${bx + bw}) > aw (${aw})`)
+            }
+            if (by + bh > ah) {
+                throw new Error(`by + bh (${by + bh}) > bw (${bw})`)
+            }
+            return [
+                ax + bx,
+                ay + by,
+                bw,
+                bh
+            ]
+        }
+        function cvMat2subsection(cvmat) {
+            const {width, height} = cvmat.size()
+            return [0, 0, width, height]
+        }
+        function roiBySubsection(image, subsection) {
+            if (!subsection) {
+                throw new Error(`roiBySubsection: usage: image subsection. You probably forgot the image and is passing the subsection direcly`)
+            }
+            return image.roi(subsection2rect(subsection))
+        }
+        function subsectionElem(pt, ex = 0, ey = 0) {
+            const [x, y, w, h] = pt
+            return [x + ex, y + ey]
+        }
+        function blackestPixelRow(image, subsection, rowid) {
+            const [,,,h] = subsection
+            let max = 0
+            for (let j = 0;j < h; j++) {
+                const [x, y] = subsectionElem(subsection, rowid, j)
+                const pixel = image.ucharAt(x, y)
+                if (pixel > max) {
+                    max = pixel
+                }
+            }
+            return max
+        }
+        function blackestPixelColumn(image, subsection, colid) {
+            const [,,w,] = subsection
+            let max = 0
+            for (let j = 0;j < w; j++) {
+                const [x, y] = subsectionElem(subsection, j, colid)
+                const pixel = image.ucharAt(x, y)
+                if (pixel > max) {
+                    max = pixel
+                }
+            }
+            return max
+        }
+        function getSectionWithoutBorder(image, threshold = 0, _subsection) {
+            const subsection = _subsection == undefined 
+                ? cvMat2subsection(image)
+                : _subsection
+            const [,,width, height] = subsection
+            let firstLine = 1
+            let lastLine = height - 1
+            let firstColumn = 1
+            let lastColumn = width - 1
+            for (let i = 0; i < height; i++) {
+                const blackest = blackestPixelRow(image, subsection, i)
+                if (blackest <= threshold) {
+                    // console.log('changed firstLine', i)
+                    firstLine = i
+                } else {
+                    break
+                }
+            }
+            for (let i = height - 1; i >= 0; i--) {
+                const blackest = blackestPixelRow(image, subsection, i)
+                if (blackest <= threshold) {
+                    // console.log('changed lastLine', i)
+                    lastLine = height - i
+                } else {
+                    break
+                }
+            }
+            for (let i = 0; i < width; i++) {
+                const blackest = blackestPixelColumn(image, subsection, i)
+                if (blackest <= threshold) {
+                    // console.log('changed firstColumn', i)
+                    firstColumn = i
+                } else {
+                    break
+                }
+            }
+            for (let i = width - 1; i >= 0; i--) {
+                const blackest = blackestPixelColumn(image, subsection, i)
+                if (blackest <= threshold) {
+                    // console.log('changed lastColumn', i)
+                    lastColumn = width - i
+                } else {
+                    break
+                }
+            }
+            console.log('unborder', firstColumn, firstLine, lastColumn, lastLine)
+            return getSubsection(subsection, [
+                firstColumn,
+                firstLine,
+                lastColumn - firstColumn,
+                lastLine - firstLine
+            ])
+        }
+        async function findBlockTree(pageImg, props) {
+            const {
+                whiteThreshold = 10,
+                vertical = true,
+                blackThreshold = 10,
+                minHeight = 10,
+                minWidth = 10,
+                maxVerticalProportionAllowed = 1000,
+                minHeightAllow = 4,
+                _initialSection
+            } = props
+            const initialSection = _initialSection === undefined 
+                ? cvMat2subsection(pageImg)
+                : _initialSection
+            console.log('orientation', vertical ? 'vertical' : 'horizontal', 'section', initialSection)
+            let blocks = []
+            const [,, width, height] = initialSection
+            if (width < 0 || height < 0) {
+                debugger
+            }
+            const imax = vertical 
+                ? height
+                : width
+            const jmax = vertical
+                ? width
+                : height
+            const getPoint = (i, j) => vertical
+                ? [j, i]
+                : [i, j]
+            async function sliceImage(blockBegin, blockEnd) {
+                const newSubsection = vertical
+                    ? [0, blockBegin, width, blockEnd - blockBegin]
+                    : [blockBegin, 0, blockEnd - blockBegin, height]
+                const thisBlock = getSubsection(initialSection, newSubsection)
+                console.log('slice', blockBegin, blockEnd, thisBlock)
+                const roiedImage = roiBySubsection(pageImg, newSubsection)
+                const children = (await findBlockTree(roiedImage, {
+                    ...props,
+                    vertical: !vertical,
+                })).map(r => getSubsection(thisBlock, r))
+                if (children.length == 0) {
+                    console.log('no children')
+                    return [thisBlock]
+                }
+                const tooSmallItems = children.filter((i) => {
+                    const [x, y, w, h] = i
+                    const isMinimumHeight = h > minHeight
+                    const isMinimumWidth = w > minWidth
+                    const notSmall = isMinimumHeight && isMinimumWidth
+                    return !notSmall
+                })
+                const isSmall = tooSmallItems.length > 0
+                if (isSmall) {
+                    return [thisBlock]
+                }
+                // return children
+                const filteredChildren = children.filter((e) => {
+                    const [x, y, w, h] = e
+                    const isValidHeight = h > minHeightAllow
+                    const heightProportion = h / w
+                    const isValidHeightProportion = h < maxVerticalProportionAllowed
+                    const isAcceptable = isValidHeight && isValidHeightProportion
+                    return isAcceptable
+                })
+                if (filteredChildren.length == 0) {
+                    return [thisBlock]
+                }
+                console.log('filteredChildren', children, filteredChildren)
+                return filteredChildren
+            }
+            const submitBlock = async (from, to) => (await sliceImage(from, to)).forEach(e => blocks.push(e))
+            let blockBegin = 0;
+            let blockEnd = 0;
+            let consecutiveWhite = 0;
+            let consecutiveBlack = 0;
+            const patchChecker = vertical
+                ? blackestPixelRow
+                : blackestPixelColumn
+            const checkPatch = (i) => patchChecker(pageImg, initialSection, i)
+            for (let i = 0; i < imax; i++) {
+                const blackestPixel = checkPatch(i)
+                const isWhiteLine = blackestPixel == 0
+                if (!isWhiteLine) {
+                    consecutiveBlack++
+                }
+                if (isWhiteLine) {
+                    consecutiveWhite++
+                }
+                // if (consecutiveBlack > blackThreshold && isWhiteLine) {
+                //     blockEnd = i - consecutiveBlack
+                //     const slices = await sliceImage(blockBegin, blockEnd)
+                //     slices.forEach(s => blocks.push(s))
+                //     blockBegin = i
+                //     blockEnd = i
+                // }
+                blockEnd = i
+                if (consecutiveBlack > blackThreshold && isWhiteLine) {
+                    await submitBlock(blockBegin, i)
+                    blockBegin = i
+                }
+                if (consecutiveWhite > whiteThreshold) {
+                    blockBegin = i
+                    blockEnd = i
+                }
+                if (isWhiteLine) {
+                    consecutiveBlack = 0
+                }
+                if (!isWhiteLine) {
+                    consecutiveWhite = 0
+                }
+            }
+            // if (consecutiveBlack > blackThreshold) {
+            //     await submitBlock(blockBegin, blockEnd)
+            // }
+            return blocks
+        }
+        function testOpenCVCoordinateSystemVsAbstraction(img) {
+            let problems = false
+            const si = cvMat2subsection(img)
+            const [xi, yi, wi, hi] = si
+            const s1 = getSubsection(si, [
+                0, 0, Math.floor(wi / 2), Math.floor(hi / 2)
+            ])
+            const [x1, y1, w1, h1] = s1
+            const roiImg = roiBySubsection(img, s1)
+            for (let i = 0; i < w1; i++) {
+                for (let j = 0; j < h1; j++) {
+                    const [x, y] = subsectionElem(s1, i, j)
+                    const pixelImg = roiImg.ucharAt(i, j)
+                    const coordImg = img.ucharAt(x, y)
+                    if (pixelImg != coordImg) {
+                        console.log(`wrong pixel at (${i}, ${j}) => ${pixelImg} vs ${coordImg}`)
+                        problems = true
+                    }
+                }
+            }
+            if (!problems) {
+                console.warn("no problems")
+            }
+        }
+        async function render() {
+            reset()
+            const file = await getSelectedPDFFile()
+            if (!file) {
+                return
+            }
+            const pdf = await pdfjsLib.getDocument(file).promise
+            document.getElementById('page_count').textContent = pdf.numPages;
+            if (pageNum < 1) {
+                pageNum = 1
+            }
+            if (pageNum > pdf.numPages) {
+                pageNum = pdf.numPages
+            }
+            const page = await pdf.getPage(pageNum)
+            const viewport = page.getViewport({scale: 1})
+            mainCanvas.height = normalizeToEven(viewport.height)
+            mainCanvas.width = normalizeToEven(viewport.width)
+            experimentCanvas.height = normalizeToEven(viewport.height)
+            experimentCanvas.width = normalizeToEven(viewport.width)
+            const renderTask = await page.render({
+                canvasContext: mainCanvas.getContext('2d'),
+                viewport
+            })
+            await renderTask.promise
+            textLayerContainer.style.left = `${mainCanvas.offsetLeft}px`
+            textLayerContainer.style.top = `${mainCanvas.offsetTop}px`;
+            textLayerContainer.style.height = `${mainCanvas.offsetHeight}px`;
+            textLayerContainer.style.width = `${mainCanvas.offsetWidth}px`;
+            let textContent = await page.getTextContent()
+            console.log(textContent)
+            textContent.items = textContent.items
+                .filter((item) => {
+                    const {transform} = item
+                    const [,a,b,,,] = transform
+                    return (a === 0) && (b === 0)
+                })
+            pdfjsLib.renderTextLayer({
+                textContent,
+                container: textLayerContainer,
+                viewport: viewport,
+                textDivs: []
+            });
+            const imageSrc = cv.imread(mainCanvas)
+            let out = new cv.Mat()
+            cv.cvtColor(imageSrc, out, cv.COLOR_RGBA2GRAY, 0)
+            cv.adaptiveThreshold(out, out, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, 3, 2)
+            testOpenCVCoordinateSystemVsAbstraction(out)
+            console.log(out)
+            const sectionWoBorder = getSectionWithoutBorder(out)
+            console.log('section wo border', sectionWoBorder)
+            // const initialSection = cvMat2subsection(out)
+            const initialSection = sectionWoBorder
+            console.log('initialSection', initialSection)
+            const trimmed = roiBySubsection(out, initialSection)
+            cv.imshow(experimentCanvas, trimmed)
+            const blocks = await findBlockTree(out, {
+                vertical: false,
+            })
+            console.log('blocks', blocks)
+            blocks.map((e) => {
+                const [x, y, w, h] = e
+                const img = roiBySubsection(out, e)
+                const tmpCanvas = document.createElement('canvas')
+                const {width, height} = img.size()
+                tmpCanvas.width = width
+                tmpCanvas.height = height
+                tmpCanvas.dataset.x = x
+                tmpCanvas.dataset.y = y
+                tmpCanvas.dataset.w = w
+                tmpCanvas.dataset.h = h
+                const c = extraCanvasContainer.appendChild(tmpCanvas)
+                cv.imshow(c, img)
+                return e
+            })
+            removeAllByQuery('#textLayerContainer > br')
+            document.querySelectorAll('#textLayerContainer > span')
+            .forEach((item) => {
+                if (item.innerHTML === " ") {
+                    removeAllByQuery(item)
+                }
+            })
+            // Update page counters
+            document.getElementById('page_num').textContent = pageNum;
+        }
+    </script>
+
+</body>
+
+</html>
