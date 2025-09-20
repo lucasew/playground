@@ -7,8 +7,7 @@
    - Manter hierarquia organizada por data
 
 2. **O que NÃO mover:**
-   - Pastas com nomes em MAIÚSCULAS (`ARQUIVO/`, `MODELOS/`, `PROJETOS/`)
-   - `exercism/` (exceção especial)
+   - Pastas com nomes em MAIÚSCULAS (`ARQUIVO/`, `MODELOS/`, `PROJETOS/`, `FACUL/`, `CHALLENGES/`, `EXERCISM/`)
    - Arquivo `be-careful` (manter na raiz)
 
 3. **Padrão de nomenclatura de destino:**
