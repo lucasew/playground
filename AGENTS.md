@@ -20,6 +20,13 @@
 - **Descrição**: Nome descritivo em kebab-case que identifica o projeto
 - **Exemplo**: `20221201-arduino-bluetooth-hid/`
 
+### Regra de Commit Obrigatório
+
+- **SEMPRE fazer commit após cada migração de projeto**
+- **NÃO tentar emendar a próxima fase antes da anterior estar commitada**
+- **Cada projeto movido deve ter seu próprio commit**
+- **Usar mensagens descritivas**: `refactor: move [projeto] to PROJETOS/`
+
 ### Pastas que devem permanecer na raiz (nomes maiúsculos):
 - `ARQUIVO/`
 - `MODELOS/`
@@ -27,8 +34,8 @@
 - Outras pastas com nomes em maiúsculo
 
 ### Pastas que devem ser migradas para `PROJETOS/`:
-- `arduino/`
-- `assembly/`
+- `arduino/` ✅ (removido - sketch padrão)
+- `assembly/` ✅ (movido para 20230530-assembly-print-vector)
 - `auxilio_pipeline/`
 - `be-careful`
 - `blender/`
