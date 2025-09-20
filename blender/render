@@ -1,8 +1,0 @@
-#!/usr/bin/env bash
-
-model="$1"shift
-output="$1";shift
-
-mkdir -p "$output"
-
-nix run blender-bin#blender_3_6 -- -b "$model" -o "$output/frame_###" -F PNG -E CYCLES -- --cycles-device CUDA
