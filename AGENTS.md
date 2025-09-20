@@ -50,8 +50,4 @@
 - **Mensagem padrão:** `refactor: move [projeto] to PROJETOS/`
 - **Direto e simples** - evitar descrições longas
 
-## Status Atual
 
-- ✅ **Mantidos na raiz:** `ARQUIVO/`, `MODELOS/`, `PROJETOS/`, `be-careful`, `exercism/`
-- ✅ **Já migrados:** `arduino/`, `assembly/`, `auxilio_pipeline/`, `blender/`, `browser/`, `elixir/`, `f-sharp/`
-- 🔄 **Pendentes:** `c/`, `cgi/`, `challenges/`, `cmake/`, `docker/`, `docker-compose/`, `electron/`, `facul/`, `gemini/`, `git/`, `github/`, `golang/`, `guix/`, `help/`, `html/`, `java/`, `kivy/`, `kubernetes/`, `lsp/`, `markdown/`, `nix/`, `nodejs/`, `ocaml/`, `openziti/`, `pandas_draw/`, `pandoc/`, `php/`, `piton/`, `poc/`, `poc_c/`, `projetos/`, `protobuf/`, `revealjs/`, `rust/`, `shell/`, `sqlite/`, `talks/`, `terraform/`, `tools/`, `typst/`, `vagrant/`, `varnish/`, `vercel/`, `zig/`
