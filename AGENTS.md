@@ -27,6 +27,14 @@
 - **Cada projeto movido deve ter seu próprio commit**
 - **Usar mensagens descritivas**: `refactor: move [projeto] to PROJETOS/`
 
+### Mensagens de Commit
+
+- **Manter mensagens simples e diretas**
+- **Não complicar demais as descrições**
+- **Formato básico**: `refactor: move [projeto] to PROJETOS/`
+- **Adicionar linha adicional apenas se necessário** para contexto específico
+- **Evitar textos longos e desnecessários**
+
 ### Enriquecimento de Contexto
 
 - **SEMPRE capturar a data do último commit** usando `git log -1 --format="%ad" --date=short -- [arquivo]`
@@ -34,12 +42,20 @@
 - **Usar essas informações para enriquecer o contexto** na sugestão do projeto
 - **Ajuda a entender o propósito e histórico** de cada projeto
 
+### Avaliação Crítica de Projetos
+
+- **Ser crítico e honesto** sobre a qualidade/utilidade dos projetos
+- **Não "puxar saco"** - avaliar objetivamente
+- **Identificar projetos que podem ser removidos** ao invés de movidos
+- **Questionar se vale a pena manter** projetos antigos/obsoletos
+- **Sugerir remoção** quando apropriado
+
 ### Fluxo de Trabalho
 
 1. **Atualizar AGENTS.md** com novas instruções se necessário
 2. **Fazer commit do AGENTS.md** antes de sugerir próximo projeto
 3. **Capturar data e mensagem do último commit** do projeto
-4. **Sugerir projeto** com contexto enriquecido
+4. **Sugerir projeto** com contexto enriquecido e avaliação crítica
 5. **Executar migração** após aprovação
 6. **Fazer commit da migração**
 7. **Repetir processo**
@@ -56,8 +72,8 @@
 - `assembly/` ✅ (movido para 20230530-assembly-print-vector)
 - `auxilio_pipeline/` ✅ (movido para 20201114-auxilio-emergencial-pipeline)
 - `be-careful` ✅ (mantido na raiz - arquivo especial)
-- `blender/`
-- `browser/`
+- `blender/` ✅ (movido para 4 projetos separados)
+- `browser/` ✅ (movido para 20210305-golang-chromedp-gdocs-typing)
 - `c/`
 - `cgi/`
 - `challenges/`
