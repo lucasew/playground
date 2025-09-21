@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+
+dagger call basic-http-server --content teste up --ports 8081:80         
