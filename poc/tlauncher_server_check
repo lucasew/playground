@@ -1,8 +1,0 @@
-#!/usr/bin/env nix-shell
-#! nix-shell -i bash -p curl jq
-
-curl "https://repo.tlauncher.org/update/downloads/configs/servers.json" 2> /dev/null | grep 'address' | sed 's/^[^:]*: "\([^":]*\)[^$]*$/\1/g' | tr '[:upper:]' '[:lower:]' | sort | uniq | while read -r line; do
-    ping "$line" -c 1 > /dev/null 2> /dev/null && printf "OK" || printf "FAIL"
-    printf " $line"
-    printf "\n"
-done
