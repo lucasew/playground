@@ -1,0 +1,19 @@
+\textbf{\uline{Exemplo 14:}}
+	\begin{center}
+		\begin{tikzpicture}
+			\begin{semilogxaxis}[scale=0.8, xlabel=Custo, nodes near coords, ylabel near ticks, every node near coord/.append style = {rotate = 60, anchor = west, font = \tiny}, ymax=0.12,  xmax = 40000,  ylabel=Erro]
+				\addplot[color=blue,mark=*] coordinates {
+					(5,    8.31160034e-02)
+					(17,   2.54685628e-02)
+					(49,   7.40715288e-03)
+					(129,  2.10192154e-03)
+					(321,  5.87352989e-04)
+					(769,  1.62269942e-04)
+					(1793, 4.44248889e-05)
+					(4097, 1.20714122e-05)
+					(9217, 3.26101452e-06)
+				};
+				\legend{Caso 1}
+			\end{semilogxaxis}
+		\end{tikzpicture}
+	\end{center}

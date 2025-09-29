@@ -1,0 +1,19 @@
+\uline{\textbf{Exemplo 04:}}
+\begin{center}
+   \begin{figure}[!htb]
+   \centering 
+	\begin{tikzpicture}[scale = 1.3]
+		\begin{axis}[axis lines = center, xtick = {-5,-3,...,3,5}, ytick = {-15,-10,-5,5},  xmin = -6, xmax = 6, ymin = -16, ymax = 8, xlabel = $ x $, ylabel = $ y $]
+			\addplot[name path = A, domain = -4:4, samples = 200, color = black] {x^2 - 14} node [pos=0, above] {$ y = x^2-14 $};
+			\addplot[name path = B, domain = -4:4, samples = 200, color = black] {4 - x^2} node [pos=1, below] {$ y = 4-x^2 $};
+			\addplot[yellow!40, opacity = 0.5, domain = -3:3] fill between[of=A and B, soft clip = {domain = -3:3}];
+			\addplot[color=black,mark=none, densely dotted]  coordinates {(-3,0) (-3,-5) };
+			\addplot[color=black,mark=none, densely dotted]  coordinates {(3,0) (3,-5) };
+			\addplot[color=black,mark=none, densely dotted]  coordinates {(-3,-5) (3,-5) };
+			\draw [densely dotted] (-3,0) -- (-3,-5);
+			\node[above,black] at (axis cs: 1,-7) {\large $ S $};
+		\end{axis}
+	\end{tikzpicture}
+	\caption{Área $ S $ compreendida entre as funções $ y = 4-x^2 $ e $ y = x^2 - 14 $.}
+    \end{figure}
+\end{center}

@@ -1,0 +1,26 @@
+\textbf{\uline{Exemplo 21:}}
+\begin{center}
+	\begin{tikzpicture}[scale = 1.0]
+		\centering
+		\begin{axis}[axis lines = center, xtick = {-2,0,2}, ytick = {0,1}, xmin = -3, xmax = 3, ymin = -1, ymax = 5.5, xlabel = $ x $, ylabel = $ y $]
+			\addplot[name path = A, domain = -3:3, samples = 200, color = black] {2^x};
+			\addplot[name path = B, domain = -3:3, samples = 200, color = black] {2^(-x)};
+			\addplot[name path = C, domain = -3:3, samples = 200, color = black] {4};
+			\addplot[name path = D, domain = -2:2, samples = 200, color = black] {0};
+			\addplot[color=black,mark=none, densely dotted]  coordinates {(-2,0) (-2,4) };
+			\addplot[color=black,mark=none, densely dotted]  coordinates {(2,0) (2,4) };
+			\addplot[yellow!20, domain = -2:0] fill between[of=C and B, soft clip = {domain = -2:0}];
+			\addplot[yellow!20, domain =  0:2] fill between[of=C and A, soft clip = {domain = 0:2}];
+			\addplot[green!20,  domain = -2:0] fill between[of=B and D, soft clip = {domain = -2:0}];
+			\addplot[blue!20,   domain =  0:2] fill between[of=A and D, soft clip = {domain = 0:2}];
+			\node[above,black] at (axis cs: 0,2.5) {\large $ S $};
+			\node[above] at (axis cs: 1.8,4.8) {$ y = 2^{x} $};
+			\node[above] at (axis cs: 1,4.1) {$ y = 4 $};
+			\node[above] at (axis cs: -1.6,4.8) {$ y = 2^{-x} $};
+			\node[above,black] at (axis cs: -1.6,1.5) {$ S_1 $};
+			\node[above,black] at (axis cs: 1.6,1.5) { $ S_2 $};
+		\end{axis}
+	\end{tikzpicture}
+	\captionof{figure}{Área $ S $ compreendida entre as funções $ y = 2^x $, $ y = 2^{-x} $ e $ y = 4 $.}
+	\label{fig: Questionario_questaoUM_b}	
+\end{center}

@@ -1,0 +1,30 @@
+\textbf{\uline{Exemplo 19:}}
+	\begin{center}
+		\begin{tikzpicture}
+			[declare function = {
+				f(\x) = \x;
+				g(\x) = 0;
+				F(\x,\y) = 0.5*(\x^2+\y^2);
+			}]
+			\begin{axis}
+				[ xlabel=$x$,scale=0.8,
+				ylabel=$y$,zlabel=$z$,
+				% axis equal,
+				zmin=0,
+				zmax=1.5,xmin=0,ymin=0,xmax=1,ymax=1,
+				domain=0:1, y domain=0:1,
+				samples=50, samples y=10,
+				variable y=t,
+				view={-30}{20},no marks
+				]
+				\addplot3[surf,gray,opacity=0.5,fill opacity=0.5,faceted color=gray]       (x, {f(x)*t+g(x)*(1-t)}, 0);
+				\addplot3[surf,blue!20,opacity=0.5,fill opacity=0.5,faceted color=blue!20] (x, {f(x)*t+g(x)*(1-t)}, { F(x,f(x)*t+g(x)*(1-t))});  
+				\addplot[name path=A,domain=0:1,black!50,line width=1.] ({x},{f(x)});
+				\addplot[name path=B,domain=0:1,black!50,line width=1.] ({x},{g(x)});
+				\addplot3[name path=C,no marks,samples y=0,domain=0:1,black!50,line width=1.] ({x},{f(x)},{F(x,f(x))});
+				\addplot3[name path=D,no marks,samples y=0,domain=0:1,black!50,line width=1.] ({x},{g(x)},{F(x,g(x))});
+				\addplot[blue!50,opacity=0.5] fill between [of=A and C];
+				\addplot[blue!50,opacity=0.5] fill between [of=B and D];
+			\end{axis}
+		\end{tikzpicture}
+	\end{center}

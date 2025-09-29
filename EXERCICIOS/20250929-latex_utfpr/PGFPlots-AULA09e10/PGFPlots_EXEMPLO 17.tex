@@ -1,0 +1,22 @@
+\textbf{\uline{Exemplo 17:}}
+	\begin{center}
+		\begin{tikzpicture}[scale = 1.0]
+			\begin{axis}[axis lines = center, xtick = {-4,0,2}, ytick = {0,8}, xmin = -5, xmax = 3, ymin = -2, ymax = 10, xlabel = $ x $, ylabel = $ y $]
+				\addplot[name path = A, domain = -5:3, samples = 200, color = black] {x+6};
+				\addplot[name path = B, domain = -5:3, samples = 200, color = black] {-0.5*x};
+				\addplot[name path = C, domain = -2:3, samples = 200, color = black] {x^3};
+				\addplot[color=black,mark=none, densely dotted]  coordinates {(2,0) (2,8) };
+				\addplot[color=black,mark=none, densely dotted]  coordinates {(0,8) (2,8) };
+				\addplot[color=black,mark=none, densely dotted]  coordinates {(-4,0) (-4,2) };
+				\addplot[yellow!20] fill between[of=A and B, soft clip = {domain = -4:0}]; 
+				\addplot[green!20]  fill between[of=A and C, soft clip = {domain = 0:2}];
+				\node[above,black] at (axis cs: -1.5,2) {$ S_1 $};
+				\node[above,black] at (axis cs: 0.7,3.2) {$ S_2 $};
+				\node[above] at (axis cs: -2.8,3.9) {\footnotesize $ y = x + 6 $};
+				\node[above] at (axis cs: -3,0.1) {\footnotesize $ y = -0,5x $};
+				\node[above] at (axis cs: 2.2,3) {\footnotesize $ y = x^3 $}; 
+			\end{axis}
+		\end{tikzpicture}
+		\captionof{figure}{Área $ S $ compreendida entre as funções $ y = x+6 $, $ y = -0.5x $ e $ y = x^3 $.}
+		\label{fig: Prova_questaoUM_a}
+	\end{center}

@@ -1,0 +1,166 @@
+\textbf{\uline{Exemplo 15: Gráfico de setores padrão}}	
+	\begin{center}
+		\begin{tikzpicture}[scale=0.5]
+			\pie{35/Palmeiras,
+				26/São Paulo,
+				30/Corinthians,
+				9/Santos}
+		\end{tikzpicture}
+	\end{center}
+	
+\textbf{\uline{Exemplo 15: Gráfico de setores com raio alterado}}
+    \begin{center}
+		\begin{tikzpicture}[scale=0.5]
+			\pie[radius = 3.3, rotate = 90]{35/Palmeiras,
+				26/São Paulo,
+				30/Corinthians,
+				9/Santos}
+		\end{tikzpicture}
+	\end{center}
+	
+\textbf{\uline{Exemplo 15: Gráfico de setores com mudança de cores}}
+    \begin{center}
+		\begin{tikzpicture}[scale=0.5]
+			\pie[color = {yellow, red, blue, green}]{35/Palmeiras,
+				26/São Paulo,
+				30/Corinthians,
+				9/Santos}
+		\end{tikzpicture}
+	\end{center}
+	
+\textbf{\uline{Exemplo 15: Gráfico de setores com setores deslocados}}
+    \begin{center}
+		\begin{tikzpicture}[scale=0.5]
+			\pie[explode = 0.1]{35/Palmeiras,
+				26/São Paulo,
+				30/Corinthians,
+				9/Santos}
+		\end{tikzpicture}
+	\end{center}
+	
+	\begin{center}
+		\begin{tikzpicture}[scale=0.5]
+			\pie[explode = {0,0,0.4,0}]{35/Palmeiras,
+				26/São Paulo,
+				30/Corinthians,
+				9/Santos}
+		\end{tikzpicture}
+	\end{center}
+
+\textbf{\uline{Exemplo 15: Gráfico de setores com números ocultos}}
+    \begin{center}
+		\begin{tikzpicture}[scale=0.5]
+			\pie[hide number]{35/Palmeiras,
+				26/São Paulo,
+				30/Corinthians,
+				9/Santos}
+		\end{tikzpicture}
+	\end{center}
+
+\textbf{\uline{Exemplo 15: Gráfico de setores com texto dentro de cada setor}}
+    \begin{center}
+		\begin{tikzpicture}[scale=0.5]
+			\pie[text = inside]{35/Palmeiras,
+				26/São Paulo,
+				30/Corinthians,
+				9/Santos}
+		\end{tikzpicture}
+	\end{center}
+
+\textbf{\uline{Exemplo 15: Gráfico de setores com adição de legenda}}
+    \begin{center}
+		\begin{tikzpicture}[scale=0.5]
+			\pie[text = legend]{35/Palmeiras,
+				26/São Paulo,
+				30/Corinthians,
+				9/Santos}
+		\end{tikzpicture}
+	\end{center}
+
+\textbf{\uline{Exemplo 15: Gráfico de setores com adição de pins}}
+    \begin{center}
+		\begin{tikzpicture}[scale=0.5]
+			\pie[text = pin]{35/Palmeiras,
+				26/São Paulo,
+				30/Corinthians,
+				9/Santos}
+		\end{tikzpicture}
+	\end{center}
+
+\textbf{\uline{Exemplo 15: Gráfico de setores com alteração de fonte}}
+    \begin{center}
+		\begin{tikzpicture}[scale=0.5]
+			\pie[scale font]{35/Palmeiras,
+				26/São Paulo,
+				30/Corinthians,
+				9/Santos}
+		\end{tikzpicture}
+	\end{center}
+	
+\textbf{\uline{Exemplo 15: Gráfico de setores com plotagem sem transformar em porcentagem}}
+    \begin{center}
+		\begin{tikzpicture}[scale=0.5]
+			\pie[sum = auto]{35/Palmeiras,
+				26/São Paulo,
+				30/Corinthians,
+				9/Santos}
+		\end{tikzpicture}
+	\end{center}
+	
+\textbf{\uline{Exemplo 15: Gráfico de setores com plotagem parcial de setores}}
+\begin{center}
+    \begin{tikzpicture}[scale=0.5]
+    \pie[sum = 80]
+        {35/Palm.,
+        26/SP}
+    \end{tikzpicture}
+\end{center}
+
+
+\textbf{\uline{Exemplo 15: Gráfico de setores com formato polar}}
+\begin{center}
+    \begin{tikzpicture}[scale=0.5]
+    \pie[sum = auto,polar]
+        {8/Palm.,
+            6/SP,
+            7/Cor.,
+        2/San.}
+\end{tikzpicture} 
+\end{center}
+
+\textbf{\uline{Exemplo 15: Gráfico de setores com formato quadrado}}
+\begin{center}
+    \begin{tikzpicture}[scale=0.5]
+    \pie[sum = auto,square]
+        {8/Palm.,
+            6/SP,
+            7/Cor.,
+        2/San.}
+\end{tikzpicture} 
+\end{center}
+
+\textbf{\uline{Exemplo 15: Gráfico de setores com formato nuvem}}
+\begin{center}
+    \begin{tikzpicture}[scale=0.5]
+    \pie[sum = auto,cloud]
+        {8/Palm.,
+            6/SP,
+            7/Cor.,
+        2/San.}
+\end{tikzpicture} 
+\end{center}
+\newpage
+\textbf{\uline{Exemplo 15: Múltiplos gráficos de setores com uma só legenda}}
+\begin{center}
+    \begin{tikzpicture}[scale=0.7]
+        \pie[pos={0,0},radius=1.5,sum=auto,text=]
+            {22/Maça,5/Banana}
+        \pie[pos={4,0},radius=1.5,sum=auto,text=]
+            {22/Maça,5/Banana,8/Abacaxi}
+        \pie[pos={8,0},radius=1.5,sum=auto,text=legend]
+            {22/Maça,5/Banana,10/Laranja,8/Pêssego}
+    \end{tikzpicture}
+\end{center}
+
+
+

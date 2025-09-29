@@ -1,0 +1,61 @@
+% -----------------------------------------------------------------------------
+\documentclass[11pt,a4paper]{article}	% Tipo de documento -> artigo + fonte tamanho 11 + escrito em folha de papel A4
+\usepackage[brazil]{babel}										% Idioma a ser usado
+\usepackage[utf8]{inputenc}										% Escrita de caracteres acentuados e cedilhas - 1
+\usepackage[T1]{fontenc}	% Escrita de caracteres acentuados + outros detalhes técnicos fundamentais
+% ---------------------------------------
+\usepackage{geometry}		% Package para definição das margens do documento
+\geometry{a4paper,left=1cm,right=1cm,bottom=3cm,top=2cm,headsep=1cm,footskip=2.5cm}	% Configuração das margens do documento
+% ---------------------------------------
+\usepackage{graphicx,float,color,xcolor,caption}					% Inserir imagens
+\usepackage{ulem,verbatim}									% Escrita literal + sublinhado
+\usepackage{amsmath,amsfonts,amssymb,amsthm,amstext}	
+\DeclareMathOperator{\sen}{sen}
+% ---------------------------------------
+\usepackage{tikz,pgfplots,pst-all}					% Desenho vetorial
+\usepackage{animate}
+\usepackage{pgf-pie}
+\pgfplotsset{compat=1.17}
+\usepgfplotslibrary{fillbetween}
+\usepgfplotslibrary{polar}
+% -----------------------------------------------------------------------------
+\renewcommand{\baselinestretch}{1}								% Espaçamento entre linhas
+% ---------------------------------------
+\usepackage{indentfirst,setspace}			% Package para recuo do primeiro parágrafo. Por padrão, o LaTeX só recua a partir do segundo parágrafo
+\setlength{\parindent}{1.375cm}				% Recuo do parágrafo -> coloquei 1.375cm
+% ---------------------------------------
+\usetikzlibrary{external}                   % Para externalização dos gráficos e agilizar a compilação
+\tikzexternalize[prefix=tikz/]              %
+% ---------------------------------------
+% Definição de título, autor e data
+\title{Primeiros passos com o \LaTeX,\\ rumo ao WORDEXIT (Word + Exit)\\ Brincando com o PGFplots}				% Título
+\author{Angelo Aliano Filho}																% Autor
+\date{\today}															% Data
+% ---------------------------------------
+% Início do documento
+\begin{document}
+
+\maketitle
+
+    % \input{./PGFPlots_EXEMPLO 01.tex}
+    % \input{./PGFPlots_EXEMPLO 02.tex}
+    % \input{./PGFPlots_EXEMPLO 03.tex}
+    % \input{./PGFPlots_EXEMPLO 04.tex}
+    % \input{./PGFPlots_EXEMPLO 05.tex}
+    % \input{./PGFPlots_EXEMPLO 06.tex}
+     \input{./PGFPlots_EXEMPLO 07.tex}
+	% \input{./PGFPlots_EXEMPLO 08.tex}
+	% \input{./PGFPlots_EXEMPLO 09.tex}
+	% \input{./PGFPlots_EXEMPLO 10.tex}	
+	% \input{./PGFPlots_EXEMPLO 11.tex}
+	% \input{./PGFPlots_EXEMPLO 12.tex}
+	% \input{./PGFPlots_EXEMPLO 13.tex}
+	% \input{./PGFPlots_EXEMPLO 14.tex}
+    % \input{./PGFPlots_EXEMPLO 15.tex}
+	 %\input{./PGFPlots_EXEMPLO 16.tex}	
+	% \input{./PGFPlots_EXEMPLO 17.tex}
+	% \input{./PGFPlots_EXEMPLO 18.tex}
+	% \input{./PGFPlots_EXEMPLO 19.tex}
+	% \input{./PGFPlots_EXEMPLO 20.tex}
+    % \input{./PGFPlots_EXEMPLO 21.tex}
+\end{document}

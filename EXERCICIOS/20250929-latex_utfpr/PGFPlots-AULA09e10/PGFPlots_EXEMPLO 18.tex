@@ -1,0 +1,17 @@
+\textbf{\uline{Exemplo 18:}}
+	\begin{center}
+		\begin{tikzpicture}[font=\scriptsize]
+			\begin{axis}[thick,smooth,axis lines=middle,width=0.5\textwidth,
+				height=0.5\textwidth,
+				xmin=0,xmax=4,ymin=0,ymax=2,
+				every axis x label/.style={
+					at={(ticklabel* cs:1.05)}},
+				every axis y label/.style={
+					at={(ticklabel* cs:1.05)}},
+				xlabel=$x$,ylabel=$y$,ytick distance=0.5]
+				\addplot[samples=300,name path=A,black,domain=0:4] {sqrt(x)} node[pos=0.5,above,sloped]{$f(x)=\sqrt{x}$};
+				\addplot[samples=300,name path=B,black,domain=0:4] {sqrt(x/2)} node[pos=0.5,below,sloped]{$g(x)=\sqrt{x/2}$};
+				\addplot[blue!50,opacity=0.5] fill between[of=A and B];
+			\end{axis}
+		\end{tikzpicture}
+	\end{center}

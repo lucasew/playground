@@ -1,0 +1,16 @@
+\textbf{\uline{Exemplo 07:}}
+	\begin{center}
+		\begin{tikzpicture}[scale=0.8]
+			\begin{polaraxis}[xlabel=$r$,ylabel=$\theta$,ytick distance=0.5,xtick distance=15]
+				\addplot+[color=cyan!50!white,mark=none,domain=-360:360,samples=600,line width=2] 
+				(x,{cos(2*x)}); 
+				\addplot+[color=magenta!50!white,mark=none,domain=-360:360,samples=600,line width=2] 
+				(x,{1/2});
+				\addplot+[color=cyan!50!white,mark=none,domain=-30:30,samples=600,line width=2,name path=A] 
+				(x,{cos(2*x)}); 
+				\addplot+[color=magenta!50!white,mark=none,domain=-30:30,samples=600,line width=2,name path=B] 
+				(x,{1/2});
+				\tikzfillbetween[of=A and B]{opacity = 0.5,color=cyan!80!white}; 
+			\end{polaraxis}
+		\end{tikzpicture}
+	\end{center}

@@ -1,0 +1,31 @@
+\textbf{\uline{Exemplo 05:}}
+	\begin{center}
+		\def\R{1}
+		\begin{tikzpicture}[scale=0.8]
+			\begin{axis}[
+				xmin = -1.5, xmax = 1.5,
+				ymin = -1.5, ymax = 1.5,
+				xtick distance = 1,
+				ytick distance = 1,
+				ylabel near ticks,
+				xlabel=$x$,
+				ylabel=$y$,
+				samples=401,
+				width = 0.6\textwidth,
+				height = 0.6\textwidth]
+				\addplot[densely dotted,thick]  
+				({\R*sin(deg(x))},{\R*cos(deg(x))});
+				
+				\foreach \r/\w in {0.1/10,0.25/30,0.2/50,0.125/90}{
+					\edef\temp{\noexpand%
+						\addplot[thick,
+						color=red!\w!blue,
+						] (
+						{(\R-\r)*cos(deg(x)) + \r*cos(deg((\R-\r)*x/\r))},
+						{(\R-\r)*sin(deg(x)) - \r*sin(deg((\R-\r)*x/\r))}
+						);
+					}\temp
+				}
+			\end{axis}
+		\end{tikzpicture}
+	\end{center}

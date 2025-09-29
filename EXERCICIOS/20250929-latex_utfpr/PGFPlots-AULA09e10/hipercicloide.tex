@@ -1,0 +1,23 @@
+\documentclass[tikz,border=5mm]{standalone}
+\usepackage{tikz}
+\usepackage{color,xcolor}
+
+\begin{document}
+\def\r{1}
+\def\R{4}
+
+\foreach \t in {0,10,...,360}{
+\begin{tikzpicture}[scale=0.7]
+\draw[-latex] (-4.5,0) -- (4.5,0) node[right]{$x$};
+\draw[-latex] (0,-4.5) -- (0,4.5) node[above]{$y$};
+\draw[cyan] (0,0) circle (4cm);
+\draw[magenta,domain=0:\t,samples=100] plot(
+{(\R-\r)*cos(\x) + \r*cos(\x*(\R-\r)/\r)},
+{(\R-\r)*sin(\x) - \r*sin(\x*(\R-\r)/\r)});
+\draw[rotate=\t] ({\R-\r},0) circle (\r cm); 
+\draw[fill] 
+({(\R-\r)*cos(\t) + \r*cos(\t*(\R-\r)/\r)},
+{(\R-\r)*sin(\t) - \r*sin(\t*(\R-\r)/\r)}) circle (2pt);                             
+\end{tikzpicture}
+}
+\end{document}

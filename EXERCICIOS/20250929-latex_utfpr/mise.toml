@@ -1,0 +1,10 @@
+[tools]
+"github:valentjn/ltex-ls" = "latest"
+tinytex = "2025.09"
+watchexec = "latest"
+
+[tasks.install-latex-deps]
+run = "tlmgr install scheme-full"
+
+[tasks.build]
+run = "latexmk -pdf -interaction=nonstopmode  main.tex"
