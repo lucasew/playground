@@ -7,4 +7,5 @@ watchexec = "latest"
 run = "tlmgr install scheme-full"
 
 [tasks.build]
-run = "latexmk -pdf -interaction=nonstopmode  main.tex"
+run = "latexmk -pdf -interaction=nonstopmode"
+dir = "{{cwd}}"
