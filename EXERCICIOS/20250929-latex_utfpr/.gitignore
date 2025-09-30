@@ -48,3 +48,4 @@
 .mtc
 build/
 *.blend1
+*.xdp-*

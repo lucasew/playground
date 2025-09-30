@@ -1,0 +1,64 @@
+\documentclass[12pt]{article}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[brazil]{babel}
+\usepackage{amsthm,amssymb}
+\usepackage{geometry}
+\geometry{
+	textheight=200mm,
+	textwidth=150mm,
+	paperheight=250mm,
+	paperwidth=180mm,
+}
+
+\usepackage{color,xcolor}
+\usepackage{lipsum}
+\usepackage{gradient-text}
+
+
+\title{Aula 1 e 2 do curso de \LaTeX}
+
+\author{Lucão Enterprise}
+\date{\today}
+
+\begin{document}
+%	\color{orange}
+%	\pagecolor{yellow}
+	\maketitle
+	
+	
+	\begin{color}{red}
+		\lipsum[1]
+	\end{color}
+	
+	\renewcommand{\contentsname}{Coisarada}
+	\tableofcontents
+	
+	\section{Lero}
+	\subsection{Lero Lero}
+	\subsubsection{Lero Lero Lero}
+%	\subsubsubsection{Lero Lero Lero Lero}
+	\lipsum{10}
+	
+	Lista de compras:
+	\begin{itemize}
+		\item  Pão
+		\item Bolacha
+		\item Picanha
+		\item Cervejinha
+	\end{itemize}
+	
+	Aqui é {\huge Grêmio}, cadê o {\tiny Inter}
+	
+	Times:
+	\begin{enumerate}
+		\item Grêmio
+		\item Inter
+		\item Palmeiras
+		\item Flamengo
+		\item Vasco da Gama
+	\end{enumerate}
+	
+	\huge\gradientRGB{Éoque}{255,0,255}{255,0,0}
+
+\end{document}}
