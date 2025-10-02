@@ -8,3 +8,6 @@ sql:
         package: db
         out: db
         sql_package: "pgx/v5"
+        emit_db_tags: true
+        emit_prepared_queries: true
+        emit_json_tags: true

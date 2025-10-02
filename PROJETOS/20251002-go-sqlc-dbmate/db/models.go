@@ -9,13 +9,13 @@ import (
 )
 
 type User struct {
-	ID       pgtype.UUID
-	Username pgtype.Text
+	ID       pgtype.UUID `db:"id"`
+	Username pgtype.Text `db:"username"`
 }
 
 type UsersAuditLog struct {
-	OperationType string
-	OperationTime pgtype.Time
-	OldValue      []byte
-	NewValue      []byte
+	OperationType string      `db:"operation_type"`
+	OperationTime pgtype.Time `db:"operation_time"`
+	OldValue      []byte      `db:"old_value"`
+	NewValue      []byte      `db:"new_value"`
 }
