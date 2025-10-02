@@ -4,7 +4,7 @@ atlas = "latest"
 go = "latest"
 
 [tasks."codegen:migrations"]
-run = "atlas migrate diff init --to file://db/schema.sql --dev-url docker://postgres --dir file://db/migrations"
+run = "atlas migrate diff {{option(name=\"name\", required=True)}} --to file://db/schema.sql --dev-url docker://postgres --dir file://db/migrations"
 
 [tasks."codegen:queries"]
 run = "sqlc generate"
