@@ -3,5 +3,12 @@ atlas = "latest"
 "github:sqlc-dev/sqlc" = "latest"
 go = "latest"
 
-[tasks.make-migrations]
+[tasks."gen:migrations"]
 run = "atlas migrate diff init --to file://db/schema.sql --dev-url docker://postgres --dir file://db/migrations"
+
+[tasks."gen:queries"]
+run = "sqlc generate"
+
+[tasks.gen]
+depends = ["gen:*"]
+
