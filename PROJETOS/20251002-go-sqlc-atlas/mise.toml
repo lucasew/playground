@@ -1,0 +1,7 @@
+[tools]
+atlas = "latest"
+"github:sqlc-dev/sqlc" = "latest"
+go = "latest"
+
+[tasks.make-migrations]
+run = "atlas migrate diff init --to file://db/schema.sql --dev-url docker://postgres --dir file://db/migrations"
