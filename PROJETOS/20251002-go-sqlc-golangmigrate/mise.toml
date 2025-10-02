@@ -3,6 +3,9 @@
 "github:sqlc-dev/sqlc" = "latest"
 go = "latest"
 
+[env]
+DATABASE_URL = "postgres://admin:admin@localhost:5432/admin?sslmode=disable"
+
 # [tasks."codegen:migrations"]
 # run = "atlas migrate diff {{option(name=\"name\", required=True)}} --to file://db/schema.sql --dev-url docker://postgres --dir file://db/migrations"
 
@@ -19,7 +22,7 @@ depends = ["codegen:*"]
 run = " docker run --rm -e POSTGRES_PASSWORD=admin -e POSTGRES_USER=admin -e POSTGRES_DATABASE=admin -d -p 5432:5432 postgres"
 
 [tasks."dev"]
-run = "go run main.go --db postgres://admin:admin@localhost:5432/admin"
+run = "go run main.go"
 
 [tasks."test:insert-user"]
 run = "curl http://localhost:5090/create-user -F name={{option(name=\"user\", required=True)}}"
