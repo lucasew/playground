@@ -1,4 +1,5 @@
 [tools]
+dbmate = "latest"
 "github:golang-migrate/migrate" = "latest"
 "github:sqlc-dev/sqlc" = "latest"
 go = "latest"
