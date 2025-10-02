@@ -68,6 +68,15 @@ func main() {
 		json.MarshalWrite(w, entity)
 
 	})
+	http.HandleFunc("/audit", func(w http.ResponseWriter, r *http.Request) {
+		items, err := database.GetUserAudits(r.Context())
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			fmt.Fprintf(w, "problem in database: %s", err.Error())
+			return
+		}
+		json.MarshalWrite(w, items)
+	})
 	log.Printf("Escutando :5090")
 	http.ListenAndServe(":5090", nil)
 	log.Printf("Parando...")

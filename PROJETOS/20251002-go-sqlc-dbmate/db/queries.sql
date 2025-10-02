@@ -5,3 +5,6 @@ INSERT INTO users (
     $1
 )
 RETURNING *;
+
+-- name: GetUserAudits :many
+SELECT * from users_audit_logs;

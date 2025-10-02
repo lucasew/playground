@@ -26,3 +26,32 @@ func (q *Queries) CreateUser(ctx context.Context, username pgtype.Text) (User, e
 	err := row.Scan(&i.ID, &i.Username)
 	return i, err
 }
+
+const getUserAudits = `-- name: GetUserAudits :many
+SELECT operation_type, operation_time, old_value, new_value from users_audit_logs
+`
+
+func (q *Queries) GetUserAudits(ctx context.Context) ([]UsersAuditLog, error) {
+	rows, err := q.db.Query(ctx, getUserAudits)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []UsersAuditLog
+	for rows.Next() {
+		var i UsersAuditLog
+		if err := rows.Scan(
+			&i.OperationType,
+			&i.OperationTime,
+			&i.OldValue,
+			&i.NewValue,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

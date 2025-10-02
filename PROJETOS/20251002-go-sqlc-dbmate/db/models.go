@@ -12,3 +12,10 @@ type User struct {
 	ID       pgtype.UUID
 	Username pgtype.Text
 }
+
+type UsersAuditLog struct {
+	OperationType string
+	OperationTime pgtype.Time
+	OldValue      []byte
+	NewValue      []byte
+}
