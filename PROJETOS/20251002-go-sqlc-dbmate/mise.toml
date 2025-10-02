@@ -7,14 +7,14 @@ go = "latest"
 [env]
 DATABASE_URL = "postgres://admin:admin@localhost:5432/admin?sslmode=disable"
 
-# [tasks."codegen:migrations"]
-# run = "atlas migrate diff {{option(name=\"name\", required=True)}} --to file://db/schema.sql --dev-url docker://postgres --dir file://db/migrations"
-
 [tasks."codegen:queries"]
 run = "sqlc generate"
 
 [tasks.codegen]
 depends = ["codegen:*"]
+
+[tasks.new_migration]
+run = "dbmate new {{option(name=\"name\", required=True)}}"
 
 # [tasks."devdb:migrate"]
 # run = "atlas migrate apply --url 'postgres://admin:admin@localhost:5432/admin?sslmode=disable' --dir file://db/migrations"
