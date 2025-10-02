@@ -1,4 +1,11 @@
 -- migrate:up
+CREATE TABLE users_audit_logs(
+    operation_type TEXT not null,
+    operation_time TIME not null,
+    old_value JSON,
+    new_value JSON
+);
+
 CREATE OR REPLACE FUNCTION handle_users_audit()
     RETURNS TRIGGER AS $$
     BEGIN
@@ -33,4 +40,5 @@ DROP TRIGGER users_insert_audit ON users;
 DROP TRIGGER users_update_audit ON users;
 DROP TRIGGER users_delete_audit ON users;
 DROP FUNCTION handle_users_audit;
+DROP TABLE users_audit_logs;
 
