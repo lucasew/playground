@@ -1,3 +1,6 @@
+[env]
+CGO_ENABLED=1
+
 [tools]
 bun = "latest"
 go = "latest"
