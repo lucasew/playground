@@ -1,0 +1,492 @@
+\documentclass[9pt]{beamer}
+%-------------------Packages necessários-------------------
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc} %Acentuação pelo teclado
+\usepackage[brazil]{babel} 
+\usepackage{graphicx}
+\usepackage{lipsum}
+\usepackage{tikz}
+\usepackage{color,xcolor}
+\usepackage{amsthm}
+\usepackage{pifont}
+\newtheorem{teorema}{Teorema}
+\usepackage{pdfpages}
+%------------------------------------------------------------
+%Configurações
+%Inserindo o índice no início de cada seção de sua apresentação
+\AtBeginSection[]{
+	\begin{frame}
+		\frametitle{Sumário}
+		\tableofcontents[currentsection]
+	\end{frame}
+}
+%-------------------------------------------------------------------------------
+%Justificando o conteúdo em TODOS os slides
+\usepackage{ragged2e}
+\apptocmd{\frame}{}{\justifying}{}
+%-------------------------------------------------------------------------------
+%Traduzindo para português o ambiente "example"
+\uselanguage{portuguese}
+\languagepath{portuguese}
+\deftranslation[to=portuguese]{Example}{Exemplo}
+%-------------------------------------------------------------------------------
+%Incluindo um plano de fundo para todos seus slides (uma figura, por exemplo)
+%Recorremos ao Tikz para mudar a opacidade da figura
+%\tikz \node[opacity=0.1] { insira a figura };
+
+%\usebackgroundtemplate{
+	%	\tikz\node[opacity=0.02]{
+		%		\includegraphics[width=\paperwidth, height=\paperheight] {logoUTFPR}
+		%	};
+	%}
+
+% %Outra opção é você mesmo fazer o desenho em tikz!
+%  \usebackgroundtemplate{
+	%      \tikz{
+		%         \shade[top color=yellow!15, bottom color=white] (0,0) rectangle (12.96,10);
+		%         \foreach \j in {0,0.3,...,10}{
+			%             \draw[gray,opacity=0.2] (0,\j) -- (13,\j);
+			%         }
+		%         \foreach \i in {0,0.3,...,13}{
+			%             \draw[gray,opacity=0.2] (\i,0) -- (\i,10);
+			%         }
+		%     }
+	% }
+
+%  \usebackgroundtemplate{
+	%      \tikz{
+		%         %\shade[top color=yellow!15, bottom color=white] (0,0) rectangle (12.96,10);
+		%         \foreach \j in {0,0.8,...,10}{
+			%             \draw[gray,opacity=0.2] (0,\j) -- (13,\j);
+			%         }
+		%     }
+	% }
+
+%Caso queira que a mudança ocorra localmente, colar esta instrução atrás do slide
+%-------------------------------------------------------------------------------
+%Inserindo mais de um logo e mudando de posição
+
+% \logo{
+	%     \tikz[overlay, remember picture] \node[yshift=0.8cm,xshift=-0.5cm] at (current page.30) {\includegraphics[scale=0.03]{logoUTFPR}};
+	%     \tikz[overlay, remember picture] \node[yshift=-0.8cm,xshift=0.5cm] at (current page.210) {\includegraphics[scale=0.03]{logoUTFPR}};
+	% }
+%-------------------------------------------------------------------------------
+% %Colocando o título do slide no centro
+% \setbeamertemplate{frametitle}[default][center]
+% %-----------------------------------------------------------------------------
+% %Inserindo a numeração em cada slide
+%\setbeamertemplate{footline}[frame number]
+
+% %Removendo os símbolos de navegação
+%\setbeamertemplate{navigation symbols}{}
+%-----------------------------------------------------------------------------
+%Temas e Layouts
+
+%Boadilla,Bergen,Madrid,Antibes,Hannover,CambridgeUS,AnnArbor,Warsaw
+
+%--------------------------------------------------------------------
+%Mudando as cores das paletas
+
+\colorlet{cor1}{red!80!black}
+\colorlet{cor2}{yellow!80!black}
+
+%Palete 1
+%\setbeamercolor{palette primary}{bg=cor1,fg=white}
+%Palete 2
+%\setbeamercolor{palette secondary}{bg=cor1,fg=white}
+%Palete 3
+%\setbeamercolor{palette tertiary}{bg=cor2,fg=white}
+%Palete 4
+%\setbeamercolor{palette quaternary}{bg=cor2,fg=white}
+%--------------------------------------------------------------------
+%Cor dos itens e enumerates:
+%\setbeamercolor{structure}{fg=cor2}
+%--------------------------------------------------------------------
+%Cor da seções:
+%--------------------------------------------------------------------
+%\setbeamercolor{section in toc}{fg=cor2}
+%--------------------------------------------------------------------
+%Cores do fundo e da letra:
+%\setbeamercolor{normal text}{bg=green!3,fg=black}
+%--------------------------------------------------------------------
+%Cor do título do slide, do fundo da barra que o contém e deixá-lo em negrito:
+%--------------------------------------------------------------------
+%\setbeamercolor{frametitle}{fg=green,bg=blue}
+%\setbeamerfont{title}{series=\bfseries}
+% %--------------------------------------------------------------------
+% %Cor da barra superior de block da letra:
+% \setbeamercolor{block title}{bg=cor1, fg=white}
+%--------------------------------------------------------------------
+%Cor da caixa do block e da letra:
+%\setbeamercolor{block body}{bg=cor2!50, fg=black}
+%-----------------------------------------------------------------------------
+%Escolhendo uma cor e usando-a em toda a estrutura da apresentação
+%\definecolor{MinhaCor}{rgb}{0.0, 0.26, 0.15}
+%\setbeamercolor{structure}{fg=MinhaCor} 
+%---------------->>>>>> IMPORTANTE
+%-------------------------------------------------------------------------------% %Estilos de letra
+% %serif,helvet,avant,times,bookman,chancery,charter,euler,mathtime,mathptm,mathptmx,newcent,palatino,pifont,utopia
+% %-----------------------------------------------------------------------------
+%Tema pronto: Tema, Cores e fontes pré-definidas
+
+%Cores:
+% %default,albatross,beaver,beetle,crane,dolphin,dove,fly,lily,orchid,rose,seagull,seahorse,whale,wolverine,spruce
+
+%Temas
+%infolines,miniframes,split,shadow,sidebar,smoothbar,smoothtree,tree
+
+%Fontes:
+% %default,serif,professionalfonts,structurebold,structureitalicserif,structuresmallcapsserif
+
+%\usecolortheme{seagull}
+
+% \usetheme{Berlin}
+% \usefonttheme{structurebold}
+% \usecolortheme{albatross}
+% \setbeamerfont*{frametitle}{size=\huge}
+%-----------------------------------------------------------------------------
+%Mudando os bullets dos itens
+%rectangles,circles,inmargin,rounded
+%\useinnertheme{rectangles}
+
+%Customizando você mesmo....
+
+%\usepackage{enumitem}
+%\usepackage{enumerate}
+
+% \setitemize{
+	% 	label=\textcolor{cor1}{\ding{111}},
+	% 	itemindent=-1em,
+	% 	leftmargin=0.5cm,
+	% 	parsep=0.5cm
+	% } 
+% \setenumerate{
+	% 	label=\textcolor{cor2}{(\arabic*)},
+	% 	itemsep=3pt,topsep=-3pt,
+	% 	labelsep=5pt
+	% }
+%
+% \newcommand{\MeuEnumerate}[1]{
+	% 	\tikz[baseline=(X.base)] \node[draw=cor2,circle,fill=cor2,text=white,inner sep=1pt] (X) {#1};
+	% }
+%-----------------------------------------------------------------------------
+%Mudando as margens do slide
+%\setbeamersize{text margin left=0.25cm}  % <- like this
+%\setbeamersize{text margin right=0.25cm} % <- like this
+%-------------------------------------------------------------------------------
+% %Finalmente, mudando o tamanho do slide
+% %aspectratio em \documentclass[aspectratio=xx]{beamer} onde xx pode valer:
+% %1610, 169, 149, 54, 43 and 32, which stand for the ratios 16:10, 16:9, 14:9, 5:4, 4:3 and 3:2
+% %O default é uma lâmina ter  126 mm por 96 mm ---> aspectratio = 43
+% %-----------------------------------------------------------------------------
+
+%Dados da apresentação
+\title[Aula do Beamer]{Aulas 07 e 08 -- Fazendo Slides e dando adeus ao Power Point}
+\author[Aliano, A.F.]{Angelo Aliano Filho}
+\date{\today}
+\institute[UTFPR]{Universidade Tecnológica Federal do Paraná}
+\keywords{Otimização, Pesquisa Operaciona, Matemática Aplicada}
+\logo{\includegraphics[scale=0.05]{logoUTFPR.png}}
+%----------------------------------------------------------------------------------------------------------------
+\usebackgroundtemplate{
+\begin{tikzpicture}
+	\shade[top color=yellow!30,bottom color=white] (-13, -10) rectangle (13,10);
+\end{tikzpicture}
+}
+
+\setbeamertemplate{footline}[framenumber]
+\setbeamertemplate{navigation symbols}{} % tira navegação
+
+%\usetheme{Warsaw}
+
+\begin{document}
+	
+	%------------------------------------------------------------------------------------------------
+	\begin{frame}
+		\titlepage
+	\end{frame}
+	%------------------------------------------------------------------------------------------------
+	\begin{frame}{Agenda do dia}{Tópicos}
+		\tableofcontents
+	\end{frame}
+	%------------------------------------------------------------------------------------------------
+	
+	%------------------------------------------------------------------------------------------------
+	\section{Introdução}
+	
+	\begin{frame}{\insertsection}
+		Conteúdo do slide alinhado verticalmente no centro
+		
+		\lipsum[1]
+	\end{frame}
+	%-------------------------------------------------------------------------------
+	\section{Revisão de Literatura}
+	
+	\begin{frame}[t]{\insertsection}
+		Conteúdo do slide alinhado verticalmente no topo
+		\begin{itemize}
+			\item Texto em \alert{alerta}
+		\end{itemize}
+	\end{frame}
+	%-------------------------------------------------------------------------------
+	\begin{frame}{\insertsection}
+		\begin{block}{Criando blocos}
+			Conteúdo a ser destacado num bloco...
+		\end{block}
+		\begin{example}{Exemplo 1}
+			Conteúdo em exemplo
+		\end{example}
+		\begin{alertblock}{Alerta!}
+			Conteúdo de um alerta
+		\end{alertblock}
+		\vspace{1cm}
+		
+		Os ambientes block, alertblock, example, frame, entre outros, são exclusivos da classe de documentos beamer.
+	\end{frame}
+	%------------------------------------------------------------------------------
+	\section{Desenvolvimento do trabalho}
+	
+	\begin{frame}{\insertsection}
+		\begin{enumerate}
+			\item content
+			\item content
+			\item content
+			\item content
+		\end{enumerate}
+		
+		\begin{itemize}
+			\item content
+			\item content
+			\item content
+			\item content
+		\end{itemize}
+		
+		% \begin{enumerate}
+			% 	\item[\MeuEnumerate{1}] Item 1
+			% 	\item[\MeuEnumerate{2}] Item 2
+			% 	\item[\MeuEnumerate{3}] Item 3
+			% \end{enumerate}
+		
+	\end{frame}
+	
+	
+	
+	%------------------------------------------------------------------------------------------------
+	%Inserindo um PDF externo "Folder_curso_LaTeX" (fora do slide)
+	% {
+		% 	\setbeamercolor{background canvas}{bg=}
+		% 	\includepdf[pages={1}]{Folder_curso_LaTeX.pdf}
+		% }
+	
+	%------------------------------------------------------------------------------------------------
+	%Inserindo múltiplas colunas
+	
+	\begin{frame}{\insertsection}	
+		\begin{columns}[c]
+			\begin{column}{0.6\textwidth}
+				\justifying 
+				\lipsum[1]
+			\end{column}
+			\hfill 
+			\begin{column}{0.4\textwidth}
+				\centering
+				%\includegraphics[scale=0.1]{logoUTFPR}
+			\end{column}
+		\end{columns}
+		\vspace{0.5cm}
+		Aqui alinhamos uma figura e um texto, mas poderia ser qualquer coisa	
+	\end{frame}
+	
+	%Outro exemplo
+	
+	\begin{frame}{\insertsection}
+		\begin{columns}[b]
+			\begin{column}{0.35\textwidth}
+				\begin{table}
+					\caption{Tabela ao lado de fig.}
+					\begin{tabular}{|cccc|}
+						\hline
+						1 & 2 & 3 & 4\\
+						5 & 6 & 7 & 8\\
+						9 & 10 & 11 & 12\\
+						\hline
+					\end{tabular}
+				\end{table}
+			\end{column}
+			\begin{column}{0.35\textwidth}
+				\begin{figure}
+					%\includegraphics[scale=0.05]{logoUTFPR}
+					\caption{Logo da instituição}
+				\end{figure}
+			\end{column}
+			\begin{column}{0.3\textwidth}
+				Algum texto explicativo...Algum texto explicativo...Algum texto explicativo...Algum texto explicativo...
+			\end{column}
+		\end{columns}
+	\end{frame}
+	
+	%------------------------------------------------------------------------------------------------
+	%Controle de aparência
+	
+	\begin{frame}{\insertsection}
+		\begin{itemize}
+			\item Item 1 com o comando [<+,->]
+			\item Item 2 com o comando [<+,->]
+			\item Item 3 
+		\end{itemize}
+	\end{frame}
+	
+	\begin{frame}{\insertsection}
+		\begin{itemize}
+			\item Item 4 (aqui tem um pause)\pause 
+			\item Item 5 (aqui tem um pause)\pause 
+			\item Item 6 
+		\end{itemize}
+	\end{frame}
+	
+	{\setbeamercovered{transparent=10}
+		\begin{frame}{\insertsection}
+			\begin{itemize}
+				\item Item 7 (aqui tem um pause)\pause 
+				\item Item 8 (aqui tem um pause)\pause 
+				\item Item 9 
+			\end{itemize}
+			Aqui, usamos uma transparência de 10\%
+		\end{frame}
+	}
+	
+	{\setbeamercovered{highly dynamic}
+		\begin{frame}{\insertsection}
+			\begin{itemize}
+				\item Item 10 (aqui tem um pause)\pause 
+				\item Item 11 (aqui tem um pause)\pause 
+				\item Item 12 (aqui tem um pause)\pause
+				\item Item 13 (aqui tem um pause)\pause 
+				\item Item 14 (aqui tem um pause)\pause 
+				\item Item 15 (aqui tem um pause)\pause 
+				\item Item 16 (aqui tem um pause)\pause 
+				\item Item 17 (aqui tem um pause)\pause   
+			\end{itemize}
+			Aqui, usamos uma transparência dinâmica (opção que se colocada no preâmbulo vira global)
+		\end{frame}
+	}
+	%------------------------------------------------------------------------------------------------
+	
+	%Overlays
+	
+	\begin{frame}{Não há um primo supremo}{A prova usa \textit{reductio ad absurdum}.}
+		\begin{theorem}
+			Não há um primo supremo.
+		\end{theorem}
+		\begin{proof}
+			\begin{enumerate}
+				\item<1-> Suponha que $p$ seja o maior primo.
+				\item<2-> Seja $q$ o produto dos $p$ primeiros primos.
+				\item<3-> Então $q + 1$ n]ao é divisível por nenhum deles.
+				\item<1-> Mas $q + 1$ é maior do que $1$, então divisível por algum primo não necessariamente entre os $p$ primeiros.\qedhere
+			\end{enumerate}
+		\end{proof}
+		\uncover<4->{A prova usou \textit{reductio ad absurdum}.}
+	\end{frame}
+	
+	\begin{frame}{\insertsection}
+		Usando o comando only:
+		\begin{itemize}
+			\only<1>{\item Item 1}
+			\only<2>{\item Item 2}
+			\only<3>{\item Item 3}
+		\end{itemize}
+		\only<2>{Só aparece no segundo clique.
+			Repare que o slide é o mesmo!}	
+	\end{frame}
+	%------------------------------------------------------------------------------------------------
+	\begin{frame}{\insertsection}
+		Usando o comando uncover:
+		\begin{itemize}
+			\uncover<1>{\item Item 1}
+			\uncover<2>{\item Item 2}
+			\uncover<3>{\item Item 3. Perceberam a diferença?}
+		\end{itemize}
+		\uncover<2>{Só aparece no segundo clique.
+			Repare que o slide é o mesmo!}
+	\end{frame}
+	
+	%Mesmo efeito com as linhas em numa tabela!
+	
+	\begin{frame}{\insertsection}
+		\begin{tabular}{ccc}
+			\hline 
+			\uncover<1,2,3,4>{1 & 2 & 3}\\ 
+			\uncover<2,3,4>{4 & 5 & 6}\\
+			\uncover<3,4>{7 & 8 & 9}\\
+			\uncover<4>{10 & 11 & 12}\\
+			\hline 
+		\end{tabular}
+	\end{frame}
+	
+	%Mais outro exemplo complicado
+	\begin{frame}{\insertsection}
+		\begin{columns}[b]
+			\uncover<1,2,3>{
+				\begin{column}{0.35\textwidth}
+					\begin{table}
+						\caption{Tabela ao lado de fig.}
+						\begin{tabular}{|cccc|}
+							\hline
+							1 & 2 & 3 & 4\\
+							5 & 6 & 7 & 8\\
+							9 & 10 & 11 & 12\\
+							\hline
+						\end{tabular}
+					\end{table}
+				\end{column}
+			}
+			\uncover<2,3>{
+				\begin{column}{0.35\textwidth}
+					\begin{figure}
+						%\includegraphics[scale=0.05]{logoUTFPR}
+						\caption{Logo da instituição}
+					\end{figure}
+				\end{column}
+			}
+			\uncover<3>{
+				\begin{column}{0.3\textwidth}
+					Algum texto explicativo...Algum texto explicativo...Algum texto explicativo...Algum texto explicativo...
+				\end{column}
+			}
+		\end{columns}
+	\end{frame}
+	
+	%------------------------------------------------------------------------------------------------
+	%Quebrando um slide
+	
+	\begin{frame}[allowframebreaks]{\insertsection}
+		\lipsum[1-5]
+	\end{frame}
+	%------------------------------------------------------------------------------------------------
+	
+	%Ajustando em um slide
+	
+	\begin{frame}[shrink]{\insertsection}
+		\lipsum[1-5]
+	\end{frame}
+	
+	
+	
+	%-------------------------------------------------------------------------------
+	
+	
+\end{document}
+
+
+% \nocite{*}
+% \begin{frame}[allowframebreaks]{Referências}
+	% 	\bibliographystyle{plainnat}
+	% 	\bibliography{exemplo_bib}
+	% \end{frame}
+
+
+%------------------------------------------------------------------------------------------------
+\begin{frame}{\insertsection}
+	
+\end{frame}

@@ -1,0 +1,71 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[brazil]{babel}
+\usepackage{lipsum}
+
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{subfig}
+\usepackage{caption,subcaption}
+\usepackage{wrapfig}
+\usepackage{lscape} % rotaciona objeto
+\usepackage{pdflscape} % rotaciona página
+\usepackage{multicol}
+
+
+\author{Shaolin Matador de Porco}
+\title{Tabelas, Figuras e Referências}
+\date{\today}
+
+\begin{document}
+	\maketitle
+\begin{multicols}{2}
+	
+	
+	\section{A}
+	
+	\lipsum[1]
+	\section{B}
+	
+	\lipsum[1]
+\end{multicols}
+	
+	\begin{figure}[!htb]
+		\centering
+		\includegraphics[width=0.5\linewidth,height=3cm]{./logoUTFPR.png}
+		\includegraphics[scale=0.2]{./logoUTFPR.png}
+		\caption{Logo da UTFPR}
+		\label{utfpr}
+	\end{figure}
+\begin{multicols}{2}
+	
+	\newpage
+	\lipsum[1]
+\end{multicols}	
+
+	\begin{figure}[!t]
+		\begin{minipage}[c][4cm][c]{0.49\textwidth}
+			\centering
+			\includegraphics[scale=0.25]{./logoUTFPR.png}
+		\end{minipage}
+		\begin{minipage}[c][4cm][c]{0.49\textwidth}
+			\centering
+			\includegraphics[scale=0.25]{./logoUTFPR.png}
+		\end{minipage}
+		\caption{Figuras side by side}
+	\end{figure}
+\begin{multicols}{2}
+	\lipsum[1]
+\end{multicols}
+
+	\begin{figure}[!htb]
+		\centering
+		\subfloat[Logo UTFPR]{\label{fig:utfpr_a}\includegraphics[scale=0.10]{logoUTFPR.png}}\hspace{1cm}\subfloat[Logo UTFPR]{\label{fig:utfpr_b}\includegraphics[scale=0.10]{logoUTFPR.png}}\hspace{1cm}\subfloat[Logo UTFPR]{\label{fig:utfpr_c}\includegraphics[scale=0.10]{logoUTFPR.png}}
+		\caption{Logo UTFPR}
+		
+	\end{figure}
+	
+	As figuras \ref{fig:utfpr_a}, \ref{fig:utfpr_b} e \ref{fig:utfpr_c} são logos da UTFPR
+
+\end{document}
