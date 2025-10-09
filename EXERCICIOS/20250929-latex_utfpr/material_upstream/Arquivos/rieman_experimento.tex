@@ -12,12 +12,22 @@
 % ========== PARÂMETROS CONFIGURÁVEIS ==========
 \def\maxIters{50}
 
-% Use #1 como marcador para a variável
-\def\funcaoExpr#1{sin(deg(#1))}
-\def\funcaoNome{$\sin(x)$}
-\def\limiteA{0}                          
-\def\limiteB{pi}                         
-\def\integralExata{2}                    
+\def\funcaoExpr#1{-#1*#1 + 4}
+\def\funcaoNome{$-x^2 + 4$}
+\def\limiteA{-2}
+\def\limiteB{2}
+\def\integralExata{10.666667}
+
+% Janela de visualização
+\def\xmin{-3}
+\def\xmax{3}
+\def\ymin{-1}
+\def\ymax{5}
+\def\escala{1.5}
+
+% Espaçamento das marcações nos eixos
+\def\deltaX{1}
+\def\deltaY{1}
 % ==============================================
 
 \begin{document}
@@ -47,17 +57,31 @@
 		
 		\begin{tikzpicture}[
 			declare function = {f(\x) = \funcaoExpr{\x};},
-			scale=1.5, 
+			scale=\escala, 
 			font=\small
 			]
-			\clip (-1,-1) rectangle (5,2.2);
-			\draw[-latex] (-0.5,0) -- (4,0) node[right] {$x$};
-			\draw[-latex] (0,-0.5) -- (0,1.5) node[above] {$y$};
-			\foreach \i/\texto in {0.7853/\frac{\pi}{4},1.5707/\frac{\pi}{2},2.3561/\frac{3\pi}{4},3.1516/\pi}{
-				\draw (\i,2pt) -- (\i,-2pt) node[below] {$\texto$};
+			\clip (\xmin,\ymin) rectangle (\xmax,\ymax);
+			\draw[-latex] (\xmin,0) -- (\xmax,0) node[right] {$x$};
+			\draw[-latex] (0,\ymin) -- (0,\ymax) node[above] {$y$};
+			
+			% Marcações no eixo X (excluindo extremos)
+			\pgfmathsetmacro{\startX}{ceil(\xmin/\deltaX)*\deltaX + \deltaX}
+			\pgfmathsetmacro{\endX}{floor(\xmax/\deltaX)*\deltaX - \deltaX}
+			\foreach \x in {\startX,\fpeval{\startX+\deltaX},...,\endX} {
+				\pgfmathtruncatemacro{\notZero}{abs(\x) > 0.001 ? 1 : 0}
+				\ifnum\notZero=1
+				\draw (\x,2pt) -- (\x,-2pt) node[below] {$\pgfmathprintnumber{\x}$};
+				\fi
 			}
-			\foreach \i in {0.25,0.5,0.75,1}{
-				\draw (2pt,\i) -- (-2pt,\i) node[left] {\i};
+			
+			% Marcações no eixo Y (excluindo extremos)
+			\pgfmathsetmacro{\startY}{ceil(\ymin/\deltaY)*\deltaY + \deltaY}
+			\pgfmathsetmacro{\endY}{floor(\ymax/\deltaY)*\deltaY - \deltaY}
+			\foreach \y in {\startY,\fpeval{\startY+\deltaY},...,\endY} {
+				\pgfmathtruncatemacro{\notZero}{abs(\y) > 0.001 ? 1 : 0}
+				\ifnum\notZero=1
+				\draw (2pt,\y) -- (-2pt,\y) node[left] {$\pgfmathprintnumber{\y}$};
+				\fi
 			}
 			
 			\draw[cyan,thick,domain=\a:\b,smooth,samples=100] plot (\x, {f(\x)});
@@ -66,9 +90,9 @@
 				\draw[magenta,opacity=0.3,fill=magenta] ({\a + \i*\h},{0}) rectangle ({\a + (\i+1)*\h},{f(\a + (\i+1)*\h)});
 			}
 			
-			\node[anchor=west] at (3,1.75) {\funcaoNome};
-			\node[anchor=west] at (3,1.5) {$A_{\n} = \fpeval{round(\soma,5)}$};
-			\node[anchor=west] at (3,1.25) {$E_{\n} = \fpeval{round(\erro,5)}\%$};
+			\node[anchor=west] at ({\xmax-1.5},{\ymax-0.5}) {\funcaoNome};
+			\node[anchor=west] at ({\xmax-1.5},{\ymax-1}) {$A_{\n} = \fpeval{round(\soma,5)}$};
+			\node[anchor=west] at ({\xmax-1.5},{\ymax-1.5}) {$E_{\n} = \fpeval{round(\erro,5)}\%$};
 		\end{tikzpicture}
 	}
 	
