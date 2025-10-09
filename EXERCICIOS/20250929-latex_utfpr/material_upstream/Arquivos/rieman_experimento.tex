@@ -1,0 +1,64 @@
+\documentclass[tikz]{standalone}
+
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{tikz}
+\usepackage{pgfplots}
+\usepackage{color,xcolor}
+\usepackage{xfp}
+\usetikzlibrary{positioning,math,calc}
+
+\def\maxIters{50}  % <--- CORRIGIDO: faltava {}
+
+\begin{document}
+	
+	\pagecolor{black}
+	\color{white}
+	
+	\foreach \n in {2,3,...,\maxIters}{
+		
+		\tikzmath{
+			int \n;
+			int \i;
+			real \soma;
+			\a = 0;
+			\b = pi;
+			\h = (\b-\a)/\n;
+			function F(\x) {
+				\y = sin(\x r);
+				return \y;
+			};
+			\soma = 0;
+			for \i in {0,1,...,\fpeval{\n-1}} {
+				\soma = \soma + \h*F(\a + (\i + 1)*\h); 			
+			};
+			\exato = cos(\a r) - cos(\b r);
+			\erro = 100*abs(\exato - \soma)/\exato;
+		}
+		
+		
+		\begin{tikzpicture}[ declare function = {f(\x) = sin(\x r);},scale=1.5,font =\small]
+			\clip (-1,-1) rectangle (5,2.2);
+			\draw[-latex] (-0.5,0) -- (4,0) node[right] {$x$};
+			\draw[-latex] (0,-0.5) -- (0,1.5) node[above] {$y$};
+			\foreach \i/\texto in {0.7853/\frac{\pi}{4},1.5707/\frac{\pi}{2},2.3561/\frac{3\pi}{4},3.1516/\pi}{
+				\draw (\i,2pt) -- (\i,-2pt) node[below] {$\texto$};
+			}
+			\foreach \i in {0.25,0.5,0.75,1}{
+				\draw (2pt,\i) -- (-2pt,\i) node[left] {\i};
+			}
+			
+			%Ciclóide
+			% r(t) = (t - sin(t),1-cos(t))
+			
+			\draw[cyan,thick,domain=\a:\b,smooth,samples=50] plot ( {\x - sin(\x r)}, {1-cos(\x r)} ) ;
+			
+			\foreach \i in {0,1,...,\fpeval{\n-1}}{
+				\draw[magenta,opacity = 0.3,fill=magenta]  ( {\a + \i*\h},{0} ) rectangle ( {\a + (\i+1)*\h},{f(\a + (\i+1)*\h)} )  ;  % <--- CORRIGIDO: adicionei * explícito
+			}
+			\node[anchor=west] at (3,1.5) {$A_{\n} = \fpeval{round(\soma,5)}$};
+			\node[anchor=west] at (3,1.25) {$E_{\n} = \fpeval{round(\erro,5)}\%$};
+		\end{tikzpicture}
+	}
+	
+\end{document}
