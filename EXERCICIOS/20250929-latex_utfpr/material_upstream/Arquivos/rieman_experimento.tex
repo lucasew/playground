@@ -51,7 +51,7 @@
 			%Ciclóide
 			% r(t) = (t - sin(t),1-cos(t))
 			
-			\draw[cyan,thick,domain=\a:\b,smooth,samples=50] plot ( {\x - sin(\x r)}, {1-cos(\x r)} ) ;
+			\draw[cyan,thick,domain=\a:\b,smooth,samples=100] plot (\x, {f(\x)}) ;
 			
 			\foreach \i in {0,1,...,\fpeval{\n-1}}{
 				\draw[magenta,opacity = 0.3,fill=magenta]  ( {\a + \i*\h},{0} ) rectangle ( {\a + (\i+1)*\h},{f(\a + (\i+1)*\h)} )  ;  % <--- CORRIGIDO: adicionei * explícito
