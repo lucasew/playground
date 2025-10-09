@@ -7,8 +7,18 @@
 \usepackage{color,xcolor}
 \usepackage{xfp}
 \usetikzlibrary{positioning,math,calc}
+\pgfplotsset{compat=1.18}
 
-\def\maxIters{50}  % <--- CORRIGIDO: faltava {}
+% ========== PARÂMETROS CONFIGURÁVEIS ==========
+\def\maxIters{50}
+
+% Use #1 como marcador para a variável
+\def\funcaoExpr#1{sin(deg(#1))}
+\def\funcaoNome{$\sin(x)$}
+\def\limiteA{0}                          
+\def\limiteB{pi}                         
+\def\integralExata{2}                    
+% ==============================================
 
 \begin{document}
 	
@@ -21,23 +31,25 @@
 			int \n;
 			int \i;
 			real \soma;
-			\a = 0;
-			\b = pi;
+			\a = \limiteA;
+			\b = \limiteB;
 			\h = (\b-\a)/\n;
 			function F(\x) {
-				\y = sin(\x r);
-				return \y;
+				return \funcaoExpr{\x};
 			};
 			\soma = 0;
 			for \i in {0,1,...,\fpeval{\n-1}} {
 				\soma = \soma + \h*F(\a + (\i + 1)*\h); 			
 			};
-			\exato = cos(\a r) - cos(\b r);
+			\exato = \integralExata;
 			\erro = 100*abs(\exato - \soma)/\exato;
 		}
 		
-		
-		\begin{tikzpicture}[ declare function = {f(\x) = sin(\x r);},scale=1.5,font =\small]
+		\begin{tikzpicture}[
+			declare function = {f(\x) = \funcaoExpr{\x};},
+			scale=1.5, 
+			font=\small
+			]
 			\clip (-1,-1) rectangle (5,2.2);
 			\draw[-latex] (-0.5,0) -- (4,0) node[right] {$x$};
 			\draw[-latex] (0,-0.5) -- (0,1.5) node[above] {$y$};
@@ -48,14 +60,13 @@
 				\draw (2pt,\i) -- (-2pt,\i) node[left] {\i};
 			}
 			
-			%Ciclóide
-			% r(t) = (t - sin(t),1-cos(t))
-			
-			\draw[cyan,thick,domain=\a:\b,smooth,samples=100] plot (\x, {f(\x)}) ;
+			\draw[cyan,thick,domain=\a:\b,smooth,samples=100] plot (\x, {f(\x)});
 			
 			\foreach \i in {0,1,...,\fpeval{\n-1}}{
-				\draw[magenta,opacity = 0.3,fill=magenta]  ( {\a + \i*\h},{0} ) rectangle ( {\a + (\i+1)*\h},{f(\a + (\i+1)*\h)} )  ;  % <--- CORRIGIDO: adicionei * explícito
+				\draw[magenta,opacity=0.3,fill=magenta] ({\a + \i*\h},{0}) rectangle ({\a + (\i+1)*\h},{f(\a + (\i+1)*\h)});
 			}
+			
+			\node[anchor=west] at (3,1.75) {\funcaoNome};
 			\node[anchor=west] at (3,1.5) {$A_{\n} = \fpeval{round(\soma,5)}$};
 			\node[anchor=west] at (3,1.25) {$E_{\n} = \fpeval{round(\erro,5)}\%$};
 		\end{tikzpicture}
