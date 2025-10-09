@@ -28,6 +28,10 @@
 % Espaçamento das marcações nos eixos
 \def\deltaX{1}
 \def\deltaY{1}
+
+% Posição dos textos informativos (porcentagem de offset das bordas)
+\def\textoOffsetX{0.95}  % posição X relativa (0.95 = 95% da largura)
+\def\textoOffsetY{0.95}  % posição Y relativa (0.95 = 95% da altura)
 % ==============================================
 
 \begin{document}
@@ -60,7 +64,9 @@
 			scale=\escala, 
 			font=\small
 			]
-			\clip (\xmin,\ymin) rectangle (\xmax,\ymax);
+			% Define o bounding box (sem clip)
+			\path[use as bounding box] (\xmin,\ymin) rectangle (\xmax,\ymax);
+			
 			\draw[-latex] (\xmin,0) -- (\xmax,0) node[right] {$x$};
 			\draw[-latex] (0,\ymin) -- (0,\ymax) node[above] {$y$};
 			
@@ -90,9 +96,17 @@
 				\draw[magenta,opacity=0.3,fill=magenta] ({\a + \i*\h},{0}) rectangle ({\a + (\i+1)*\h},{f(\a + (\i+1)*\h)});
 			}
 			
-			\node[anchor=west] at ({\xmax-1.5},{\ymax-0.5}) {\funcaoNome};
-			\node[anchor=west] at ({\xmax-1.5},{\ymax-1}) {$A_{\n} = \fpeval{round(\soma,5)}$};
-			\node[anchor=west] at ({\xmax-1.5},{\ymax-1.5}) {$E_{\n} = \fpeval{round(\erro,5)}\%$};
+			% Textos com posição parametrizada
+			\pgfmathsetmacro{\textX}{\xmin + \textoOffsetX*(\xmax-\xmin)}
+			\pgfmathsetmacro{\textY}{\ymin + \textoOffsetY*(\ymax-\ymin)}
+			
+			\node[anchor=north east, inner sep=2pt] at (\textX,\textY) {
+				\begin{tabular}{l}
+					\funcaoNome \\
+					$A_{\n} = \fpeval{round(\soma,5)}$ \\
+					$E_{\n} = \fpeval{round(\erro,5)}\%$
+				\end{tabular}
+			};
 		\end{tikzpicture}
 	}
 	
