@@ -29,9 +29,10 @@
 \def\deltaX{1}
 \def\deltaY{1}
 
-% Posição dos textos informativos (porcentagem de offset das bordas)
-\def\textoOffsetX{0.95}  % posição X relativa (0.95 = 95% da largura)
-\def\textoOffsetY{0.95}  % posição Y relativa (0.95 = 95% da altura)
+% Posição dos textos informativos
+\def\textoX{2.8}
+\def\textoY{4.8}
+\def\textoLargura{2.5cm}  % Largura fixa da caixa de texto
 % ==============================================
 
 \begin{document}
@@ -64,7 +65,7 @@
 			scale=\escala, 
 			font=\small
 			]
-			% Define o bounding box (sem clip)
+			% Define o bounding box
 			\path[use as bounding box] (\xmin,\ymin) rectangle (\xmax,\ymax);
 			
 			\draw[-latex] (\xmin,0) -- (\xmax,0) node[right] {$x$};
@@ -96,16 +97,11 @@
 				\draw[magenta,opacity=0.3,fill=magenta] ({\a + \i*\h},{0}) rectangle ({\a + (\i+1)*\h},{f(\a + (\i+1)*\h)});
 			}
 			
-			% Textos com posição parametrizada
-			\pgfmathsetmacro{\textX}{\xmin + \textoOffsetX*(\xmax-\xmin)}
-			\pgfmathsetmacro{\textY}{\ymin + \textoOffsetY*(\ymax-\ymin)}
-			
-			\node[anchor=north east, inner sep=2pt] at (\textX,\textY) {
-				\begin{tabular}{l}
-					\funcaoNome \\
-					$A_{\n} = \fpeval{round(\soma,5)}$ \\
-					$E_{\n} = \fpeval{round(\erro,5)}\%$
-				\end{tabular}
+			% Textos em caixa de largura fixa
+			\node[anchor=north east, inner sep=2pt, text width=\textoLargura, align=left] at (\textoX,\textoY) {
+				\funcaoNome \\
+				$A_{\n} = \fpeval{round(\soma,5)}$ \\
+				$E_{\n} = \fpeval{round(\erro,5)}\%$
 			};
 		\end{tikzpicture}
 	}
