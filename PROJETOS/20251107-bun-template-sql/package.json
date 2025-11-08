@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "preact": "^10.27.2"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.1"
+  }
+}
