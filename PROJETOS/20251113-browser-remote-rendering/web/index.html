@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rendereiro</title>
+    <link rel="stylesheet" href="/style.css">
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#2c3e50">
+</head>
+<body>
+    <!-- Login Form (hidden by default) -->
+    <div id="login-container" class="login-container" style="display: none;">
+        <h2>Login to Rendereiro</h2>
+        <input type="text" id="login-username" placeholder="Username">
+        <input type="password" id="login-password" placeholder="Password">
+        <button id="login-btn">Login</button>
+        <p id="login-error" style="color: red;"></p>
+    </div>
+
+    <!-- Main App Container -->
+    <div id="main-app-container" style="display: none;">
+        <!-- Header -->
+        <header class="header">
+            <h1>Rendereiro</h1>
+            <div class="user-info">
+                <span id="username"></span>
+            </div>
+        </header>
+
+        <!-- Tabs Bar -->
+        <div class="tabs-bar">
+            <div class="tabs-list" id="tabs-list"></div>
+            <button class="new-tab-btn" id="new-tab-btn" title="New Tab">+</button>
+        </div>
+
+        <!-- Address Bar -->
+        <div class="address-bar">
+            <input type="url" id="url-input" placeholder="Enter URL...">
+            <button id="navigate-btn">Go</button>
+        </div>
+
+        <!-- Browser Content -->
+        <div class="browser-container">
+            <iframe id="browser-iframe" class="browser-content" title="Browser Content"></iframe>
+            <div class="loading" id="loading" style="display: none;">
+                Loading...
+            </div>
+        </div>
+
+        <!-- Status Bar -->
+        <footer class="status-bar">
+            <span id="status">Ready</span>
+        </footer>
+    </div>
+
+    <script src="/app.js"></script>
+</body>
+</html>

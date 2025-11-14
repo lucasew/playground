@@ -1,0 +1,7 @@
+# Remote Browser Configuration
+# Passwords in plaintext in MVP - migrate to bcrypt later
+
+users:
+  alice: senha123
+  bob: outrasenha
+  carlos: maisuma
