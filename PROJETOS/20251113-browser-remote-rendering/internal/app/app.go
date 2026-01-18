@@ -53,13 +53,13 @@ type UserSession struct {
 
 // Tab represents a browser tab
 type Tab struct {
-	id           string
-	ctx          context.Context
-	cancelFunc   context.CancelFunc
-	url          string
-	title        string
-	lastHTML     string
-	lastHTMLHash string
+	id            string
+	ctx           context.Context
+	cancelFunc    context.CancelFunc
+	url           string
+	title         string
+	lastHTML      string
+	lastHTMLHash  string
 	domChangeChan chan struct{} // Channel to signal DOM changes
 }
 

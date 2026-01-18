@@ -2,7 +2,7 @@
 
 ## Objetivos e Restrições
 
-1. **Objetivo Principal:** 
+1. **Objetivo Principal:**
    - Mover projetos para dentro da pasta `PROJETOS/`
    - Manter hierarquia organizada por data
 
@@ -54,5 +54,3 @@
 - **Fazer commit imediatamente após migração**
 - **Mensagem padrão:** `refactor: move [projeto] to PROJETOS/`
 - **Direto e simples** - evitar descrições longas
-
-

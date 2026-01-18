@@ -85,7 +85,7 @@ func (a *App) authMiddleware(next http.Handler) http.Handler {
 			a.logger.Debug("authMiddleware: Received session_token cookie", "value", cookie.Value) // Log received cookie
 			sessionToken := cookie.Value
 			// Validate session token by checking against all known users
-			for user, _ := range a.inputs.Config.Users {
+			for user := range a.inputs.Config.Users {
 				if generateSessionToken(user) == sessionToken {
 					authenticatedUser = user
 					isAuthenticated = true

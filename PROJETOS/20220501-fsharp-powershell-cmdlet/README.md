@@ -8,7 +8,8 @@ Based on: https://medium.com/@natelehman/writing-powershell-modules-in-f-ed52704
 - `dotnet new classlib -lang 'F#' -o src/PSModule`
 - `dotnet sln add src/PSModule/PSModule.fsproj`
 - `dotnet add src/PSModule package PowerShellStandard.Library`
-- * type the code *
+-
+  - type the code *
 - `dotnet build`
 - `dotnet publish`
 - `pwsh`

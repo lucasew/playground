@@ -1,42 +1,32 @@
-{{ $revealVersion := "4.6.0" }}
-{{ $revealBaseURL := printf "https://raw.githubusercontent.com/hakimel/reveal.js/%s" $revealVersion }}
-
-{{ with printf "%s/%s" $revealBaseURL "dist/reset.css" | resources.GetRemote }}
-    <link rel="stylesheet" href="{{ .RelPermalink }}" />
-{{ end }}
-
-{{ with printf "%s/%s" $revealBaseURL "dist/reveal.css" | resources.GetRemote }}
+{{ $revealVersion := "4.6.0" }} {{ $revealBaseURL := printf
+"https://raw.githubusercontent.com/hakimel/reveal.js/%s" $revealVersion }} {{
+with printf "%s/%s" $revealBaseURL "dist/reset.css" | resources.GetRemote }}
 <link rel="stylesheet" href="{{ .RelPermalink }}" />
-{{ end }}
-
-{{ with printf "%s/%s" $revealBaseURL "dist/theme/black.css" | resources.GetRemote }}
+{{ end }} {{ with printf "%s/%s" $revealBaseURL "dist/reveal.css" |
+resources.GetRemote }}
 <link rel="stylesheet" href="{{ .RelPermalink }}" />
-{{ end }}
-
-{{ with printf "%s/%s" $revealBaseURL "dist/reveal.js" | resources.GetRemote }}
-<script src="{{ .RelPermalink }}"></script>
-{{ end }}
-
-{{ with printf "%s/%s" $revealBaseURL "plugin/highlight/monokai.css" | resources.GetRemote }}
+{{ end }} {{ with printf "%s/%s" $revealBaseURL "dist/theme/black.css" |
+resources.GetRemote }}
 <link rel="stylesheet" href="{{ .RelPermalink }}" />
-{{ end }}
-
-{{ with printf "%s/%s" $revealBaseURL "plugin/highlight/highlight.js" | resources.GetRemote }}
+{{ end }} {{ with printf "%s/%s" $revealBaseURL "dist/reveal.js" |
+resources.GetRemote }}
 <script src="{{ .RelPermalink }}"></script>
-{{ end }}
-
-{{ with printf "%s/%s" $revealBaseURL "plugin/markdown/markdown.js" | resources.GetRemote }}
+{{ end }} {{ with printf "%s/%s" $revealBaseURL "plugin/highlight/monokai.css" |
+resources.GetRemote }}
+<link rel="stylesheet" href="{{ .RelPermalink }}" />
+{{ end }} {{ with printf "%s/%s" $revealBaseURL "plugin/highlight/highlight.js"
+| resources.GetRemote }}
 <script src="{{ .RelPermalink }}"></script>
-{{ end }}
-
-{{ with printf "%s/%s" $revealBaseURL "plugin/notes/notes.js" | resources.GetRemote }}
+{{ end }} {{ with printf "%s/%s" $revealBaseURL "plugin/markdown/markdown.js" |
+resources.GetRemote }}
 <script src="{{ .RelPermalink }}"></script>
-{{ end }}
-
-{{ with printf "%s/%s" $revealBaseURL "plugin/search/search.js" | resources.GetRemote }}
+{{ end }} {{ with printf "%s/%s" $revealBaseURL "plugin/notes/notes.js" |
+resources.GetRemote }}
 <script src="{{ .RelPermalink }}"></script>
-{{ end }}
-
-{{ with printf "%s/%s" $revealBaseURL "plugin/zoom/zoom.js" | resources.GetRemote }}
+{{ end }} {{ with printf "%s/%s" $revealBaseURL "plugin/search/search.js" |
+resources.GetRemote }}
+<script src="{{ .RelPermalink }}"></script>
+{{ end }} {{ with printf "%s/%s" $revealBaseURL "plugin/zoom/zoom.js" |
+resources.GetRemote }}
 <script src="{{ .RelPermalink }}"></script>
 {{ end }}

@@ -1,2 +1,9 @@
 .ccls-cache
 /facul/sistemas-distribuidos/chat-rmi/nb/chat-rmi/target/
+node_modules/
+.task/
+dist/
+coverage/
+.DS_Store
+.mise.toml
+vendor/

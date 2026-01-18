@@ -16,12 +16,12 @@ import (
 )
 
 var (
-	configPath string
-	stateDir   string
-	port       int
-	host       string
+	configPath      string
+	stateDir        string
+	port            int
+	host            string
 	browserPathFlag string
-	verboseFlag bool
+	verboseFlag     bool
 )
 
 func main() {

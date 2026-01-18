@@ -1,18 +1,14 @@
-profile
-=======
+# profile
 
 Simple profiling support package for Go
 
 [![Build Status](https://travis-ci.org/pkg/profile.svg?branch=master)](https://travis-ci.org/pkg/profile) [![GoDoc](http://godoc.org/github.com/pkg/profile?status.svg)](http://godoc.org/github.com/pkg/profile)
 
-
-installation
-------------
+## installation
 
     go get github.com/pkg/profile
 
-usage
------
+## usage
 
 Enabling profiling in your application is as simple as one line at the top of your main function
 
@@ -25,8 +21,7 @@ func main() {
 }
 ```
 
-options
--------
+## options
 
 What to profile is controlled by config value passed to profile.Start.
 By default CPU profiling is enabled.
@@ -49,8 +44,7 @@ Several convenience package level values are provided for cpu, memory, and block
 
 For more complex options, consult the [documentation](http://godoc.org/github.com/pkg/profile).
 
-contributing
-------------
+## contributing
 
 We welcome pull requests, bug fixes and issue reports.
 

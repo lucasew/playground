@@ -1,38 +1,45 @@
 <html>
-    <head>
-    </head>
-    <body>
+  <head> </head>
+  <body>
     <script>
-        window.addEventListener('load', function() {
-            const baseDomain = "biglucas.tk"
-            let urls = {}
-            function registerLink(subdomain, dest) {
-                urls[`${subdomain.length === 0 ? subdomain : `${subdomain}.`}${baseDomain}`] = dest
-            }
-            registerLink("", "https://github.com/lucasew")
-            registerLink("duolingo", "https://invite.duolingo.com/BDHTZTB5CWWKT6KNCXGBPGZKGE")
-            registerLink("feedback", "https://tally.so/r/mZ9yan?src=feedback.biglucas.tk")
-            console.log(urls)
-            const url = urls[`${window.location.host}`]
-            if (url === undefined) {
-                return alert("Ponto de redirecionamento não encontrado")
-            }
-            window.location.replace(url)
-        })
+      window.addEventListener("load", function () {
+        const baseDomain = "biglucas.tk";
+        let urls = {};
+        function registerLink(subdomain, dest) {
+          urls[
+            `${subdomain.length === 0 ? subdomain : `${subdomain}.`}${baseDomain}`
+          ] = dest;
+        }
+        registerLink("", "https://github.com/lucasew");
+        registerLink(
+          "duolingo",
+          "https://invite.duolingo.com/BDHTZTB5CWWKT6KNCXGBPGZKGE"
+        );
+        registerLink(
+          "feedback",
+          "https://tally.so/r/mZ9yan?src=feedback.biglucas.tk"
+        );
+        console.log(urls);
+        const url = urls[`${window.location.host}`];
+        if (url === undefined) {
+          return alert("Ponto de redirecionamento não encontrado");
+        }
+        window.location.replace(url);
+      });
     </script>
     <img src="favicon.ico" />
     <h1>Redirecionando...</h1>
-<style>
-body {
-    display: flex;
-    align-items: center;
-    justify-content: space-around;
-    flex-direction: column;
-    width: 100vw;
-    height: 100vh;
-    margin: 0;
-    padding: 0;
-}
-</style>
-    </body>
+    <style>
+      body {
+        display: flex;
+        align-items: center;
+        justify-content: space-around;
+        flex-direction: column;
+        width: 100vw;
+        height: 100vh;
+        margin: 0;
+        padding: 0;
+      }
+    </style>
+  </body>
 </html>

@@ -1,75 +1,74 @@
- body {
-    margin: 0;
-    padding: 0;
-    height: 100vh;
+body {
+  margin: 0;
+  padding: 0;
+  height: 100vh;
 }
 footer {
-    display: flex;
-    flex-direction: row;
-    justify-content: space-around;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-around;
 }
 
 body > h1 {
-    text-align: center;
+  text-align: center;
 }
 
 #board {
-    display: block;
-    flex-direction: column;
-    max-width: 600px;
-    margin-left: auto;
-    margin-right: auto;
+  display: block;
+  flex-direction: column;
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
 }
 #board > div > div {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex: 1;
-    aspect-ratio: 1/1;
-    text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  aspect-ratio: 1/1;
+  text-align: center;
 }
 #board > div {
-    display: flex;
-    flex-direction: row;
+  display: flex;
+  flex-direction: row;
 }
 footer button {
-    width: 100%;
-    height: 100px;
+  width: 100%;
+  height: 100px;
 }
 div[data-tile="1"] {
-    background-image: url(./area-1.jpg);
-    background-repeat: no-repeat;
-    background-size: cover; 
+  background-image: url(./area-1.jpg);
+  background-repeat: no-repeat;
+  background-size: cover;
 }
 div[data-tile="10"] {
-    background-image: url(./area-10.jpg);
-    background-repeat: no-repeat;
-    background-size: cover; 
+  background-image: url(./area-10.jpg);
+  background-repeat: no-repeat;
+  background-size: cover;
 }
 div[data-tile="4"] {
-    background-image: url(./area-4.jpg);
-    background-repeat: no-repeat;
-    background-size: cover; 
+  background-image: url(./area-4.jpg);
+  background-repeat: no-repeat;
+  background-size: cover;
 }
 div[data-tile="20"] {
-    background-image: url(./area-20.jpg);
-    background-repeat: no-repeat;
-    background-size: cover; 
+  background-image: url(./area-20.jpg);
+  background-repeat: no-repeat;
+  background-size: cover;
 }
 
 div[data-tile="9999"] {
-    background-color: black;
+  background-color: black;
 }
 
 div[data-recompensa="true"] {
-    color: red;
+  color: red;
 }
 
 div[data-alvo="true"] {
-    font-weight: bolder;
+  font-weight: bolder;
 }
 
 div.path span {
-    border: red 1px solid;
-
+  border: red 1px solid;
 }

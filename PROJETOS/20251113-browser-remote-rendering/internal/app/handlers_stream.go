@@ -91,22 +91,22 @@ func (h *TabsStreamHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			"tabs":        tabs,
 		},
 	}
-		if err := SendSSEMessage(w, initialMsg); err != nil {
-			h.App.logger.Error("TabsStreamHandler: Failed to send initial SSE message", "userID", userID, "error", err)
-			return
-		}
-		h.App.logger.Debug("TabsStreamHandler: Initial SSE message sent, entering stream loop", "userID", userID)
-	
-		for {
-			select {
-			case msg := <-msgChan:
-				if err := SendSSEMessage(w, msg); err != nil {
-					h.App.logger.Error("TabsStreamHandler: Failed to send SSE message", "userID", userID, "error", err)
-					return
-				}
-			case <-r.Context().Done():
-				h.App.logger.Info("TabsStreamHandler: Client context cancelled", "userID", userID)
+	if err := SendSSEMessage(w, initialMsg); err != nil {
+		h.App.logger.Error("TabsStreamHandler: Failed to send initial SSE message", "userID", userID, "error", err)
+		return
+	}
+	h.App.logger.Debug("TabsStreamHandler: Initial SSE message sent, entering stream loop", "userID", userID)
+
+	for {
+		select {
+		case msg := <-msgChan:
+			if err := SendSSEMessage(w, msg); err != nil {
+				h.App.logger.Error("TabsStreamHandler: Failed to send SSE message", "userID", userID, "error", err)
 				return
 			}
+		case <-r.Context().Done():
+			h.App.logger.Info("TabsStreamHandler: Client context cancelled", "userID", userID)
+			return
 		}
+	}
 }

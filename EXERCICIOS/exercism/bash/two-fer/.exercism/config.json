@@ -1,8 +1,6 @@
 {
   "blurb": "Create a sentence of the form \"One for X, one for me.\"",
-  "authors": [
-    "Smarticles101"
-  ],
+  "authors": ["Smarticles101"],
   "contributors": [
     "alirezaghey",
     "bkhl",
@@ -16,15 +14,9 @@
     "ZapAnton"
   ],
   "files": {
-    "solution": [
-      "two_fer.sh"
-    ],
-    "test": [
-      "two_fer_test.sh"
-    ],
-    "example": [
-      ".meta/example.sh"
-    ]
+    "solution": ["two_fer.sh"],
+    "test": ["two_fer_test.sh"],
+    "example": [".meta/example.sh"]
   },
   "source_url": "https://github.com/exercism/problem-specifications/issues/757"
 }

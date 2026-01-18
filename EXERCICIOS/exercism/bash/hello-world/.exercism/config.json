@@ -20,15 +20,9 @@
     "ZapAnton"
   ],
   "files": {
-    "solution": [
-      "hello_world.sh"
-    ],
-    "test": [
-      "hello_world.bats"
-    ],
-    "example": [
-      ".meta/example.sh"
-    ]
+    "solution": ["hello_world.sh"],
+    "test": ["hello_world.bats"],
+    "example": [".meta/example.sh"]
   },
   "blurb": "Exercism's classic introductory exercise. Just say \"Hello, World!\".",
   "source": "This is an exercise to introduce users to using Exercism",

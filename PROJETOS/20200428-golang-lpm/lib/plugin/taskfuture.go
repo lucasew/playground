@@ -15,7 +15,7 @@ func NewTaskFuture(f func(TaskStatusChanger) error) TaskFuture {
 	}
 }
 
-func (tf TaskFuture) Run() error {
+func (tf *TaskFuture) Run() error {
 	if tf.isStarted {
 		return <-tf.DoneChan
 	}

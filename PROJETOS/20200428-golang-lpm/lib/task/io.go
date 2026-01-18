@@ -14,7 +14,7 @@ func NewCopyTask(r io.Reader, w io.Writer, buf []byte, sizehint int) plugin.Task
 			return err
 		}
 		n := 0
-		for true {
+		for {
 			size, err := r.Read(buf)
 			if io.EOF == err {
 				return nil
@@ -32,6 +32,6 @@ func NewCopyTask(r io.Reader, w io.Writer, buf []byte, sizehint int) plugin.Task
 				tc.SetTodo(uint(sizehint - n))
 			}
 		}
-		return nil
+
 	})
 }

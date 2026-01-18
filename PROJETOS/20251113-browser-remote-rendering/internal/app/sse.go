@@ -52,29 +52,29 @@ func SendSSEMessage(w http.ResponseWriter, msg SSEMessage) error {
 }
 
 // addTabListener adds a listener for tab HTML updates
-func (s *UserSession) addTabListener(tabID string, ch chan SSEMessage) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+// func (s *UserSession) addTabListener(tabID string, ch chan SSEMessage) {
+// 	s.mu.Lock()
+// 	defer s.mu.Unlock()
 
-	if s.tabListeners[tabID] == nil {
-		s.tabListeners[tabID] = make([]chan SSEMessage, 0)
-	}
-	s.tabListeners[tabID] = append(s.tabListeners[tabID], ch)
-}
+// 	if s.tabListeners[tabID] == nil {
+// 		s.tabListeners[tabID] = make([]chan SSEMessage, 0)
+// 	}
+// 	s.tabListeners[tabID] = append(s.tabListeners[tabID], ch)
+// }
 
 // removeTabListener removes a listener for tab HTML updates
-func (s *UserSession) removeTabListener(tabID string, ch chan SSEMessage) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+// func (s *UserSession) removeTabListener(tabID string, ch chan SSEMessage) {
+// 	s.mu.Lock()
+// 	defer s.mu.Unlock()
 
-	listeners := s.tabListeners[tabID]
-	for i, listener := range listeners {
-		if listener == ch {
-			s.tabListeners[tabID] = append(listeners[:i], listeners[i+1:]...)
-			break
-		}
-	}
-}
+// 	listeners := s.tabListeners[tabID]
+// 	for i, listener := range listeners {
+// 		if listener == ch {
+// 			s.tabListeners[tabID] = append(listeners[:i], listeners[i+1:]...)
+// 			break
+// 		}
+// 	}
+// }
 
 // addListListener adds a listener for tab list changes
 func (s *UserSession) addListListener(ch chan SSEMessage) {
@@ -98,16 +98,16 @@ func (s *UserSession) removeListListener(ch chan SSEMessage) {
 }
 
 // sanitizeAllStyles performs basic sanitization of CSS style values.
-func sanitizeAllStyles(css string) string {
-	// Remove javascript: from url()
-	css = strings.ReplaceAll(css, "url(javascript:", "url(")
-	css = strings.ReplaceAll(css, "url( data:image/svg+xml;base64,", "url(data:image/svg+xml;base64,") // Allow SVG data URIs
+// func sanitizeAllStyles(css string) string {
+// 	// Remove javascript: from url()
+// 	css = strings.ReplaceAll(css, "url(javascript:", "url(")
+// 	css = strings.ReplaceAll(css, "url( data:image/svg+xml;base64,", "url(data:image/svg+xml;base64,") // Allow SVG data URIs
 
-	// Remove expression()
-	css = strings.ReplaceAll(css, "expression(", "")
+// 	// Remove expression()
+// 	css = strings.ReplaceAll(css, "expression(", "")
 
-	return css
-}
+// 	return css
+// }
 
 // unsafeCSS checks if a CSS string contains potentially unsafe content.
 func unsafeCSS(css string) bool {
@@ -234,30 +234,30 @@ func (s *UserSession) streamHTML(tabID string, msgChan chan SSEMessage, done cha
 }
 
 // updateTabTitles periodically updates tab titles
-func (s *UserSession) updateTabTitles() {
-	ticker := time.NewTicker(5 * time.Second)
-	defer ticker.Stop()
+// func (s *UserSession) updateTabTitles() {
+// 	ticker := time.NewTicker(5 * time.Second)
+// 	defer ticker.Stop()
 
-	for {
-		select {
-		case <-ticker.C:
-			s.mu.Lock()
-			changed := false
-			for _, tab := range s.tabs {
-				var title string
-				err := chromedp.Run(tab.ctx, chromedp.Title(&title))
-				if err == nil && title != tab.title {
-					tab.title = title
-					changed = true
-				}
-			}
-			if changed {
-				s.notifyTabListChange()
-			}
-			s.mu.Unlock()
+// 	for {
+// 		select {
+// 		case <-ticker.C:
+// 			s.mu.Lock()
+// 			changed := false
+// 			for _, tab := range s.tabs {
+// 				var title string
+// 				err := chromedp.Run(tab.ctx, chromedp.Title(&title))
+// 				if err == nil && title != tab.title {
+// 					tab.title = title
+// 					changed = true
+// 				}
+// 			}
+// 			if changed {
+// 				s.notifyTabListChange()
+// 			}
+// 			s.mu.Unlock()
 
-		case <-s.browserCtx.Done():
-			return
-		}
-	}
-}
+// 		case <-s.browserCtx.Done():
+// 			return
+// 		}
+// 	}
+// }

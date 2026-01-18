@@ -1,7 +1,5 @@
 {
-  "authors": [
-    "jaggededgedjustice"
-  ],
+  "authors": ["jaggededgedjustice"],
   "contributors": [
     "bkhl",
     "budmc29",
@@ -16,15 +14,9 @@
     "ZapAnton"
   ],
   "files": {
-    "solution": [
-      "error_handling.sh"
-    ],
-    "test": [
-      "error_handling.bats"
-    ],
-    "example": [
-      ".meta/example.sh"
-    ]
+    "solution": ["error_handling.sh"],
+    "test": ["error_handling.bats"],
+    "example": [".meta/example.sh"]
   },
   "blurb": "Implement various kinds of error handling and resource management."
 }

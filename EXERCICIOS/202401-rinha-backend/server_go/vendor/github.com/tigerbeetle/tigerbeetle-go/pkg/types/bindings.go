@@ -446,4 +446,3 @@ type AccountBalance struct {
 	Timestamp      uint64
 	Reserved       [56]uint8
 }
-

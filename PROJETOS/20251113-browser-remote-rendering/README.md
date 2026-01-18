@@ -120,6 +120,7 @@ GET /api/health
 Returns server health status.
 
 **Response:**
+
 ```json
 {"status": "ok"}
 ```
@@ -135,6 +136,7 @@ GET /api/stream/{userID}/{tabID}
 Streams HTML updates for a specific tab.
 
 **Headers:**
+
 ```
 Content-Type: text/event-stream
 Cache-Control: no-cache
@@ -142,6 +144,7 @@ Connection: keep-alive
 ```
 
 **Event:**
+
 ```
 event: html
 data: {"content": "<html>...</html>"}
@@ -158,6 +161,7 @@ GET /api/tabs/{userID}
 Streams tab list updates.
 
 **Event:**
+
 ```
 event: tabs
 data: {
@@ -180,21 +184,25 @@ POST /api/action/{userID}/{tabID}
 Execute actions on a specific tab.
 
 **Navigate:**
+
 ```json
 {"action": "navigate", "url": "https://example.com"}
 ```
 
 **Click:**
+
 ```json
 {"action": "click", "x": 100, "y": 200}
 ```
 
 **Type:**
+
 ```json
 {"action": "type", "text": "hello world"}
 ```
 
 **Scroll:**
+
 ```json
 {"action": "scrollTo", "x": 0, "y": 500}
 ```
@@ -210,21 +218,25 @@ POST /api/action/{userID}
 Manage tabs globally.
 
 **New Tab:**
+
 ```json
 {"action": "newTab", "url": "https://google.com"}
 ```
 
 **Response:**
+
 ```json
 {"success": true, "tabId": "tab-789"}
 ```
 
 **Switch Tab:**
+
 ```json
 {"action": "switchTab", "tabId": "tab-123"}
 ```
 
 **Close Tab:**
+
 ```json
 {"action": "closeTab", "tabId": "tab-456"}
 ```
@@ -336,6 +348,7 @@ go test ./...
 ## Future Improvements
 
 ### Security
+
 - [ ] Bcrypt password hashing
 - [ ] JWT authentication
 - [ ] TLS/HTTPS support
@@ -343,12 +356,14 @@ go test ./...
 - [ ] CORS configuration
 
 ### Performance
+
 - [ ] DOM diffing instead of full HTML
 - [ ] HTML compression (gzip)
 - [ ] Event debouncing
 - [ ] Browser instance pooling
 
 ### Features
+
 - [ ] File upload/download
 - [ ] Screenshots on-demand
 - [ ] Session persistence
@@ -357,6 +372,7 @@ go test ./...
 - [ ] Multi-user collaboration
 
 ### Observability
+
 - [ ] Prometheus metrics
 - [ ] Structured logging levels
 - [ ] Distributed tracing
@@ -373,6 +389,7 @@ Contributions are welcome! Please open an issue or submit a pull request.
 ## Acknowledgments
 
 Built with:
+
 - [chromedp](https://github.com/chromedp/chromedp) - Chrome DevTools Protocol
 - [cobra](https://github.com/spf13/cobra) - CLI framework
 - [gorilla/mux](https://github.com/gorilla/mux) - HTTP router

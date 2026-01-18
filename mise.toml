@@ -1,0 +1,7 @@
+[tools]
+golangci-lint = "latest"
+node = "lts"
+go = "latest"
+dprint = "latest"
+task = "latest"
+# nixfmt = "latest" # User needs nix for this usually, or mise needs to find it. Leaving commented or trying.

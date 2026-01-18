@@ -14,12 +14,12 @@ services:
       dockerfile: ./Dockerfile.tigerbeetle-lowram
     entrypoint: /tigerbeetle-start.sh
     # deploy:
-      # resources:
-      #   limits:
-      #     memory: 1024M
+    # resources:
+    #   limits:
+    #     memory: 1024M
     volumes:
-    - ./data:/data
-    - ./tigerbeetle-start.sh:/tigerbeetle-start.sh
+      - ./data:/data
+      - ./tigerbeetle-start.sh:/tigerbeetle-start.sh
   backend1:
     image: ghcr.io/lucasew/playground-rinha202401-backend
     restart: always

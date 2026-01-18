@@ -1,0 +1,81 @@
+version: '3'
+
+tasks:
+  fmt:go:
+    desc: Format Go files
+    cmds:
+      - find . -name "*.go" -not -path "*/vendor/*" -not -path "*/node_modules/*" -exec gofmt -w -l {} +
+
+  fmt:js:
+    desc: Format JS/TS files with Prettier
+    cmds:
+      - npx prettier --write .
+
+  fmt:md:
+    desc: Format Markdown files with dprint
+    cmds:
+      - dprint fmt
+
+  fmt:nix:
+    desc: Format Nix files
+    cmds:
+      - cmd: find . -name "*.nix" -not -path "*/node_modules/*" -exec nixfmt {} +
+        ignore_error: true
+
+  fmt:
+    desc: Run all formatters
+    deps:
+      - fmt:go
+      - fmt:js
+      - fmt:md
+      - fmt:nix
+
+  lint:go:
+    desc: Lint Go files
+    cmds:
+      - |
+        # List of directories to ignore (e.g. broken build, missing CGO, etc.)
+        IGNORE_DIRS=(
+          "./PROJETOS/20250915-ccgo-teste"
+          "./PROJETOS/20210408-vercel-go-api-inspect"
+          "./PROJETOS/20230620-flutter-desktop-hover-poc/go"
+          "./PROJETOS/202501003-golang-v8go-sveltekit"
+          "./EXERCICIOS/202401-rinha-backend/server_go"
+        )
+
+        find . -name "go.mod" -not -path "*/node_modules/*" -not -path "*/vendor/*" | while read -r modfile; do
+          dir=$(dirname "$modfile")
+
+          # Check if dir is in IGNORE_DIRS
+          skip=0
+          for ignore in "${IGNORE_DIRS[@]}"; do
+            if [[ "$dir" == "$ignore" ]]; then
+              echo "Skipping $dir (ignored)"
+              skip=1
+              break
+            fi
+          done
+
+          if [[ $skip -eq 1 ]]; then
+            continue
+          fi
+
+          echo "Linting $dir..."
+          (cd "$dir" && golangci-lint run ./... --fix || echo "Lint failed in $dir")
+        done
+
+  lint:js:
+    desc: Lint JS/TS files
+    cmds:
+      - ESLINT_USE_FLAT_CONFIG=false npx eslint . --fix
+
+  lint:
+    desc: Run all linters
+    deps:
+      - lint:go
+      - lint:js
+
+  ci:
+    desc: CI task
+    deps:
+      - lint

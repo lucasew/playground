@@ -8,8 +8,8 @@ import (
 )
 
 func main() {
-    buf := bytes.NewBufferString("")
-    fmt.Fprintln(buf, `
+	buf := bytes.NewBufferString("")
+	fmt.Fprintln(buf, `
 # Hello, world
 
 $$
@@ -37,13 +37,13 @@ $$
 document.getElementById("test").innerText = "teste"
 </script>
     `)
-    fmt.Fprintln(buf, "```js")
-    fmt.Fprintln(buf, `console.log("hello, world")`)
-    fmt.Fprintln(buf, "```")
-    data := buf.Bytes()
-    println("Input")
-    println(string(data))
-    html := markdown.ToHTML(data, nil, nil)
-    println("Output")
-    println(string(html))
+	fmt.Fprintln(buf, "```js")
+	fmt.Fprintln(buf, `console.log("hello, world")`)
+	fmt.Fprintln(buf, "```")
+	data := buf.Bytes()
+	println("Input")
+	println(string(data))
+	html := markdown.ToHTML(data, nil, nil)
+	println("Output")
+	println(string(html))
 }

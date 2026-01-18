@@ -1,0 +1,19 @@
+run:
+  timeout: 5m
+  allow-parallel-runners: true
+
+linters:
+  disable:
+    - errcheck
+    - typecheck
+  enable:
+    - gosimple
+    - ineffassign
+    - staticcheck
+    - unused
+    - govet
+
+issues:
+  exclude-dirs:
+    - vendor
+    - node_modules

@@ -1,13 +1,13 @@
 package main
 
 import (
-    "flag"
-	"fmt"
-	"syscall"
-	"os"
-    "context"
 	"bazil.org/fuse"
 	"bazil.org/fuse/fs"
+	"context"
+	"flag"
+	"fmt"
+	"os"
+	"syscall"
 )
 
 func main() {
@@ -26,24 +26,25 @@ func main() {
 }
 
 var data = map[string]string{
-    "a": "AA",
-    "b": "BB",
+	"a": "AA",
+	"b": "BB",
 }
 
 var entities = []fuse.Dirent{}
+
 func init() {
 	var inode uint64 = 2
 	for k := range data {
 		entities = append(entities, fuse.Dirent{
 			Inode: inode,
-			Name: k,
-			Type: fuse.DT_File,
+			Name:  k,
+			Type:  fuse.DT_File,
 		})
 		inode++
 	}
 }
 
-type FS struct {}
+type FS struct{}
 
 func (FS) Root() (fs.Node, error) {
 	return Dir{}, nil

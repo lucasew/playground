@@ -6,7 +6,7 @@ A implementação desse pipeline foi descrita com mais detalhes [neste post](htt
 
 ## O que cada utilitário faz?
 
-- zipcat: cat para arquivos zip 
+- zipcat: cat para arquivos zip
   - recebe: [nome do arquivo zip] [outras flags do comando zip]
   - stdin: ignorado
   - stdout: dados descomprimidos, por padrão de todos os arquivos, como o zip só tem um CSV é safe.

@@ -1,0 +1,6 @@
+?   	github.com/lucasew/lpm/cmd/reload_modules	[no test files]
+?   	github.com/lucasew/lpm/lib	[no test files]
+?   	github.com/lucasew/lpm/lib/plugin	[no test files]
+ok  	github.com/lucasew/lpm/lib/task	(cached)
+?   	github.com/lucasew/lpm/provider/git	[no test files]
+?   	github.com/lucasew/lpm/provider/http	[no test files]

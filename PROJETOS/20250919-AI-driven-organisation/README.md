@@ -5,6 +5,7 @@
 Eu to usando assistência de IA para organizar este repositório.
 
 ## O problema
+
 Eu costumava organizar as pastas por linguagem/tech, o problema reside em ter que ficar dando nome.
 
 Um modelo que eu vi que funciona muito bem comigo é `YYYYMMDD-descricao` e pelo que eu vi é um modelo

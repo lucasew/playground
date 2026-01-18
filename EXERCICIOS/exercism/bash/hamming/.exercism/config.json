@@ -17,15 +17,9 @@
     "ZapAnton"
   ],
   "files": {
-    "solution": [
-      "hamming.sh"
-    ],
-    "test": [
-      "hamming.bats"
-    ],
-    "example": [
-      ".meta/example.sh"
-    ]
+    "solution": ["hamming.sh"],
+    "test": ["hamming.bats"],
+    "example": [".meta/example.sh"]
   },
   "blurb": "Calculate the Hamming difference between two DNA strands.",
   "source": "The Calculating Point Mutations problem at Rosalind",

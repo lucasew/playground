@@ -1,26 +1,27 @@
-{{ with resources.GetRemote "https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js" }}
-  <script type="text/javascript" src="{{ .RelPermalink }}"></script>
+{{ with resources.GetRemote
+"https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js" }}
+<script type="text/javascript" src="{{ .RelPermalink }}"></script>
 {{ end }}
 <script type="text/javascript">
-(function () {
-    mermaid.initialize({startOnLoad: false});
+  (function () {
+      mermaid.initialize({startOnLoad: false});
 
-    let render = (event) => {
-        let mermaidElems = event.currentSlide.querySelectorAll('.mermaid');
-        if (!mermaidElems.length){
-            return
-        }
-        mermaidElems.forEach(mermaidElem => {
-            let processed = mermaidElem.getAttribute('data-processed');
-            if (!processed){
-                // https://github.com/mermaid-js/mermaid/issues/311#issuecomment-332557344
-                requestAnimationFrame(() {
-                    mermaid.init(undefined, mermaidElem);
-                })
-            }
-        });
-    };
-    Reveal.on('slidechanged', render);
-    Reveal.on('ready', render);
-})()
+      let render = (event) => {
+          let mermaidElems = event.currentSlide.querySelectorAll('.mermaid');
+          if (!mermaidElems.length){
+              return
+          }
+          mermaidElems.forEach(mermaidElem => {
+              let processed = mermaidElem.getAttribute('data-processed');
+              if (!processed){
+                  // https://github.com/mermaid-js/mermaid/issues/311#issuecomment-332557344
+                  requestAnimationFrame(() {
+                      mermaid.init(undefined, mermaidElem);
+                  })
+              }
+          });
+      };
+      Reveal.on('slidechanged', render);
+      Reveal.on('ready', render);
+  })()
 </script>
