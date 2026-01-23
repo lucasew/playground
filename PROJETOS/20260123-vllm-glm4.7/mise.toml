@@ -1,0 +1,16 @@
+[tools]
+uv = "0.9.18"
+
+[hooks.postinstall]
+script = "uv sync"
+
+[hooks.enter]
+shell = "bash"
+script = "source .venv/bin/activate"
+
+[hooks.leave]
+shell = "bash"
+script = "deactivate"
+
+[settings]
+experimental = true
