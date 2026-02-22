@@ -7,8 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"csmith/internal/generator"
-	"csmith/internal/options"
+	"csmith/pkg/csmith"
 )
 
 const (
@@ -17,7 +16,9 @@ const (
 )
 
 func NewRootCmd() *cobra.Command {
-	opts := options.Defaults()
+	opts := csmith.Defaults()
+	seedSet := false
+	outputPath := ""
 	showVersion := false
 
 	cmd := &cobra.Command{
@@ -35,21 +36,21 @@ func NewRootCmd() *cobra.Command {
 				return err
 			}
 
-			if !opts.SeedSet {
+			if !seedSet {
 				opts.Seed = uint64(time.Now().UnixNano())
 			}
 
-			program, err := generator.Generate(opts)
+			program, err := csmith.Generate(opts)
 			if err != nil {
 				return err
 			}
 
-			if opts.OutputPath == "" {
+			if outputPath == "" {
 				_, err = fmt.Fprint(cmd.OutOrStdout(), program)
 				return err
 			}
 
-			return os.WriteFile(opts.OutputPath, []byte(program), 0o644)
+			return os.WriteFile(outputPath, []byte(program), 0o644)
 		},
 	}
 
@@ -58,13 +59,13 @@ func NewRootCmd() *cobra.Command {
 
 	cmd.Flags().BoolVarP(&showVersion, "version", "v", false, "print version")
 	cmd.Flags().Uint64VarP(&opts.Seed, "seed", "s", 0, "seed for deterministic generation")
-	cmd.Flags().StringVarP(&opts.OutputPath, "output", "o", "", "write generated C code to file")
+	cmd.Flags().StringVarP(&outputPath, "output", "o", "", "write generated C code to file")
 
 	cmd.Flags().Lookup("seed").NoOptDefVal = "0"
 	_ = cmd.MarkFlagFilename("output", "c")
 
 	cmd.PreRun = func(cmd *cobra.Command, args []string) {
-		opts.SeedSet = cmd.Flags().Changed("seed")
+		seedSet = cmd.Flags().Changed("seed")
 	}
 
 	return cmd

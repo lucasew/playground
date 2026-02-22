@@ -1,14 +1,12 @@
-package generator
+package csmith
 
 import (
 	"fmt"
 	"strings"
-
-	"csmith/internal/options"
 )
 
 // Generate emits a minimal valid C program. This is the initial foundation for the Csmith port.
-func Generate(opts options.Options) (string, error) {
+func Generate(opts Options) (string, error) {
 	var b strings.Builder
 	b.WriteString("/* csmith-go: seed = ")
 	b.WriteString(fmt.Sprintf("%d", opts.Seed))
