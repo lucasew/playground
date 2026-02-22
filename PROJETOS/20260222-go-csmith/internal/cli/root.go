@@ -61,7 +61,6 @@ func NewRootCmd() *cobra.Command {
 	cmd.Flags().Uint64VarP(&opts.Seed, "seed", "s", 0, "seed for deterministic generation")
 	cmd.Flags().StringVarP(&outputPath, "output", "o", "", "write generated C code to file")
 
-	cmd.Flags().Lookup("seed").NoOptDefVal = "0"
 	_ = cmd.MarkFlagFilename("output", "c")
 
 	cmd.PreRun = func(cmd *cobra.Command, args []string) {
