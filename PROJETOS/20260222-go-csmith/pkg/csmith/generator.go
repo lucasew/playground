@@ -82,6 +82,58 @@ type stmtDecision struct {
 	vals [12]uint32
 }
 
+type exprRand struct {
+	vals     []uint32
+	idx      int
+	fallback *rng
+}
+
+type funcDecision struct {
+	vals [16]uint32
+}
+
+func nextFuncDecision(r *rng) funcDecision {
+	d := funcDecision{}
+	for i := 0; i < len(d.vals); i++ {
+		d.vals[i] = r.next31()
+	}
+	return d
+}
+
+func (d funcDecision) pick(i int, n uint32) uint32 {
+	if n == 0 || i < 0 || i >= len(d.vals) {
+		return 0
+	}
+	return d.vals[i] % n
+}
+
+func newExprRand(r *rng, budget int) *exprRand {
+	if budget < 1 {
+		budget = 1
+	}
+	vals := make([]uint32, budget)
+	for i := 0; i < budget; i++ {
+		vals[i] = r.next31()
+	}
+	return &exprRand{vals: vals, fallback: r}
+}
+
+func (e *exprRand) next() uint32 {
+	if e.idx < len(e.vals) {
+		v := e.vals[e.idx]
+		e.idx++
+		return v
+	}
+	return e.fallback.next31()
+}
+
+func (e *exprRand) pick(n uint32) uint32 {
+	if n == 0 {
+		return 0
+	}
+	return e.next() % n
+}
+
 func nextStmtDecision(r *rng) stmtDecision {
 	d := stmtDecision{}
 	for i := 0; i < len(d.vals); i++ {
@@ -106,6 +158,7 @@ type envInfo struct {
 	globals  []globalInfo
 	arrays   []arrayInfo
 	pointers []pointerInfo
+	chains   []string
 }
 
 func min(a, b int) int {
@@ -206,6 +259,29 @@ func randomConstantExpr(t CType, r *rng, opts Options) string {
 	return castLiteral(t, fmt.Sprintf("0x%08X%08X", r.next31(), r.next31()))
 }
 
+func randomConstantExprFromER(t CType, er *exprRand, opts Options) string {
+	if t.Bits <= 8 {
+		return castLiteral(t, fmt.Sprintf("0x%02X", er.next()&0xFF))
+	}
+	if t.Bits <= 16 {
+		return castLiteral(t, fmt.Sprintf("0x%04X", er.next()&0xFFFF))
+	}
+	if t.Bits <= 32 {
+		suffix := "U"
+		if t.Signed {
+			suffix = "L"
+		}
+		return castLiteral(t, fmt.Sprintf("0x%08X%s", er.next(), suffix))
+	}
+	if opts.LongLong {
+		if t.Signed {
+			return castLiteral(t, fmt.Sprintf("0x%08X%08XLL", er.next(), er.next()))
+		}
+		return castLiteral(t, fmt.Sprintf("0x%08X%08XULL", er.next(), er.next()))
+	}
+	return castLiteral(t, fmt.Sprintf("0x%08X%08X", er.next(), er.next()))
+}
+
 func sameBaseType(a, b CType) bool {
 	return a.Bits == b.Bits && a.Signed == b.Signed
 }
@@ -231,6 +307,30 @@ func buildExprCandidates(r *rng, env envInfo, scope scopeInfo) []exprVarCandidat
 	for _, arr := range env.arrays {
 		candidates = append(candidates, exprVarCandidate{
 			expr:       fmt.Sprintf("%s[%d]", arr.name, int(r.upto(uint32(arr.len)))),
+			ctype:      arr.ctype,
+			assignable: true,
+		})
+	}
+	return candidates
+}
+
+func buildExprCandidatesFromER(er *exprRand, env envInfo, scope scopeInfo) []exprVarCandidate {
+	candidates := make([]exprVarCandidate, 0, len(env.globals)+len(scope.params)+len(scope.locals)+len(env.pointers)+len(env.arrays))
+	for _, g := range env.globals {
+		candidates = append(candidates, exprVarCandidate{expr: g.name, ctype: g.ctype, assignable: !g.isConst})
+	}
+	for _, p := range scope.params {
+		candidates = append(candidates, exprVarCandidate{expr: p.name, ctype: p.ctype, assignable: true})
+	}
+	for _, l := range scope.locals {
+		candidates = append(candidates, exprVarCandidate{expr: l.name, ctype: l.ctype, assignable: true})
+	}
+	for _, p := range env.pointers {
+		candidates = append(candidates, exprVarCandidate{expr: "*" + p.name, ctype: p.targetTy, assignable: !p.constTarget})
+	}
+	for _, arr := range env.arrays {
+		candidates = append(candidates, exprVarCandidate{
+			expr:       fmt.Sprintf("%s[%d]", arr.name, int(er.pick(uint32(arr.len)))),
 			ctype:      arr.ctype,
 			assignable: true,
 		})
@@ -270,19 +370,51 @@ func selectExprVariable(t CType, r *rng, candidates []exprVarCandidate, forAssig
 	return filtered[int(r.upto(uint32(len(filtered))))], true
 }
 
-func randomLeafExpr(t CType, r *rng, opts Options, env envInfo, scope scopeInfo, ctx *genContext) string {
-	if ctx != nil && ctx.mustUse != nil && r.upto(100) < 60 {
+func selectExprVariableFromER(t CType, er *exprRand, candidates []exprVarCandidate, forAssign bool) (exprVarCandidate, bool) {
+	filtered := make([]exprVarCandidate, 0, len(candidates))
+	for _, c := range candidates {
+		if forAssign && !c.assignable {
+			continue
+		}
+		filtered = append(filtered, c)
+	}
+	if len(filtered) == 0 {
+		return exprVarCandidate{}, false
+	}
+
+	exact := make([]exprVarCandidate, 0, len(filtered))
+	sameWidth := make([]exprVarCandidate, 0, len(filtered))
+	for _, c := range filtered {
+		if sameBaseType(c.ctype, t) {
+			exact = append(exact, c)
+			continue
+		}
+		if c.ctype.Bits == t.Bits {
+			sameWidth = append(sameWidth, c)
+		}
+	}
+	if len(exact) > 0 {
+		return exact[int(er.pick(uint32(len(exact))))], true
+	}
+	if len(sameWidth) > 0 {
+		return sameWidth[int(er.pick(uint32(len(sameWidth))))], true
+	}
+	return filtered[int(er.pick(uint32(len(filtered))))], true
+}
+
+func randomLeafExpr(t CType, er *exprRand, opts Options, env envInfo, scope scopeInfo, ctx *genContext) string {
+	if ctx != nil && ctx.mustUse != nil && er.pick(100) < 60 {
 		return castLiteral(t, ctx.mustUse.expr)
 	}
-	candidates := buildExprCandidates(r, env, scope)
-	if len(candidates) > 0 && r.upto(100) < 80 {
-		c, ok := selectExprVariable(t, r, candidates, false)
+	candidates := buildExprCandidatesFromER(er, env, scope)
+	if len(candidates) > 0 && er.pick(100) < 80 {
+		c, ok := selectExprVariableFromER(t, er, candidates, false)
 		if ok {
 			return castLiteral(t, c.expr)
 		}
 	}
 
-	return randomConstantExpr(t, r, opts)
+	return randomConstantExprFromER(t, er, opts)
 }
 
 func maxExprDepth(opts Options) int {
@@ -298,15 +430,15 @@ func maxExprDepth(opts Options) int {
 	return 4
 }
 
-func randomTypedExprDepth(t CType, r *rng, opts Options, env envInfo, scope scopeInfo, depth int, ctx *genContext) string {
+func randomTypedExprDepth(t CType, er *exprRand, opts Options, env envInfo, scope scopeInfo, depth int, ctx *genContext) string {
 	limit := maxExprDepth(opts)
 	// Bias toward leaves to avoid giant expressions while still creating nested trees.
-	if depth >= limit || r.upto(100) < uint32(40+depth*15) {
-		return randomLeafExpr(t, r, opts, env, scope, ctx)
+	if depth >= limit || er.pick(100) < uint32(40+depth*15) {
+		return randomLeafExpr(t, er, opts, env, scope, ctx)
 	}
 
-	lhs := randomTypedExprDepth(t, r, opts, env, scope, depth+1, ctx)
-	rhs := randomTypedExprDepth(t, r, opts, env, scope, depth+1, ctx)
+	lhs := randomTypedExprDepth(t, er, opts, env, scope, depth+1, ctx)
+	rhs := randomTypedExprDepth(t, er, opts, env, scope, depth+1, ctx)
 
 	ops := []string{"+", "-", "^", "|", "&"}
 	if opts.Muls {
@@ -319,10 +451,10 @@ func randomTypedExprDepth(t CType, r *rng, opts Options, env envInfo, scope scop
 		ops = append(ops, ",")
 	}
 
-	op := ops[int(r.upto(uint32(len(ops))))]
+	op := ops[int(er.pick(uint32(len(ops))))]
 	switch op {
 	case "/":
-		den := randomTypedExprDepth(t, r, opts, env, scope, depth+1, ctx)
+		den := randomTypedExprDepth(t, er, opts, env, scope, depth+1, ctx)
 		return castLiteral(t, fmt.Sprintf("((%s) / ((%s) | 1))", lhs, den))
 	case ",":
 		return castLiteral(t, fmt.Sprintf("((%s), (%s))", lhs, rhs))
@@ -331,8 +463,14 @@ func randomTypedExprDepth(t CType, r *rng, opts Options, env envInfo, scope scop
 	}
 }
 
+func exprDecisionBudget(opts Options) int {
+	depth := maxExprDepth(opts)
+	return 16 + (depth * 12)
+}
+
 func randomTypedExpr(t CType, r *rng, opts Options, env envInfo, scope scopeInfo, ctx *genContext) string {
-	return randomTypedExprDepth(t, r, opts, env, scope, 0, ctx)
+	er := newExprRand(r, exprDecisionBudget(opts))
+	return randomTypedExprDepth(t, er, opts, env, scope, 0, ctx)
 }
 
 func chooseLValue(r *rng, target CType, env envInfo, scope scopeInfo) (lvalueInfo, bool) {
@@ -437,7 +575,8 @@ func emitCompositeTypes(b *strings.Builder, r *rng, opts Options, pool []CType) 
 func emitGlobals(b *strings.Builder, r *rng, opts Options, info compositeInfo, pool []CType) envInfo {
 	env := envInfo{}
 	if opts.GlobalVariables {
-		globalCount := 2 + int(r.upto(uint32(min(opts.MaxGlobals, 12))))
+		globalCap := min(max(opts.MaxGlobals, 2), 64)
+		globalCount := 2 + int(r.upto(uint32(globalCap)))
 		env.globals = make([]globalInfo, 0, globalCount)
 		for i := 0; i < globalCount; i++ {
 			g := globalInfo{
@@ -482,7 +621,7 @@ func emitGlobals(b *strings.Builder, r *rng, opts Options, info compositeInfo, p
 			if opts.Consts && len(env.globals) > 1 {
 				start = 1
 			}
-			ptrCount := min(max(len(env.globals)-start, 0), 2)
+			ptrCount := min(max(len(env.globals)-start, 0), 6)
 			env.pointers = make([]pointerInfo, 0, ptrCount)
 			for i := 0; i < ptrCount; i++ {
 				target := env.globals[start+i]
@@ -507,6 +646,34 @@ func emitGlobals(b *strings.Builder, r *rng, opts Options, info compositeInfo, p
 				}
 				writeLine(b, 0, fmt.Sprintf("static %s%s *%s%s = &%s;", targetQual, target.ctype.Name, ptrQual, p.name, p.target))
 				env.pointers = append(env.pointers, p)
+			}
+
+			// Extra pointer chains: closer to upstream global shape (T*, T**, T*** ...).
+			chainCount := min(max(len(env.pointers), 1), 3)
+			env.chains = make([]string, 0, chainCount)
+			for i := 0; i < chainCount; i++ {
+				chainBases := make([]pointerInfo, 0, len(env.pointers))
+				for _, pb := range env.pointers {
+					if pb.constTarget || pb.volatileTarget || pb.volatilePointer {
+						continue
+					}
+					chainBases = append(chainBases, pb)
+				}
+				if len(chainBases) == 0 {
+					break
+				}
+				base := chainBases[int(r.upto(uint32(len(chainBases))))]
+				depth := 2 + int(r.upto(uint32(max(1, min(opts.MaxPointerDepth, 4)-1))))
+
+				prevName := base.name
+				baseType := base.targetTy.Name
+				for d := 2; d <= depth; d++ {
+					name := fmt.Sprintf("gpp_%d_%d", i, d)
+					stars := strings.Repeat("*", d)
+					writeLine(b, 0, fmt.Sprintf("static %s %s%s = &%s;", baseType, stars, name, prevName))
+					prevName = name
+					env.chains = append(env.chains, name)
+				}
 			}
 		}
 	}
@@ -846,6 +1013,7 @@ func emitFuncDefs(b *strings.Builder, r *rng, opts Options, funcs []funcInfo, ma
 
 	for i := len(funcs) - 1; i >= 0; i-- {
 		fn := funcs[i]
+		fdec := nextFuncDecision(r)
 		params := "void"
 		if len(fn.params) > 0 {
 			pp := make([]string, 0, len(fn.params))
@@ -869,7 +1037,7 @@ func emitFuncDefs(b *strings.Builder, r *rng, opts Options, funcs []funcInfo, ma
 			writeLine(b, 1, fmt.Sprintf("uint32_t x = 0x%08Xu;", r.next31()))
 		}
 
-		localCount := 1 + int(r.upto(uint32(max(1, min(maxBlock, 3)))))
+		localCount := 1 + int(fdec.pick(0, uint32(max(1, min(maxBlock, 3)))))
 		locals := make([]localInfo, 0, localCount+1)
 		tpool := typePool(opts)
 		for l := 0; l < localCount; l++ {
@@ -887,7 +1055,7 @@ func emitFuncDefs(b *strings.Builder, r *rng, opts Options, funcs []funcInfo, ma
 		}
 		_ = maxBlock
 		emitStatements(b, r, opts, env, scope, funcs, info, i, maxChoice, 0, &stmtBudget, ctx)
-		if i+1 < len(funcs) {
+		if i+1 < len(funcs) && fdec.pick(1, 100) < 90 {
 			_ = emitFunctionCallMutation(b, r, opts, env, scope, funcs, i, ctx)
 		}
 		if len(env.globals) > 0 {
@@ -895,7 +1063,7 @@ func emitFuncDefs(b *strings.Builder, r *rng, opts Options, funcs []funcInfo, ma
 			if opts.Consts && len(env.globals) > 1 {
 				start = 1
 			}
-			gix := start + int(r.upto(uint32(max(len(env.globals)-start, 1))))
+			gix := start + int(fdec.pick(2, uint32(max(len(env.globals)-start, 1))))
 			g := env.globals[gix]
 			writeLine(b, 1, fmt.Sprintf("%s ^= %s;", g.name, randomTypedExpr(g.ctype, r, opts, env, scope, ctx)))
 		}

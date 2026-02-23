@@ -299,7 +299,7 @@ func Defaults() Options {
 		DisableBuiltinKinds:      "",
 		NoDeltaReduction:         false,
 
-		MaxGlobals: 6,
+		MaxGlobals: 24,
 	}
 }
 
