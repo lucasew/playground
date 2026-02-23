@@ -3,7 +3,6 @@ package cli
 import (
 	"fmt"
 	"os"
-	"strconv"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -16,31 +15,16 @@ const (
 	appVersion = "0.1.0"
 )
 
-type forcedBoolValue struct {
+type negBoolBinding struct {
 	target *bool
-	value  bool
+	neg    *bool
 }
 
-func (v *forcedBoolValue) Set(_ string) error {
-	*v.target = v.value
-	return nil
-}
-
-func (v *forcedBoolValue) String() string {
-	return strconv.FormatBool(*v.target)
-}
-
-func (v *forcedBoolValue) Type() string {
-	return "bool"
-}
-
-func (v *forcedBoolValue) IsBoolFlag() bool {
-	return true
-}
-
-func addBoolPair(cmd *cobra.Command, target *bool, name string, usage string) {
+func addBoolPair(cmd *cobra.Command, bindings *[]negBoolBinding, target *bool, name string, usage string) {
+	neg := new(bool)
 	cmd.Flags().BoolVar(target, name, *target, usage)
-	cmd.Flags().Var(&forcedBoolValue{target: target, value: false}, "no-"+name, "disable "+name)
+	cmd.Flags().BoolVar(neg, "no-"+name, false, "disable "+name)
+	*bindings = append(*bindings, negBoolBinding{target: target, neg: neg})
 }
 
 func NewRootCmd() *cobra.Command {
@@ -50,6 +34,7 @@ func NewRootCmd() *cobra.Command {
 	showVersion := false
 	mainFlag := false
 	nomainFlag := false
+	negBindings := make([]negBoolBinding, 0, 32)
 
 	cmd := &cobra.Command{
 		Use:           appName,
@@ -90,7 +75,6 @@ func NewRootCmd() *cobra.Command {
 				_, err = fmt.Fprint(cmd.OutOrStdout(), program)
 				return err
 			}
-
 			return os.WriteFile(outputPath, []byte(program), 0o644)
 		},
 	}
@@ -117,39 +101,38 @@ func NewRootCmd() *cobra.Command {
 	cmd.Flags().IntVar(&opts.InlineFunctionProb, "inline-function-prob", opts.InlineFunctionProb, "probability [0,100]")
 	cmd.Flags().IntVar(&opts.BuiltinFunctionProb, "builtin-function-prob", opts.BuiltinFunctionProb, "probability [0,100]")
 	cmd.Flags().IntVar(&opts.ArrayOOBProb, "array-oob-prob", opts.ArrayOOBProb, "probability [0,100]")
-
 	cmd.Flags().IntVar(&opts.MaxGlobals, "max-globals", opts.MaxGlobals, "maximum number of generated globals")
 
-	addBoolPair(cmd, &opts.AcceptArgc, "argc", "generate argc/argv in main")
-	addBoolPair(cmd, &opts.Arrays, "arrays", "enable arrays")
-	addBoolPair(cmd, &opts.Bitfields, "bitfields", "enable bitfields")
-	addBoolPair(cmd, &opts.ComputeHash, "checksum", "enable checksum calculation")
-	addBoolPair(cmd, &opts.CompoundAssignment, "compound-assignment", "enable compound assignment")
-	addBoolPair(cmd, &opts.Consts, "consts", "enable const qualifiers")
-	addBoolPair(cmd, &opts.Divs, "divs", "enable division operators")
-	addBoolPair(cmd, &opts.EmbeddedAssigns, "embedded-assigns", "enable embedded assignments")
-	addBoolPair(cmd, &opts.PreIncrOperator, "pre-incr-operator", "enable pre-increment")
-	addBoolPair(cmd, &opts.PreDecrOperator, "pre-decr-operator", "enable pre-decrement")
-	addBoolPair(cmd, &opts.PostIncrOperator, "post-incr-operator", "enable post-increment")
-	addBoolPair(cmd, &opts.PostDecrOperator, "post-decr-operator", "enable post-decrement")
-	addBoolPair(cmd, &opts.UnaryPlusOperator, "unary-plus-operator", "enable unary plus")
-	addBoolPair(cmd, &opts.Jumps, "jumps", "enable jump statements")
-	addBoolPair(cmd, &opts.LongLong, "longlong", "enable long long")
-	addBoolPair(cmd, &opts.Int8, "int8", "enable int8_t")
-	addBoolPair(cmd, &opts.UInt8, "uint8", "enable uint8_t")
-	addBoolPair(cmd, &opts.EnableFloat, "float", "enable float")
-	addBoolPair(cmd, &opts.Math64, "math64", "enable 64-bit math")
-	addBoolPair(cmd, &opts.InlineFunction, "inline-function", "enable inline function attribute")
-	addBoolPair(cmd, &opts.Pointers, "pointers", "enable pointers")
-	addBoolPair(cmd, &opts.Structs, "structs", "enable structs")
-	addBoolPair(cmd, &opts.Unions, "unions", "enable unions")
-	addBoolPair(cmd, &opts.Volatiles, "volatiles", "enable volatiles")
-	addBoolPair(cmd, &opts.VolatilePointers, "volatile-pointers", "enable volatile pointers")
-	addBoolPair(cmd, &opts.ConstPointers, "const-pointers", "enable const pointers")
-	addBoolPair(cmd, &opts.GlobalVariables, "global-variables", "enable global variables")
-	addBoolPair(cmd, &opts.SafeMath, "safe-math", "emit safe math wrappers")
-	addBoolPair(cmd, &opts.PackedStruct, "packed-struct", "enable packed structs")
-	addBoolPair(cmd, &opts.Paranoid, "paranoid", "enable paranoid pointer checks")
+	addBoolPair(cmd, &negBindings, &opts.AcceptArgc, "argc", "generate argc/argv in main")
+	addBoolPair(cmd, &negBindings, &opts.Arrays, "arrays", "enable arrays")
+	addBoolPair(cmd, &negBindings, &opts.Bitfields, "bitfields", "enable bitfields")
+	addBoolPair(cmd, &negBindings, &opts.ComputeHash, "checksum", "enable checksum calculation")
+	addBoolPair(cmd, &negBindings, &opts.CompoundAssignment, "compound-assignment", "enable compound assignment")
+	addBoolPair(cmd, &negBindings, &opts.Consts, "consts", "enable const qualifiers")
+	addBoolPair(cmd, &negBindings, &opts.Divs, "divs", "enable division operators")
+	addBoolPair(cmd, &negBindings, &opts.EmbeddedAssigns, "embedded-assigns", "enable embedded assignments")
+	addBoolPair(cmd, &negBindings, &opts.PreIncrOperator, "pre-incr-operator", "enable pre-increment")
+	addBoolPair(cmd, &negBindings, &opts.PreDecrOperator, "pre-decr-operator", "enable pre-decrement")
+	addBoolPair(cmd, &negBindings, &opts.PostIncrOperator, "post-incr-operator", "enable post-increment")
+	addBoolPair(cmd, &negBindings, &opts.PostDecrOperator, "post-decr-operator", "enable post-decrement")
+	addBoolPair(cmd, &negBindings, &opts.UnaryPlusOperator, "unary-plus-operator", "enable unary plus")
+	addBoolPair(cmd, &negBindings, &opts.Jumps, "jumps", "enable jump statements")
+	addBoolPair(cmd, &negBindings, &opts.LongLong, "longlong", "enable long long")
+	addBoolPair(cmd, &negBindings, &opts.Int8, "int8", "enable int8_t")
+	addBoolPair(cmd, &negBindings, &opts.UInt8, "uint8", "enable uint8_t")
+	addBoolPair(cmd, &negBindings, &opts.EnableFloat, "float", "enable float")
+	addBoolPair(cmd, &negBindings, &opts.Math64, "math64", "enable 64-bit math")
+	addBoolPair(cmd, &negBindings, &opts.InlineFunction, "inline-function", "enable inline function attribute")
+	addBoolPair(cmd, &negBindings, &opts.Pointers, "pointers", "enable pointers")
+	addBoolPair(cmd, &negBindings, &opts.Structs, "structs", "enable structs")
+	addBoolPair(cmd, &negBindings, &opts.Unions, "unions", "enable unions")
+	addBoolPair(cmd, &negBindings, &opts.Volatiles, "volatiles", "enable volatiles")
+	addBoolPair(cmd, &negBindings, &opts.VolatilePointers, "volatile-pointers", "enable volatile pointers")
+	addBoolPair(cmd, &negBindings, &opts.ConstPointers, "const-pointers", "enable const pointers")
+	addBoolPair(cmd, &negBindings, &opts.GlobalVariables, "global-variables", "enable global variables")
+	addBoolPair(cmd, &negBindings, &opts.SafeMath, "safe-math", "emit safe math wrappers")
+	addBoolPair(cmd, &negBindings, &opts.PackedStruct, "packed-struct", "enable packed structs")
+	addBoolPair(cmd, &negBindings, &opts.Paranoid, "paranoid", "enable paranoid pointer checks")
 
 	cmd.Flags().BoolVar(&opts.Concise, "concise", opts.Concise, "emit minimal comments")
 	cmd.Flags().BoolVar(&opts.Quiet, "quiet", opts.Quiet, "emit fewer comments")
@@ -165,6 +148,11 @@ func NewRootCmd() *cobra.Command {
 
 	cmd.PreRun = func(cmd *cobra.Command, args []string) {
 		seedSet = cmd.Flags().Changed("seed")
+		for _, b := range negBindings {
+			if *b.neg {
+				*b.target = false
+			}
+		}
 	}
 
 	return cmd

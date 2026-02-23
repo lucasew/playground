@@ -18,6 +18,12 @@ type compositeInfo struct {
 	unions  []unionTypeInfo
 }
 
+type envInfo struct {
+	globals  int
+	arrays   int
+	pointers int
+}
+
 func min(a, b int) int {
 	if a < b {
 		return a
@@ -104,10 +110,38 @@ func emitCompositeTypes(b *strings.Builder, r *rng, opts Options) compositeInfo 
 	return info
 }
 
-func emitGlobals(b *strings.Builder, r *rng, globals int, info compositeInfo) {
-	for i := 0; i < globals; i++ {
-		writeLine(b, 0, fmt.Sprintf("static uint32_t g_%d = 0x%08Xu;", i, r.next31()))
+func emitGlobals(b *strings.Builder, r *rng, opts Options, info compositeInfo) envInfo {
+	env := envInfo{}
+	if opts.GlobalVariables {
+		env.globals = 2 + int(r.upto(uint32(min(opts.MaxGlobals, 12))))
+		for i := 0; i < env.globals; i++ {
+			if opts.Consts && i == 0 {
+				writeLine(b, 0, fmt.Sprintf("static const uint32_t g_%d = 0x%08Xu;", i, r.next31()))
+			} else {
+				writeLine(b, 0, fmt.Sprintf("static uint32_t g_%d = 0x%08Xu;", i, r.next31()))
+			}
+		}
+
+		if opts.Arrays {
+			env.arrays = 1 + int(r.upto(uint32(min(opts.MaxArrayDim, 2))))
+			arrLen := max(2, min(opts.MaxArrayLenPerDim, 8))
+			for i := 0; i < env.arrays; i++ {
+				writeLine(b, 0, fmt.Sprintf("static uint32_t ga_%d[%d] = {0u};", i, arrLen))
+			}
+		}
+
+		if opts.Pointers {
+			start := 0
+			if opts.Consts && env.globals > 1 {
+				start = 1
+			}
+			env.pointers = min(max(env.globals-start, 0), 2)
+			for i := 0; i < env.pointers; i++ {
+				writeLine(b, 0, fmt.Sprintf("static uint32_t *gp_%d = &g_%d;", i, start+i))
+			}
+		}
 	}
+
 	for i := range info.structs {
 		writeLine(b, 0, fmt.Sprintf("static S_%d gs_%d;", i, i))
 	}
@@ -115,6 +149,7 @@ func emitGlobals(b *strings.Builder, r *rng, globals int, info compositeInfo) {
 		writeLine(b, 0, fmt.Sprintf("static U_%d gu_%d;", i, i))
 	}
 	writeLine(b, 0, "")
+	return env
 }
 
 func emitFuncDecls(b *strings.Builder, funcs int) {
@@ -124,7 +159,91 @@ func emitFuncDecls(b *strings.Builder, funcs int) {
 	writeLine(b, 0, "")
 }
 
-func emitFuncDefs(b *strings.Builder, r *rng, funcs, globals, maxBlock int, info compositeInfo) {
+func emitArithmeticMutation(b *strings.Builder, r *rng, opts Options) {
+	if opts.Divs && r.upto(3) == 0 {
+		writeLine(b, 1, "x = x / ((x & 255u) + 1u);")
+		return
+	}
+	if opts.UnaryPlusOperator && r.upto(3) == 0 {
+		writeLine(b, 1, fmt.Sprintf("x = (+x) ^ 0x%08Xu;", r.next31()))
+		return
+	}
+	writeLine(b, 1, fmt.Sprintf("x = (x << 1) ^ (x >> 1) ^ 0x%08Xu;", r.next31()))
+}
+
+func emitIncDecMutation(b *strings.Builder, r *rng, opts Options) bool {
+	if !(opts.PreIncrOperator || opts.PreDecrOperator || opts.PostIncrOperator || opts.PostDecrOperator) {
+		return false
+	}
+	switch r.upto(4) {
+	case 0:
+		if opts.PreIncrOperator {
+			writeLine(b, 1, "++x;")
+			return true
+		}
+	case 1:
+		if opts.PreDecrOperator {
+			writeLine(b, 1, "--x;")
+			return true
+		}
+	case 2:
+		if opts.PostIncrOperator {
+			writeLine(b, 1, "x++;")
+			return true
+		}
+	case 3:
+		if opts.PostDecrOperator {
+			writeLine(b, 1, "x--;")
+			return true
+		}
+	}
+	return false
+}
+
+func emitGlobalMutation(b *strings.Builder, r *rng, opts Options, env envInfo) {
+	if env.globals == 0 {
+		emitArithmeticMutation(b, r, opts)
+		return
+	}
+	start := 0
+	if opts.Consts && env.globals > 1 {
+		start = 1
+	}
+	g := start + int(r.upto(uint32(max(env.globals-start, 1))))
+	if opts.CompoundAssignment {
+		writeLine(b, 1, fmt.Sprintf("g_%d += (x ^ 0x%08Xu);", g, r.next31()))
+	} else {
+		writeLine(b, 1, fmt.Sprintf("g_%d = g_%d + (x ^ 0x%08Xu);", g, g, r.next31()))
+	}
+}
+
+func emitArrayMutation(b *strings.Builder, r *rng, opts Options, env envInfo) {
+	if !opts.Arrays || env.arrays == 0 {
+		emitArithmeticMutation(b, r, opts)
+		return
+	}
+	ai := int(r.upto(uint32(env.arrays)))
+	idxMask := max(1, min(opts.MaxArrayLenPerDim, 8)-1)
+	writeLine(b, 1, fmt.Sprintf("ga_%d[x & %du] ^= x + 0x%08Xu;", ai, idxMask, r.next31()))
+	if opts.EmbeddedAssigns {
+		writeLine(b, 1, fmt.Sprintf("x = (ga_%d[x & %du] = ga_%d[x & %du] + 1u);", ai, idxMask, ai, idxMask))
+	}
+}
+
+func emitPointerMutation(b *strings.Builder, r *rng, opts Options, env envInfo) {
+	if !opts.Pointers || env.pointers == 0 {
+		emitArithmeticMutation(b, r, opts)
+		return
+	}
+	pi := int(r.upto(uint32(env.pointers)))
+	if opts.CompoundAssignment {
+		writeLine(b, 1, fmt.Sprintf("*gp_%d ^= x + 0x%08Xu;", pi, r.next31()))
+	} else {
+		writeLine(b, 1, fmt.Sprintf("*gp_%d = *gp_%d ^ (x + 0x%08Xu);", pi, pi, r.next31()))
+	}
+}
+
+func emitFuncDefs(b *strings.Builder, r *rng, opts Options, funcs, maxBlock int, env envInfo, info compositeInfo) {
 	extraCases := 0
 	if len(info.structs) > 0 {
 		extraCases++
@@ -132,7 +251,13 @@ func emitFuncDefs(b *strings.Builder, r *rng, funcs, globals, maxBlock int, info
 	if len(info.unions) > 0 {
 		extraCases++
 	}
-	baseCases := 4
+	if opts.Arrays && env.arrays > 0 {
+		extraCases++
+	}
+	if opts.Pointers && env.pointers > 0 {
+		extraCases++
+	}
+	baseCases := 5
 	maxChoice := uint32(baseCases + extraCases)
 
 	for i := funcs - 1; i >= 0; i-- {
@@ -143,40 +268,55 @@ func emitFuncDefs(b *strings.Builder, r *rng, funcs, globals, maxBlock int, info
 			choice := r.upto(maxChoice)
 			switch {
 			case choice == 0:
-				g := int(r.upto(uint32(globals)))
-				writeLine(b, 1, fmt.Sprintf("g_%d = g_%d + (x ^ 0x%08Xu);", g, g, r.next31()))
+				emitGlobalMutation(b, r, opts, env)
 			case choice == 1:
-				writeLine(b, 1, fmt.Sprintf("x = (x << 1) ^ (x >> 1) ^ 0x%08Xu;", r.next31()))
+				emitArithmeticMutation(b, r, opts)
 			case choice == 2:
-				writeLine(b, 1, fmt.Sprintf("if ((x & 1u) == 0u) { x += 0x%08Xu; } else { x ^= 0x%08Xu; }", r.next31(), r.next31()))
+				if !emitIncDecMutation(b, r, opts) {
+					writeLine(b, 1, fmt.Sprintf("if ((x & 1u) == 0u) { x += 0x%08Xu; } else { x ^= 0x%08Xu; }", r.next31(), r.next31()))
+				}
 			case choice == 3:
-				bound := 1 + int(r.upto(5))
-				writeLine(b, 1, fmt.Sprintf("for (uint32_t i = 0; i < %du; ++i) { x += (i ^ 0x%08Xu); }", bound, r.next31()))
-			case len(info.structs) > 0 && choice == 4:
+				if opts.Jumps {
+					bound := 1 + int(r.upto(5))
+					writeLine(b, 1, fmt.Sprintf("for (uint32_t i = 0; i < %du; ++i) { x += (i ^ 0x%08Xu); }", bound, r.next31()))
+				} else {
+					writeLine(b, 1, fmt.Sprintf("x += 0x%08Xu;", r.next31()))
+				}
+			case choice == 4 && len(info.structs) > 0:
 				si := int(r.upto(uint32(len(info.structs))))
 				fields := info.structs[si].fieldNames
 				fi := int(r.upto(uint32(len(fields))))
 				writeLine(b, 1, fmt.Sprintf("gs_%d.%s ^= x + 0x%08Xu;", si, fields[fi], r.next31()))
-			case len(info.unions) > 0:
+			case len(info.unions) > 0 && (choice == 5 || (len(info.structs) == 0 && choice == 4)):
 				ui := int(r.upto(uint32(len(info.unions))))
 				fields := info.unions[ui].fieldNames
 				fi := int(r.upto(uint32(len(fields))))
 				writeLine(b, 1, fmt.Sprintf("gu_%d.%s = (uint32_t)(x ^ 0x%08Xu);", ui, fields[fi], r.next31()))
 				writeLine(b, 1, fmt.Sprintf("x ^= (uint32_t)gu_%d.%s;", ui, fields[fi]))
+			case opts.Arrays && env.arrays > 0:
+				emitArrayMutation(b, r, opts, env)
+			default:
+				emitPointerMutation(b, r, opts, env)
 			}
 		}
 		if i+1 < funcs {
 			writeLine(b, 1, fmt.Sprintf("x ^= func_%d(x ^ 0x%08Xu, p0 + 0x%08Xu);", i+1, r.next31(), r.next31()))
 		}
-		g := int(r.upto(uint32(globals)))
-		writeLine(b, 1, fmt.Sprintf("g_%d ^= x + 0x%08Xu;", g, r.next31()))
+		if env.globals > 0 {
+			start := 0
+			if opts.Consts && env.globals > 1 {
+				start = 1
+			}
+			g := start + int(r.upto(uint32(max(env.globals-start, 1))))
+			writeLine(b, 1, fmt.Sprintf("g_%d ^= x + 0x%08Xu;", g, r.next31()))
+		}
 		writeLine(b, 1, "return x;")
 		writeLine(b, 0, "}")
 		writeLine(b, 0, "")
 	}
 }
 
-func emitMain(b *strings.Builder, opts Options, globals int, info compositeInfo) {
+func emitMain(b *strings.Builder, opts Options, env envInfo, info compositeInfo) {
 	if opts.AcceptArgc {
 		writeLine(b, 0, "int main(int argc, char *argv[]) {")
 		writeLine(b, 1, "(void)argc;")
@@ -186,10 +326,17 @@ func emitMain(b *strings.Builder, opts Options, globals int, info compositeInfo)
 	}
 
 	writeLine(b, 1, "uint32_t checksum = 0u;")
-	writeLine(b, 1, "uint32_t x = func_0(g_0, g_1);")
+	if env.globals >= 2 {
+		writeLine(b, 1, "uint32_t x = func_0(g_0, g_1);")
+	} else {
+		writeLine(b, 1, "uint32_t x = func_0(0u, 1u);")
+	}
 	if opts.ComputeHash {
-		for i := 0; i < globals; i++ {
+		for i := 0; i < env.globals; i++ {
 			writeLine(b, 1, fmt.Sprintf("checksum ^= g_%d + 0x9E3779B9u + (checksum << 6) + (checksum >> 2);", i))
+		}
+		for i := 0; i < env.arrays; i++ {
+			writeLine(b, 1, fmt.Sprintf("checksum ^= ga_%d[0] + 0x9E3779B9u;", i))
 		}
 		for i, st := range info.structs {
 			for _, f := range st.fieldNames {
@@ -216,7 +363,6 @@ func Generate(opts Options) (string, error) {
 
 	r := newRNG(opts.Seed)
 	funcs := 1 + int(r.upto(uint32(min(opts.MaxFuncs, 8))))
-	globals := 2 + int(r.upto(uint32(min(opts.MaxGlobals, 12))))
 
 	var b strings.Builder
 	b.WriteString("/* csmith-go: seed = ")
@@ -227,12 +373,12 @@ func Generate(opts Options) (string, error) {
 	b.WriteString("\n")
 
 	info := emitCompositeTypes(&b, r, opts)
-	emitGlobals(&b, r, globals, info)
+	env := emitGlobals(&b, r, opts, info)
 	emitFuncDecls(&b, funcs)
-	emitFuncDefs(&b, r, funcs, globals, opts.MaxBlockSize, info)
+	emitFuncDefs(&b, r, opts, funcs, opts.MaxBlockSize, env, info)
 
 	if !opts.NoMain {
-		emitMain(&b, opts, globals, info)
+		emitMain(&b, opts, env, info)
 	}
 
 	return b.String(), nil
