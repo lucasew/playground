@@ -1924,18 +1924,7 @@ func emitComputeHashFunc(b *strings.Builder, env envInfo, info compositeInfo) {
 		writeLine(b, 1, fmt.Sprintf("for (int i = 0; i < %d; i++)", arr.len))
 		writeLine(b, 2, fmt.Sprintf("transparent_crc((uint64_t)%s[i], \"%s[i]\", print_hash_value);", arr.name, arr.name))
 	}
-	for i, st := range info.structs {
-		for _, f := range st.fields {
-			writeLine(b, 1, fmt.Sprintf("transparent_crc((uint64_t)gs_%d.%s, \"gs_%d.%s\", print_hash_value);", i, f.name, i, f.name))
-		}
-	}
-	for i, ut := range info.unions {
-		if len(ut.fields) == 0 {
-			continue
-		}
-		f := ut.fields[0]
-		writeLine(b, 1, fmt.Sprintf("transparent_crc((uint64_t)gu_%d.%s, \"gu_%d.%s\", print_hash_value);", i, f.name, i, f.name))
-	}
+	_ = info
 	writeLine(b, 0, "}")
 	writeLine(b, 0, "")
 }
