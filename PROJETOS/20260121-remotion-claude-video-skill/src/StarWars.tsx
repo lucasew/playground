@@ -5,6 +5,17 @@ import { IntroText } from "./components/IntroText";
 import { Logo } from "./components/Logo";
 import { Crawl } from "./components/Crawl";
 
+/**
+ * Main composition for the Star Wars intro parody.
+ *
+ * Orchestrates the sequence of events using Remotion's `Sequence` component:
+ * 1. `Starfield`: Background active throughout the entire video.
+ * 2. `IntroText`: "A long time ago..." style text (frames 0-150).
+ * 3. `Logo`: Zooming "EVIDÊNCIAS" logo (frames 150-300).
+ * 4. `Crawl`: Scrolling lyrics text (starts at frame 300).
+ *
+ * The background color is explicitly set to black using `AbsoluteFill`.
+ */
 export const StarWars: React.FC = () => {
   const { durationInFrames } = useVideoConfig();
 

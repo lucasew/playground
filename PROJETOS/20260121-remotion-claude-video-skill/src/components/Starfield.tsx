@@ -3,6 +3,15 @@ import { AbsoluteFill, useVideoConfig } from "remotion";
 
 const NUM_STARS = 200;
 
+/**
+ * Generates a static background of stars to simulate space.
+ *
+ * Uses `useMemo` to generate random star positions and properties (size, opacity)
+ * only once (or when video dimensions change), ensuring the stars remain
+ * static across frames and do not flicker or jump during playback.
+ *
+ * Generates {NUM_STARS} stars distributed randomly across the canvas.
+ */
 export const Starfield: React.FC = () => {
   const { width, height } = useVideoConfig();
   

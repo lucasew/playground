@@ -1,6 +1,15 @@
 import React from "react";
 import { AbsoluteFill, interpolate, useCurrentFrame } from "remotion";
 
+/**
+ * Displays the main title logo "EVIDÊNCIAS" with a zoom-out effect.
+ *
+ * Simulates the iconic Star Wars logo receding into the distance.
+ *
+ * Effects:
+ * - Scale: Zooms out from 2x to 0x (disappearing into the distance).
+ * - Opacity: Fades in quickly, stays visible, then fades out as it disappears.
+ */
 export const Logo: React.FC = () => {
   const frame = useCurrentFrame();
 

@@ -2,6 +2,19 @@ import React from "react";
 import { AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig } from "remotion";
 import { lyrics } from "../lyrics";
 
+/**
+ * Renders the iconic scrolling text crawl.
+ *
+ * This component displays the lyrics of "Evidências" (Chitãozinho & Xororó)
+ * scrolling into the distance using a 3D perspective transform.
+ *
+ * Implementation details:
+ * - Uses `perspective: 400px` and `rotateX(25deg)` to create the vanishing point effect.
+ * - Interpolates `translateY` to move the text upwards from below the screen into the distance.
+ * - Includes a top gradient overlay to fade out the text as it gets "too far".
+ *
+ * The lyrics are sourced from `lyrics.ts`.
+ */
 export const Crawl: React.FC = () => {
   const frame = useCurrentFrame();
   const { height, width } = useVideoConfig();
