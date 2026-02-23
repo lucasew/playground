@@ -1,6 +1,15 @@
 package csmith
 
-import "fmt"
+import (
+	"bufio"
+	"fmt"
+	"os"
+	"strconv"
+	"strings"
+	"unsafe"
+)
+
+const defaultPlatformInfoPath = "platform.info"
 
 // Options is the canonical API-level configuration contract for generation.
 // Defaults are aligned with Csmith's CGOptions::set_default_settings where possible.
@@ -12,6 +21,11 @@ type Options struct {
 	MaxSplitFiles int
 	SplitFilesDir string
 	NoMain        bool
+
+	// Target sizing (from platform.info or explicit override)
+	PlatformInfoPath string
+	IntSize          int
+	PointerSize      int
 
 	// Size/depth controls
 	MaxFuncs             int
@@ -81,10 +95,13 @@ type Options struct {
 
 func Defaults() Options {
 	return Options{
-		OutputPath:    "",
-		MaxSplitFiles: 0,
-		SplitFilesDir: "./output",
-		NoMain:        false,
+		OutputPath:       "",
+		MaxSplitFiles:    0,
+		SplitFilesDir:    "./output",
+		NoMain:           false,
+		PlatformInfoPath: defaultPlatformInfoPath,
+		IntSize:          int(unsafe.Sizeof(int(0))),
+		PointerSize:      int(unsafe.Sizeof(uintptr(0))),
 
 		MaxFuncs:             10,
 		MaxParams:            5,
@@ -149,7 +166,66 @@ func Defaults() Options {
 	}
 }
 
+func (o Options) resolvePlatformInfo() (Options, error) {
+	if o.IntSize > 0 && o.PointerSize > 0 {
+		path := strings.TrimSpace(o.PlatformInfoPath)
+		if path == "" {
+			path = defaultPlatformInfoPath
+		}
+		f, err := os.Open(path)
+		if err != nil {
+			if os.IsNotExist(err) {
+				return o, nil
+			}
+			return o, err
+		}
+		defer f.Close()
+
+		seenInt := false
+		seenPtr := false
+
+		scanner := bufio.NewScanner(f)
+		for scanner.Scan() {
+			line := strings.TrimSpace(scanner.Text())
+			if strings.HasPrefix(line, "integer size =") {
+				v := strings.TrimSpace(strings.TrimPrefix(line, "integer size ="))
+				n, err := strconv.Atoi(v)
+				if err != nil {
+					return o, fmt.Errorf("invalid integer size in %s", path)
+				}
+				o.IntSize = n
+				seenInt = true
+			}
+			if strings.HasPrefix(line, "pointer size =") {
+				v := strings.TrimSpace(strings.TrimPrefix(line, "pointer size ="))
+				n, err := strconv.Atoi(v)
+				if err != nil {
+					return o, fmt.Errorf("invalid pointer size in %s", path)
+				}
+				o.PointerSize = n
+				seenPtr = true
+			}
+		}
+		if err := scanner.Err(); err != nil {
+			return o, err
+		}
+		if !seenInt {
+			return o, fmt.Errorf("please specify integer size in %s", path)
+		}
+		if !seenPtr {
+			return o, fmt.Errorf("please specify pointer size in %s", path)
+		}
+	}
+	return o, nil
+}
+
 func (o Options) Validate() error {
+	if o.IntSize <= 0 {
+		return fmt.Errorf("int-size must be positive")
+	}
+	if o.PointerSize <= 0 {
+		return fmt.Errorf("ptr-size must be positive")
+	}
 	if o.MaxFuncs < 1 {
 		return fmt.Errorf("max-funcs must be at least 1")
 	}
@@ -198,11 +274,8 @@ func (o Options) Validate() error {
 			return fmt.Errorf("split_files_dir can only be applied to random mode")
 		}
 	}
-	if o.FastExecution {
-		// Mirrors Csmith's fast-execution shortcut behavior.
-		if !o.LangCPP {
-			return fmt.Errorf("fast-execution requires C++ mode semantics (lang-cpp)")
-		}
+	if o.FastExecution && !o.LangCPP {
+		return fmt.Errorf("fast-execution requires C++ mode semantics (lang-cpp)")
 	}
 	return nil
 }

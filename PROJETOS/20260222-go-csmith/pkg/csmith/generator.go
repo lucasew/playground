@@ -317,6 +317,7 @@ func emitFuncDefs(b *strings.Builder, r *rng, opts Options, funcs, maxBlock int,
 }
 
 func emitMain(b *strings.Builder, opts Options, env envInfo, info compositeInfo) {
+	useRuntime := opts.SafeMath || opts.ComputeHash
 	if opts.AcceptArgc {
 		writeLine(b, 0, "int main(int argc, char *argv[]) {")
 		writeLine(b, 1, "(void)argc;")
@@ -325,6 +326,9 @@ func emitMain(b *strings.Builder, opts Options, env envInfo, info compositeInfo)
 		writeLine(b, 0, "int main(void) {")
 	}
 
+	if useRuntime {
+		writeLine(b, 1, "platform_main_begin();")
+	}
 	writeLine(b, 1, "uint32_t checksum = 0u;")
 	if env.globals >= 2 {
 		writeLine(b, 1, "uint32_t x = func_0(g_0, g_1);")
@@ -349,7 +353,14 @@ func emitMain(b *strings.Builder, opts Options, env envInfo, info compositeInfo)
 			}
 		}
 		writeLine(b, 1, "checksum ^= x;")
-		writeLine(b, 1, "printf(\"checksum = %u\\n\", checksum);")
+		if useRuntime {
+			writeLine(b, 1, "platform_main_end(checksum, 0);")
+		} else {
+			writeLine(b, 1, "printf(\"checksum = %u\\n\", checksum);")
+		}
+	}
+	if !opts.ComputeHash && useRuntime {
+		writeLine(b, 1, "platform_main_end(0u, 0);")
 	}
 	writeLine(b, 1, "return 0;")
 	writeLine(b, 0, "}")
@@ -357,6 +368,12 @@ func emitMain(b *strings.Builder, opts Options, env envInfo, info compositeInfo)
 
 // Generate emits deterministic C code from options and seed.
 func Generate(opts Options) (string, error) {
+	var err error
+	opts, err = opts.resolvePlatformInfo()
+	if err != nil {
+		return "", err
+	}
+
 	if err := opts.validate(); err != nil {
 		return "", err
 	}
@@ -368,8 +385,17 @@ func Generate(opts Options) (string, error) {
 	b.WriteString("/* csmith-go: seed = ")
 	b.WriteString(fmt.Sprintf("%d", opts.Seed))
 	b.WriteString(" */\n")
-	b.WriteString("#include <stdint.h>\n")
-	b.WriteString("#include <stdio.h>\n")
+	b.WriteString("/* int-size = ")
+	b.WriteString(fmt.Sprintf("%d", opts.IntSize))
+	b.WriteString(", ptr-size = ")
+	b.WriteString(fmt.Sprintf("%d", opts.PointerSize))
+	b.WriteString(" */\n")
+	if opts.SafeMath || opts.ComputeHash {
+		b.WriteString("#include \"csmith.h\"\n")
+	} else {
+		b.WriteString("#include <stdint.h>\n")
+		b.WriteString("#include <stdio.h>\n")
+	}
 	b.WriteString("\n")
 
 	info := emitCompositeTypes(&b, r, opts)

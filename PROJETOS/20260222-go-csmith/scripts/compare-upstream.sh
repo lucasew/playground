@@ -8,6 +8,7 @@ WORKDIR="${WORKDIR:-/tmp/csmith-parity}"
 UPSTREAM_GEN_CMD="${UPSTREAM_GEN_CMD:-csmith}"
 GO_GEN_CMD="${GO_GEN_CMD:-GOCACHE=/tmp/go-cache go run ./cmd/csmith-go}"
 UPSTREAM_INCLUDE="${UPSTREAM_INCLUDE:-/nix/store/hrf9nixgjz33q1563l9bxx155py477qv-csmith-2.3.0/include/csmith-2.3.0}"
+GO_INCLUDE="${GO_INCLUDE:-$UPSTREAM_INCLUDE}"
 CC_BIN="${CC_BIN:-cc}"
 
 usage() {
@@ -19,6 +20,7 @@ Env overrides:
   UPSTREAM_GEN_CMD (default: csmith)
   GO_GEN_CMD (default: GOCACHE=/tmp/go-cache go run ./cmd/csmith-go)
   UPSTREAM_INCLUDE
+  GO_INCLUDE (default: UPSTREAM_INCLUDE)
   CC_BIN
 
 Examples:
@@ -119,7 +121,7 @@ for ((i=0; i<COUNT; i++)); do
     continue
   fi
 
-  if ! "$CC_BIN" -std=c11 -O0 "$go_c" -o "$go_bin" >/dev/null 2>&1; then
+  if ! "$CC_BIN" -std=c11 -O0 "$go_c" -I"$GO_INCLUDE" -o "$go_bin" >/dev/null 2>&1; then
     echo "[FAIL] seed=${seed}: go compile failed"
     fail=$((fail + 1))
     continue

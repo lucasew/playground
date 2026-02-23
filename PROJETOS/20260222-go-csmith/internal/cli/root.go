@@ -85,6 +85,9 @@ func NewRootCmd() *cobra.Command {
 	cmd.Flags().BoolVarP(&showVersion, "version", "v", false, "print version")
 	cmd.Flags().Uint64VarP(&opts.Seed, "seed", "s", 0, "seed for deterministic generation")
 	cmd.Flags().StringVarP(&outputPath, "output", "o", "", "write generated C code to file")
+	cmd.Flags().StringVar(&opts.PlatformInfoPath, "platform-info", opts.PlatformInfoPath, "path to platform.info")
+	cmd.Flags().IntVar(&opts.IntSize, "int-size", opts.IntSize, "target integer size in bytes")
+	cmd.Flags().IntVar(&opts.PointerSize, "ptr-size", opts.PointerSize, "target pointer size in bytes")
 
 	cmd.Flags().IntVar(&opts.MaxFuncs, "max-funcs", opts.MaxFuncs, "limit number of functions besides main")
 	cmd.Flags().IntVar(&opts.MaxParams, "max-params", opts.MaxParams, "limit number of function parameters")
