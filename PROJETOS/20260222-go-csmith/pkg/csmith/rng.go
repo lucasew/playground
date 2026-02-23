@@ -53,3 +53,24 @@ func (r *rng) upto(n uint32) uint32 {
 	}
 	return x
 }
+
+func (r *rng) flipcoin(p uint32) bool {
+	if p > 100 {
+		p = 100
+	}
+	v := r.next31() % 100
+	ok := v < p
+	if r.trace {
+		r.tracePos++
+		f, err := os.OpenFile(r.traceFile, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
+		if err == nil {
+			var b uint32
+			if ok {
+				b = 1
+			}
+			_, _ = fmt.Fprintf(f, "%d F %d -> %d\n", r.tracePos, p, b)
+			_ = f.Close()
+		}
+	}
+	return ok
+}

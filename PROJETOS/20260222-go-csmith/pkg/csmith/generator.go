@@ -1027,14 +1027,17 @@ func emitCompositeTypes(b *strings.Builder, r *rng, opts Options, pool []CType) 
 		if existingTypeCount < 10 {
 			return true
 		}
-		return r.upto(100) < moreStructUnionTypeProb
+		return r.flipcoin(moreStructUnionTypeProb)
 	}
-	typeCount := len(pool)
+	// Upstream Type::GenerateSimpleTypes pushes eChar..eUInt128, i.e. 13
+	// simple types before aggregate generation starts.
+	typeCount := 13
 	fieldQual := func() string {
-		// Mirrors CVQualifiers::random_qualifiers(..., FieldConstProb, FieldVolatileProb)
-		isConst := opts.ConstStructUnionFields && r.upto(100) < fieldConstProb
-		isVolatile := opts.VolStructUnionFields && r.upto(100) < fieldVolatileProb
-		if isConst && isVolatile && r.upto(2) == 0 {
+		// Mirrors CVQualifiers::random_qualifiers(..., FieldConstProb, FieldVolatileProb):
+		// volatile draw first, then const draw.
+		isVolatile := opts.VolStructUnionFields && r.flipcoin(fieldVolatileProb)
+		isConst := opts.ConstStructUnionFields && r.flipcoin(fieldConstProb)
+		if isConst && isVolatile && !opts.AllowConstVolatile {
 			isConst = false
 		}
 		q := ""
@@ -1046,6 +1049,21 @@ func emitCompositeTypes(b *strings.Builder, r *rng, opts Options, pool []CType) 
 		}
 		return q
 	}
+	bitfieldLength := func(maxLength int, prior []fieldInfo) int {
+		if maxLength < 1 {
+			maxLength = 1
+		}
+		length := int(r.upto(uint32(maxLength)))
+		noZeroLen := len(prior) == 0 || (prior[len(prior)-1].bitfield && prior[len(prior)-1].bitWidth == 0)
+		if length == 0 && noZeroLen {
+			if maxLength <= 2 {
+				length = 1
+			} else {
+				length = int(r.upto(uint32(maxLength-1))) + 1
+			}
+		}
+		return length
+	}
 
 	if opts.Structs {
 		sidx := 0
@@ -1054,10 +1072,10 @@ func emitCompositeTypes(b *strings.Builder, r *rng, opts Options, pool []CType) 
 			fieldCount := 1 + int(r.upto(uint32(max(1, opts.MaxStructFields))))
 			st := structTypeInfo{fields: make([]fieldInfo, 0, fieldCount)}
 			writeLine(b, 0, fmt.Sprintf("struct S%d {", sidx))
-			fullBitfields := opts.Bitfields && r.upto(100) < bitfieldsCreationProb
+			fullBitfields := opts.Bitfields && r.flipcoin(bitfieldsCreationProb)
 			for f := 0; f < fieldCount; f++ {
 				if fullBitfields {
-					if r.upto(100) < scalarFieldInFullBitfieldProb {
+					if r.flipcoin(scalarFieldInFullBitfieldProb) {
 						name := fmt.Sprintf("f%d", f)
 						t := pickType(r, pool)
 						writeLine(b, 1, fmt.Sprintf("%s%s %s;", fieldQual(), t.Name, name))
@@ -1065,29 +1083,26 @@ func emitCompositeTypes(b *strings.Builder, r *rng, opts Options, pool []CType) 
 						continue
 					}
 					name := fmt.Sprintf("f%d", f)
-					width := 1 + int(r.upto(31))
-					qual := fieldQual()
 					base := "unsigned"
-					if r.upto(100) < bitfieldsSignedProb {
+					if r.flipcoin(bitfieldsSignedProb) {
 						base = "signed"
 					}
+					qual := fieldQual()
+					width := bitfieldLength(opts.IntSize*8, st.fields)
 					writeLine(b, 1, fmt.Sprintf("%s%s %s : %d;", qual, base, name, width))
 					st.fields = append(st.fields, fieldInfo{
 						name: name, ctype: CType{Name: "uint32_t", Bits: 32}, bitfield: true, bitWidth: width,
 					})
 					continue
 				}
-				if opts.Bitfields && r.upto(100) < bitfieldInNormalStructProb {
+				if opts.Bitfields && r.flipcoin(bitfieldInNormalStructProb) {
 					name := fmt.Sprintf("f%d", f)
-					width := int(r.upto(uint32(max(1, opts.IntSize*8))))
-					if width == 0 {
-						width = 1
-					}
-					qual := fieldQual()
 					base := "unsigned"
-					if r.upto(100) < bitfieldsSignedProb {
+					if r.flipcoin(bitfieldsSignedProb) {
 						base = "signed"
 					}
+					qual := fieldQual()
+					width := bitfieldLength(opts.IntSize*8, st.fields)
 					writeLine(b, 1, fmt.Sprintf("%s%s %s : %d;", qual, base, name, width))
 					st.fields = append(st.fields, fieldInfo{
 						name: name, ctype: CType{Name: "uint32_t", Bits: 32}, bitfield: true, bitWidth: width,
@@ -1116,6 +1131,19 @@ func emitCompositeTypes(b *strings.Builder, r *rng, opts Options, pool []CType) 
 			writeLine(b, 0, fmt.Sprintf("union U%d {", uidx))
 			for f := 0; f < fieldCount; f++ {
 				name := fmt.Sprintf("f%d", f)
+				if opts.Bitfields && r.flipcoin(bitfieldInNormalStructProb) {
+					base := "unsigned"
+					if r.flipcoin(bitfieldsSignedProb) {
+						base = "signed"
+					}
+					qual := fieldQual()
+					width := bitfieldLength(opts.IntSize*8, ut.fields)
+					writeLine(b, 1, fmt.Sprintf("%s%s %s : %d;", qual, base, name, width))
+					ut.fields = append(ut.fields, fieldInfo{
+						name: name, ctype: CType{Name: "uint32_t", Bits: 32}, bitfield: true, bitWidth: width,
+					})
+					continue
+				}
 				t := pickType(r, pool)
 				writeLine(b, 1, fmt.Sprintf("%s%s %s;", fieldQual(), t.Name, name))
 				ut.fields = append(ut.fields, fieldInfo{name: name, ctype: t})
