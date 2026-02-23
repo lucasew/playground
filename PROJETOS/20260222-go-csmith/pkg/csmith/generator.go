@@ -154,7 +154,7 @@ func emitGlobals(b *strings.Builder, r *rng, opts Options, info compositeInfo) e
 
 func emitFuncDecls(b *strings.Builder, funcs int) {
 	for i := 0; i < funcs; i++ {
-		writeLine(b, 0, fmt.Sprintf("static uint32_t func_%d(uint32_t p0, uint32_t p1);", i))
+		writeLine(b, 0, fmt.Sprintf("static uint32_t func_%d(void);", i))
 	}
 	writeLine(b, 0, "")
 }
@@ -261,8 +261,12 @@ func emitFuncDefs(b *strings.Builder, r *rng, opts Options, funcs, maxBlock int,
 	maxChoice := uint32(baseCases + extraCases)
 
 	for i := funcs - 1; i >= 0; i-- {
-		writeLine(b, 0, fmt.Sprintf("static uint32_t func_%d(uint32_t p0, uint32_t p1) {", i))
-		writeLine(b, 1, fmt.Sprintf("uint32_t x = (p0 ^ 0x%08Xu) + (p1 + 0x%08Xu);", r.next31(), r.next31()))
+		writeLine(b, 0, fmt.Sprintf("static uint32_t func_%d(void) {", i))
+		if env.globals >= 2 {
+			writeLine(b, 1, fmt.Sprintf("uint32_t x = (g_0 ^ 0x%08Xu) + (g_1 + 0x%08Xu);", r.next31(), r.next31()))
+		} else {
+			writeLine(b, 1, fmt.Sprintf("uint32_t x = 0x%08Xu;", r.next31()))
+		}
 		stmtCount := 2 + int(r.upto(uint32(maxBlock)))
 		for s := 0; s < stmtCount; s++ {
 			choice := r.upto(maxChoice)
@@ -300,7 +304,7 @@ func emitFuncDefs(b *strings.Builder, r *rng, opts Options, funcs, maxBlock int,
 			}
 		}
 		if i+1 < funcs {
-			writeLine(b, 1, fmt.Sprintf("x ^= func_%d(x ^ 0x%08Xu, p0 + 0x%08Xu);", i+1, r.next31(), r.next31()))
+			writeLine(b, 1, fmt.Sprintf("x ^= func_%d();", i+1))
 		}
 		if env.globals > 0 {
 			start := 0
@@ -320,41 +324,54 @@ func emitMain(b *strings.Builder, opts Options, env envInfo, info compositeInfo)
 	useRuntime := opts.SafeMath || opts.ComputeHash
 	if opts.AcceptArgc {
 		writeLine(b, 0, "int main(int argc, char *argv[]) {")
-		writeLine(b, 1, "(void)argc;")
-		writeLine(b, 1, "(void)argv;")
+		writeLine(b, 1, "int print_hash_value = 0;")
+		if useRuntime {
+			writeLine(b, 1, "if (argc == 2 && strcmp(argv[1], \"1\") == 0) print_hash_value = 1;")
+		}
 	} else {
 		writeLine(b, 0, "int main(void) {")
 	}
 
 	if useRuntime {
 		writeLine(b, 1, "platform_main_begin();")
+		if opts.ComputeHash {
+			writeLine(b, 1, "crc32_gentab();")
+		}
 	}
 	writeLine(b, 1, "uint32_t checksum = 0u;")
-	if env.globals >= 2 {
-		writeLine(b, 1, "uint32_t x = func_0(g_0, g_1);")
-	} else {
-		writeLine(b, 1, "uint32_t x = func_0(0u, 1u);")
-	}
+	writeLine(b, 1, "uint32_t x = func_0();")
 	if opts.ComputeHash {
 		for i := 0; i < env.globals; i++ {
+			if useRuntime {
+				writeLine(b, 1, fmt.Sprintf("transparent_crc(g_%d, \"g_%d\", print_hash_value);", i, i))
+			}
 			writeLine(b, 1, fmt.Sprintf("checksum ^= g_%d + 0x9E3779B9u + (checksum << 6) + (checksum >> 2);", i))
 		}
 		for i := 0; i < env.arrays; i++ {
+			if useRuntime {
+				writeLine(b, 1, fmt.Sprintf("for (int ai = 0; ai < %d; ++ai) transparent_crc(ga_%d[ai], \"ga\", print_hash_value);", max(2, min(opts.MaxArrayLenPerDim, 8)), i))
+			}
 			writeLine(b, 1, fmt.Sprintf("checksum ^= ga_%d[0] + 0x9E3779B9u;", i))
 		}
 		for i, st := range info.structs {
 			for _, f := range st.fieldNames {
+				if useRuntime {
+					writeLine(b, 1, fmt.Sprintf("transparent_crc(gs_%d.%s, \"gs\", print_hash_value);", i, f))
+				}
 				writeLine(b, 1, fmt.Sprintf("checksum ^= gs_%d.%s + 0x9E3779B9u;", i, f))
 			}
 		}
 		for i, ut := range info.unions {
 			if len(ut.fieldNames) > 0 {
+				if useRuntime {
+					writeLine(b, 1, fmt.Sprintf("transparent_crc((uint32_t)gu_%d.%s, \"gu\", print_hash_value);", i, ut.fieldNames[0]))
+				}
 				writeLine(b, 1, fmt.Sprintf("checksum ^= (uint32_t)gu_%d.%s + 0x9E3779B9u;", i, ut.fieldNames[0]))
 			}
 		}
 		writeLine(b, 1, "checksum ^= x;")
 		if useRuntime {
-			writeLine(b, 1, "platform_main_end(checksum, 0);")
+			writeLine(b, 1, "platform_main_end(crc32_context ^ 0xFFFFFFFFUL, print_hash_value);")
 		} else {
 			writeLine(b, 1, "printf(\"checksum = %u\\n\", checksum);")
 		}
