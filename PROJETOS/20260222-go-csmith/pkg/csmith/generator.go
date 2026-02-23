@@ -233,6 +233,7 @@ type envInfo struct {
 	arrays   []arrayInfo
 	pointers []pointerInfo
 	chains   []string
+	nextID   int
 }
 
 func min(a, b int) int {
@@ -1002,52 +1003,120 @@ func maybeDeclareOnDemandLocal(b *strings.Builder, r *rng, opts Options, ctx *ge
 func emitCompositeTypes(b *strings.Builder, r *rng, opts Options, pool []CType) compositeInfo {
 	info := compositeInfo{}
 	writeLine(b, 0, "/* --- Struct/Union Declarations --- */")
+	// Upstream Probabilities defaults (Probabilities.cpp).
+	const (
+		moreStructUnionTypeProb       = 50
+		bitfieldsCreationProb         = 50
+		bitfieldInNormalStructProb    = 10
+		scalarFieldInFullBitfieldProb = 10
+		bitfieldsSignedProb           = 50
+		fieldVolatileProb             = 30
+		fieldConstProb                = 20
+	)
+	moreTypesProbability := func(existingTypeCount int) bool {
+		// Type::MoreTypesProbability: keep adding while <10 total types,
+		// then 50% chance for each additional aggregate type.
+		if existingTypeCount < 10 {
+			return true
+		}
+		return r.upto(100) < moreStructUnionTypeProb
+	}
+	typeCount := len(pool)
+	fieldQual := func() string {
+		// Mirrors CVQualifiers::random_qualifiers(..., FieldConstProb, FieldVolatileProb)
+		isConst := opts.ConstStructUnionFields && r.upto(100) < fieldConstProb
+		isVolatile := opts.VolStructUnionFields && r.upto(100) < fieldVolatileProb
+		if isConst && isVolatile && r.upto(2) == 0 {
+			isConst = false
+		}
+		q := ""
+		if isConst {
+			q += "const "
+		}
+		if isVolatile {
+			q += "volatile "
+		}
+		return q
+	}
 
 	if opts.Structs {
 		sidx := 0
-		// Always emit at least one struct, then continue probabilistically.
-		for sidx == 0 || (r.upto(100) < 25 && sidx < min(max(opts.MaxStructFields, 1), 32)) {
-			fieldCount := 1 + int(r.upto(uint32(max(1, min(opts.MaxStructFields, 6)))))
+		maxStructs := min(max(opts.MaxStructFields, 1), 32)
+		for sidx < maxStructs && moreTypesProbability(typeCount) {
+			fieldCount := 1 + int(r.upto(uint32(max(1, opts.MaxStructFields))))
 			st := structTypeInfo{fields: make([]fieldInfo, 0, fieldCount)}
 			writeLine(b, 0, fmt.Sprintf("struct S%d {", sidx))
+			fullBitfields := opts.Bitfields && r.upto(100) < bitfieldsCreationProb
 			for f := 0; f < fieldCount; f++ {
-				if opts.Bitfields && r.upto(4) == 0 {
-					name := fmt.Sprintf("bf_%d", f)
+				if fullBitfields {
+					if r.upto(100) < scalarFieldInFullBitfieldProb {
+						name := fmt.Sprintf("f%d", f)
+						t := pickType(r, pool)
+						writeLine(b, 1, fmt.Sprintf("%s%s %s;", fieldQual(), t.Name, name))
+						st.fields = append(st.fields, fieldInfo{name: name, ctype: t})
+						continue
+					}
+					name := fmt.Sprintf("f%d", f)
 					width := 1 + int(r.upto(31))
-					writeLine(b, 1, fmt.Sprintf("unsigned %s : %d;", name, width))
+					qual := fieldQual()
+					base := "unsigned"
+					if r.upto(100) < bitfieldsSignedProb {
+						base = "signed"
+					}
+					writeLine(b, 1, fmt.Sprintf("%s%s %s : %d;", qual, base, name, width))
 					st.fields = append(st.fields, fieldInfo{
 						name: name, ctype: CType{Name: "uint32_t", Bits: 32}, bitfield: true, bitWidth: width,
 					})
 					continue
 				}
-				name := fmt.Sprintf("f_%d", f)
+				if opts.Bitfields && r.upto(100) < bitfieldInNormalStructProb {
+					name := fmt.Sprintf("f%d", f)
+					width := int(r.upto(uint32(max(1, opts.IntSize*8))))
+					if width == 0 {
+						width = 1
+					}
+					qual := fieldQual()
+					base := "unsigned"
+					if r.upto(100) < bitfieldsSignedProb {
+						base = "signed"
+					}
+					writeLine(b, 1, fmt.Sprintf("%s%s %s : %d;", qual, base, name, width))
+					st.fields = append(st.fields, fieldInfo{
+						name: name, ctype: CType{Name: "uint32_t", Bits: 32}, bitfield: true, bitWidth: width,
+					})
+					continue
+				}
+				name := fmt.Sprintf("f%d", f)
 				t := pickType(r, pool)
-				writeLine(b, 1, fmt.Sprintf("%s %s;", t.Name, name))
+				writeLine(b, 1, fmt.Sprintf("%s%s %s;", fieldQual(), t.Name, name))
 				st.fields = append(st.fields, fieldInfo{name: name, ctype: t})
 			}
 			writeLine(b, 0, "};")
 			writeLine(b, 0, "")
 			info.structs = append(info.structs, st)
 			sidx++
+			typeCount++
 		}
 	}
 
 	if opts.Unions {
 		uidx := 0
-		for r.upto(100) < 35 && uidx < min(max(opts.MaxUnionFields, 1), 32) {
-			fieldCount := 2 + int(r.upto(uint32(max(1, min(opts.MaxUnionFields, 4)))))
+		maxUnions := min(max(opts.MaxUnionFields, 1), 32)
+		for uidx < maxUnions && moreTypesProbability(typeCount) {
+			fieldCount := 1 + int(r.upto(uint32(max(1, opts.MaxUnionFields))))
 			ut := unionTypeInfo{fields: make([]fieldInfo, 0, fieldCount)}
 			writeLine(b, 0, fmt.Sprintf("union U%d {", uidx))
 			for f := 0; f < fieldCount; f++ {
-				name := fmt.Sprintf("u_%d", f)
+				name := fmt.Sprintf("f%d", f)
 				t := pickType(r, pool)
-				writeLine(b, 1, fmt.Sprintf("%s %s;", t.Name, name))
+				writeLine(b, 1, fmt.Sprintf("%s%s %s;", fieldQual(), t.Name, name))
 				ut.fields = append(ut.fields, fieldInfo{name: name, ctype: t})
 			}
 			writeLine(b, 0, "};")
 			writeLine(b, 0, "")
 			info.unions = append(info.unions, ut)
 			uidx++
+			typeCount++
 		}
 	}
 	writeLine(b, 0, "")
@@ -1057,6 +1126,7 @@ func emitCompositeTypes(b *strings.Builder, r *rng, opts Options, pool []CType) 
 
 func emitGlobals(b *strings.Builder, r *rng, opts Options, info compositeInfo, pool []CType) envInfo {
 	env := envInfo{}
+	nextGlobalID := 0
 	writeLine(b, 0, "/* --- GLOBAL VARIABLES --- */")
 	if opts.GlobalVariables {
 		globalCap := max(opts.MaxGlobals, 2)
@@ -1064,7 +1134,6 @@ func emitGlobals(b *strings.Builder, r *rng, opts Options, info compositeInfo, p
 		env.arrays = make([]arrayInfo, 0, globalCap/2+1)
 		env.pointers = make([]pointerInfo, 0, globalCap/2+1)
 
-		nextGlobalID := 0
 		newGlobalName := func() string {
 			name := fmt.Sprintf("g_%d", nextGlobalID)
 			nextGlobalID++
@@ -1186,6 +1255,7 @@ func emitGlobals(b *strings.Builder, r *rng, opts Options, info compositeInfo, p
 	for i := range info.unions {
 		writeLine(b, 0, fmt.Sprintf("static union U%d gu_%d;", i, i))
 	}
+	env.nextID = nextGlobalID
 	writeLine(b, 0, "")
 	return env
 }
@@ -1712,7 +1782,7 @@ func emitFunctionsUpstreamFlow(b *strings.Builder, r *rng, opts Options, pool []
 		pool:         pool,
 		opts:         opts,
 		dynGlobals:   []globalInfo{},
-		nextGlobalID: len(env.globals),
+		nextGlobalID: env.nextID,
 	}
 	built := []bool{false}
 	defs := []string{""}
