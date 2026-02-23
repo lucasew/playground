@@ -74,6 +74,10 @@ type exprVarCandidate struct {
 	assignable bool
 }
 
+type genContext struct {
+	mustUse *exprVarCandidate
+}
+
 type compositeInfo struct {
 	structs []structTypeInfo
 	unions  []unionTypeInfo
@@ -247,7 +251,10 @@ func selectExprVariable(t CType, r *rng, candidates []exprVarCandidate, forAssig
 	return filtered[int(r.upto(uint32(len(filtered))))], true
 }
 
-func randomTypedExpr(t CType, r *rng, opts Options, env envInfo, scope scopeInfo) string {
+func randomLeafExpr(t CType, r *rng, opts Options, env envInfo, scope scopeInfo, ctx *genContext) string {
+	if ctx != nil && ctx.mustUse != nil && r.upto(100) < 60 {
+		return castLiteral(t, ctx.mustUse.expr)
+	}
 	candidates := buildExprCandidates(r, env, scope)
 	if len(candidates) > 0 && r.upto(100) < 80 {
 		c, ok := selectExprVariable(t, r, candidates, false)
@@ -259,6 +266,56 @@ func randomTypedExpr(t CType, r *rng, opts Options, env envInfo, scope scopeInfo
 	return randomConstantExpr(t, r, opts)
 }
 
+func maxExprDepth(opts Options) int {
+	if opts.MaxExprComplexity <= 2 {
+		return 1
+	}
+	if opts.MaxExprComplexity <= 6 {
+		return 2
+	}
+	if opts.MaxExprComplexity <= 12 {
+		return 3
+	}
+	return 4
+}
+
+func randomTypedExprDepth(t CType, r *rng, opts Options, env envInfo, scope scopeInfo, depth int, ctx *genContext) string {
+	limit := maxExprDepth(opts)
+	// Bias toward leaves to avoid giant expressions while still creating nested trees.
+	if depth >= limit || r.upto(100) < uint32(40+depth*15) {
+		return randomLeafExpr(t, r, opts, env, scope, ctx)
+	}
+
+	lhs := randomTypedExprDepth(t, r, opts, env, scope, depth+1, ctx)
+	rhs := randomTypedExprDepth(t, r, opts, env, scope, depth+1, ctx)
+
+	ops := []string{"+", "-", "^", "|", "&"}
+	if opts.Muls {
+		ops = append(ops, "*")
+	}
+	if opts.Divs {
+		ops = append(ops, "/")
+	}
+	if opts.CommaOperators {
+		ops = append(ops, ",")
+	}
+
+	op := ops[int(r.upto(uint32(len(ops))))]
+	switch op {
+	case "/":
+		den := randomTypedExprDepth(t, r, opts, env, scope, depth+1, ctx)
+		return castLiteral(t, fmt.Sprintf("((%s) / ((%s) | 1))", lhs, den))
+	case ",":
+		return castLiteral(t, fmt.Sprintf("((%s), (%s))", lhs, rhs))
+	default:
+		return castLiteral(t, fmt.Sprintf("((%s) %s (%s))", lhs, op, rhs))
+	}
+}
+
+func randomTypedExpr(t CType, r *rng, opts Options, env envInfo, scope scopeInfo, ctx *genContext) string {
+	return randomTypedExprDepth(t, r, opts, env, scope, 0, ctx)
+}
+
 func chooseLValue(r *rng, target CType, env envInfo, scope scopeInfo) (lvalueInfo, bool) {
 	c := buildExprCandidates(r, env, scope)
 	pick, ok := selectExprVariable(target, r, c, true)
@@ -268,7 +325,7 @@ func chooseLValue(r *rng, target CType, env envInfo, scope scopeInfo) (lvalueInf
 	return lvalueInfo{expr: pick.expr, ctype: pick.ctype}, true
 }
 
-func emitLValueAssignment(b *strings.Builder, r *rng, opts Options, env envInfo, scope scopeInfo) bool {
+func emitLValueAssignment(b *strings.Builder, r *rng, opts Options, env envInfo, scope scopeInfo, ctx *genContext) bool {
 	targetType := CType{Name: "uint32_t", Signed: false, Bits: 32}
 	if len(scope.locals) > 0 && r.upto(100) < 70 {
 		targetType = scope.locals[int(r.upto(uint32(len(scope.locals))))].ctype
@@ -280,13 +337,17 @@ func emitLValueAssignment(b *strings.Builder, r *rng, opts Options, env envInfo,
 	if !ok {
 		return false
 	}
-	rhs := randomTypedExpr(lv.ctype, r, opts, env, scope)
+	rhs := randomTypedExpr(lv.ctype, r, opts, env, scope, ctx)
 	if opts.CompoundAssignment && r.upto(2) == 0 {
 		writeLine(b, 1, fmt.Sprintf("%s += %s;", lv.expr, rhs))
 	} else {
 		writeLine(b, 1, fmt.Sprintf("%s = %s;", lv.expr, rhs))
 	}
 	writeLine(b, 1, fmt.Sprintf("x ^= (uint32_t)%s;", lv.expr))
+	if ctx != nil {
+		c := exprVarCandidate{expr: lv.expr, ctype: lv.ctype, assignable: true}
+		ctx.mustUse = &c
+	}
 	return true
 }
 
@@ -457,6 +518,10 @@ func emitFuncDecls(b *strings.Builder, funcs []funcInfo) {
 }
 
 func emitArithmeticMutation(b *strings.Builder, r *rng, opts Options) {
+	if opts.Muls && r.upto(4) == 0 {
+		writeLine(b, 1, fmt.Sprintf("x = x * (0x%08Xu | 1u);", r.next31()))
+		return
+	}
 	if opts.Divs && r.upto(3) == 0 {
 		writeLine(b, 1, fmt.Sprintf("x = %s;", safeDivU32Expr("x", "((x & 255u) + 1u)", opts)))
 		return
@@ -501,7 +566,7 @@ func emitIncDecMutation(b *strings.Builder, r *rng, opts Options) bool {
 	return false
 }
 
-func emitGlobalMutation(b *strings.Builder, r *rng, opts Options, env envInfo, scope scopeInfo) {
+func emitGlobalMutation(b *strings.Builder, r *rng, opts Options, env envInfo, scope scopeInfo, ctx *genContext) {
 	if len(env.globals) == 0 {
 		emitArithmeticMutation(b, r, opts)
 		return
@@ -512,22 +577,26 @@ func emitGlobalMutation(b *strings.Builder, r *rng, opts Options, env envInfo, s
 	}
 	gix := start + int(r.upto(uint32(max(len(env.globals)-start, 1))))
 	g := env.globals[gix]
-	rhs := randomTypedExpr(g.ctype, r, opts, env, scope)
+	rhs := randomTypedExpr(g.ctype, r, opts, env, scope, ctx)
 	if opts.CompoundAssignment {
 		writeLine(b, 1, fmt.Sprintf("%s += %s;", g.name, rhs))
 	} else {
 		writeLine(b, 1, fmt.Sprintf("%s = %s;", g.name, safeAddExpr(g.ctype, g.name, rhs, opts)))
 	}
+	if ctx != nil {
+		c := exprVarCandidate{expr: g.name, ctype: g.ctype, assignable: !g.isConst}
+		ctx.mustUse = &c
+	}
 }
 
-func emitArrayMutation(b *strings.Builder, r *rng, opts Options, env envInfo, scope scopeInfo) {
+func emitArrayMutation(b *strings.Builder, r *rng, opts Options, env envInfo, scope scopeInfo, ctx *genContext) {
 	if !opts.Arrays || len(env.arrays) == 0 {
 		emitArithmeticMutation(b, r, opts)
 		return
 	}
 	ai := env.arrays[int(r.upto(uint32(len(env.arrays))))]
 	idxMask := max(1, min(opts.MaxArrayLenPerDim, 8)-1)
-	rhs := randomTypedExpr(ai.ctype, r, opts, env, scope)
+	rhs := randomTypedExpr(ai.ctype, r, opts, env, scope, ctx)
 	writeLine(b, 1, fmt.Sprintf("%s[x & %du] ^= %s;", ai.name, idxMask, rhs))
 	if opts.EmbeddedAssigns {
 		one := castLiteral(ai.ctype, "1u")
@@ -542,38 +611,50 @@ func emitArrayMutation(b *strings.Builder, r *rng, opts Options, env envInfo, sc
 			),
 		)
 	}
+	if ctx != nil {
+		c := exprVarCandidate{expr: fmt.Sprintf("%s[x & %du]", ai.name, idxMask), ctype: ai.ctype, assignable: true}
+		ctx.mustUse = &c
+	}
 }
 
-func emitPointerMutation(b *strings.Builder, r *rng, opts Options, env envInfo, scope scopeInfo) {
+func emitPointerMutation(b *strings.Builder, r *rng, opts Options, env envInfo, scope scopeInfo, ctx *genContext) {
 	if !opts.Pointers || len(env.pointers) == 0 {
 		emitArithmeticMutation(b, r, opts)
 		return
 	}
 	pi := env.pointers[int(r.upto(uint32(len(env.pointers))))]
-	rhs := randomTypedExpr(pi.targetTy, r, opts, env, scope)
+	rhs := randomTypedExpr(pi.targetTy, r, opts, env, scope, ctx)
 	if opts.CompoundAssignment {
 		writeLine(b, 1, fmt.Sprintf("*%s ^= %s;", pi.name, rhs))
 	} else {
 		writeLine(b, 1, fmt.Sprintf("*%s = *%s ^ %s;", pi.name, pi.name, rhs))
 	}
+	if ctx != nil {
+		c := exprVarCandidate{expr: "*" + pi.name, ctype: pi.targetTy, assignable: !pi.constTarget}
+		ctx.mustUse = &c
+	}
 }
 
-func emitLocalMutation(b *strings.Builder, r *rng, opts Options, env envInfo, scope scopeInfo) {
+func emitLocalMutation(b *strings.Builder, r *rng, opts Options, env envInfo, scope scopeInfo, ctx *genContext) {
 	if len(scope.locals) == 0 {
 		emitArithmeticMutation(b, r, opts)
 		return
 	}
 	li := scope.locals[int(r.upto(uint32(len(scope.locals))))]
-	rhs := randomTypedExpr(li.ctype, r, opts, env, scope)
+	rhs := randomTypedExpr(li.ctype, r, opts, env, scope, ctx)
 	if opts.CompoundAssignment {
 		writeLine(b, 1, fmt.Sprintf("%s += %s;", li.name, rhs))
 	} else {
 		writeLine(b, 1, fmt.Sprintf("%s = %s;", li.name, safeAddExpr(li.ctype, li.name, rhs, opts)))
 	}
 	writeLine(b, 1, fmt.Sprintf("x ^= (uint32_t)%s;", li.name))
+	if ctx != nil {
+		c := exprVarCandidate{expr: li.name, ctype: li.ctype, assignable: true}
+		ctx.mustUse = &c
+	}
 }
 
-func emitFunctionCallMutation(b *strings.Builder, r *rng, opts Options, env envInfo, scope scopeInfo, funcs []funcInfo, from int) bool {
+func emitFunctionCallMutation(b *strings.Builder, r *rng, opts Options, env envInfo, scope scopeInfo, funcs []funcInfo, from int, ctx *genContext) bool {
 	if from+1 >= len(funcs) {
 		return false
 	}
@@ -583,7 +664,7 @@ func emitFunctionCallMutation(b *strings.Builder, r *rng, opts Options, env envI
 	if len(callee.params) > 0 {
 		argExprs := make([]string, 0, len(callee.params))
 		for _, p := range callee.params {
-			argExprs = append(argExprs, randomTypedExpr(p.ctype, r, opts, env, scope))
+			argExprs = append(argExprs, randomTypedExpr(p.ctype, r, opts, env, scope, ctx))
 		}
 		args = strings.Join(argExprs, ", ")
 	}
@@ -605,12 +686,20 @@ func emitStatement(
 	info compositeInfo,
 	from int,
 	maxChoice uint32,
+	stmtBudget *int,
+	ctx *genContext,
 ) {
+	if stmtBudget != nil && *stmtBudget == 0 {
+		return
+	}
+	if stmtBudget != nil && *stmtBudget > 0 {
+		*stmtBudget = *stmtBudget - 1
+	}
 	choice := r.upto(maxChoice)
 	switch {
 	case choice == 0:
-		if !emitLValueAssignment(b, r, opts, env, scope) {
-			emitGlobalMutation(b, r, opts, env, scope)
+		if !emitLValueAssignment(b, r, opts, env, scope, ctx) {
+			emitGlobalMutation(b, r, opts, env, scope, ctx)
 		}
 	case choice == 1:
 		emitArithmeticMutation(b, r, opts)
@@ -626,28 +715,36 @@ func emitStatement(
 			writeLine(b, 1, fmt.Sprintf("x += 0x%08Xu;", r.next31()))
 		}
 	case choice == 4:
-		emitLocalMutation(b, r, opts, env, scope)
+		emitLocalMutation(b, r, opts, env, scope, ctx)
 	case choice == 5 && len(info.structs) > 0:
 		si := int(r.upto(uint32(len(info.structs))))
 		fields := info.structs[si].fields
 		fi := int(r.upto(uint32(len(fields))))
 		f := fields[fi]
-		writeLine(b, 1, fmt.Sprintf("gs_%d.%s ^= %s;", si, f.name, randomTypedExpr(f.ctype, r, opts, env, scope)))
+		writeLine(b, 1, fmt.Sprintf("gs_%d.%s ^= %s;", si, f.name, randomTypedExpr(f.ctype, r, opts, env, scope, ctx)))
+		if ctx != nil {
+			c := exprVarCandidate{expr: fmt.Sprintf("gs_%d.%s", si, f.name), ctype: f.ctype, assignable: true}
+			ctx.mustUse = &c
+		}
 	case len(info.unions) > 0 && (choice == 6 || (len(info.structs) == 0 && choice == 5)):
 		ui := int(r.upto(uint32(len(info.unions))))
 		fields := info.unions[ui].fields
 		fi := int(r.upto(uint32(len(fields))))
 		f := fields[fi]
-		writeLine(b, 1, fmt.Sprintf("gu_%d.%s = %s;", ui, f.name, randomTypedExpr(f.ctype, r, opts, env, scope)))
+		writeLine(b, 1, fmt.Sprintf("gu_%d.%s = %s;", ui, f.name, randomTypedExpr(f.ctype, r, opts, env, scope, ctx)))
 		writeLine(b, 1, fmt.Sprintf("x ^= (uint32_t)gu_%d.%s;", ui, f.name))
+		if ctx != nil {
+			c := exprVarCandidate{expr: fmt.Sprintf("gu_%d.%s", ui, f.name), ctype: f.ctype, assignable: true}
+			ctx.mustUse = &c
+		}
 	case len(funcs) > 1:
-		if !emitFunctionCallMutation(b, r, opts, env, scope, funcs, from) {
+		if !emitFunctionCallMutation(b, r, opts, env, scope, funcs, from, ctx) {
 			emitArithmeticMutation(b, r, opts)
 		}
 	case opts.Arrays && len(env.arrays) > 0:
-		emitArrayMutation(b, r, opts, env, scope)
+		emitArrayMutation(b, r, opts, env, scope, ctx)
 	default:
-		emitPointerMutation(b, r, opts, env, scope)
+		emitPointerMutation(b, r, opts, env, scope, ctx)
 	}
 }
 
@@ -662,20 +759,34 @@ func emitStatements(
 	from int,
 	maxChoice uint32,
 	depth int,
+	stmtBudget *int,
+	ctx *genContext,
 ) {
+	if stmtBudget != nil && *stmtBudget == 0 {
+		return
+	}
 	stmtCount := 2 + int(r.upto(uint32(max(1, opts.MaxBlockSize))))
 	for s := 0; s < stmtCount; s++ {
+		if stmtBudget != nil && *stmtBudget == 0 {
+			break
+		}
 		// Introduce nested blocks to better match Csmith statement shape.
 		if depth+1 < max(1, opts.MaxBlockDepth) && opts.Jumps && r.upto(100) < 25 {
 			mask := 1 + r.upto(7)
-			writeLine(b, 1, fmt.Sprintf("if ((x & %du) != 0u) {", mask))
-			emitStatements(b, r, opts, env, scope, funcs, info, from, maxChoice, depth+1)
+			cond := fmt.Sprintf("((x & %du) != 0u)", mask)
+			if opts.ConstAsCondition && r.upto(5) == 0 {
+				cond = fmt.Sprintf("(%s != 0u)", randomConstantExpr(CType{Name: "uint32_t", Signed: false, Bits: 32}, r, opts))
+			} else if r.upto(3) == 0 {
+				cond = fmt.Sprintf("((uint32_t)%s != 0u)", randomTypedExpr(CType{Name: "uint32_t", Signed: false, Bits: 32}, r, opts, env, scope, ctx))
+			}
+			writeLine(b, 1, fmt.Sprintf("if %s {", cond))
+			emitStatements(b, r, opts, env, scope, funcs, info, from, maxChoice, depth+1, stmtBudget, ctx)
 			writeLine(b, 1, "} else {")
-			emitStatement(b, r, opts, env, scope, funcs, info, from, maxChoice)
+			emitStatement(b, r, opts, env, scope, funcs, info, from, maxChoice, stmtBudget, ctx)
 			writeLine(b, 1, "}")
 			continue
 		}
-		emitStatement(b, r, opts, env, scope, funcs, info, from, maxChoice)
+		emitStatement(b, r, opts, env, scope, funcs, info, from, maxChoice, stmtBudget, ctx)
 	}
 }
 
@@ -698,6 +809,11 @@ func emitFuncDefs(b *strings.Builder, r *rng, opts Options, funcs []funcInfo, ma
 	}
 	baseCases := 6
 	maxChoice := uint32(baseCases + extraCases)
+
+	stmtBudget := opts.StopByStmt
+	if stmtBudget < 0 {
+		stmtBudget = -1
+	}
 
 	for i := len(funcs) - 1; i >= 0; i-- {
 		fn := funcs[i]
@@ -735,14 +851,15 @@ func emitFuncDefs(b *strings.Builder, r *rng, opts Options, funcs []funcInfo, ma
 		}
 		locals = append(locals, localInfo{name: "x", ctype: CType{Name: "uint32_t", Signed: false, Bits: 32}})
 		scope := scopeInfo{params: fn.params, locals: locals}
+		ctx := &genContext{}
 
 		for _, p := range fn.params {
 			writeLine(b, 1, fmt.Sprintf("x ^= (uint32_t)%s;", p.name))
 		}
 		_ = maxBlock
-		emitStatements(b, r, opts, env, scope, funcs, info, i, maxChoice, 0)
+		emitStatements(b, r, opts, env, scope, funcs, info, i, maxChoice, 0, &stmtBudget, ctx)
 		if i+1 < len(funcs) {
-			_ = emitFunctionCallMutation(b, r, opts, env, scope, funcs, i)
+			_ = emitFunctionCallMutation(b, r, opts, env, scope, funcs, i, ctx)
 		}
 		if len(env.globals) > 0 {
 			start := 0
@@ -751,7 +868,7 @@ func emitFuncDefs(b *strings.Builder, r *rng, opts Options, funcs []funcInfo, ma
 			}
 			gix := start + int(r.upto(uint32(max(len(env.globals)-start, 1))))
 			g := env.globals[gix]
-			writeLine(b, 1, fmt.Sprintf("%s ^= %s;", g.name, randomTypedExpr(g.ctype, r, opts, env, scope)))
+			writeLine(b, 1, fmt.Sprintf("%s ^= %s;", g.name, randomTypedExpr(g.ctype, r, opts, env, scope, ctx)))
 		}
 		writeLine(b, 1, fmt.Sprintf("l_0 ^= %s;", castLiteral(fn.ret, "x")))
 		writeLine(b, 1, "return l_0;")
@@ -762,14 +879,18 @@ func emitFuncDefs(b *strings.Builder, r *rng, opts Options, funcs []funcInfo, ma
 
 func emitMain(b *strings.Builder, opts Options, env envInfo, info compositeInfo, entry string) {
 	useRuntime := opts.SafeMath || opts.ComputeHash
+	useHashPrintf := opts.HashValuePrintf
 	if opts.AcceptArgc {
 		writeLine(b, 0, "int main(int argc, char *argv[]) {")
 		writeLine(b, 1, "int print_hash_value = 0;")
-		if useRuntime {
+		if useRuntime && useHashPrintf {
 			writeLine(b, 1, "if (argc == 2 && strcmp(argv[1], \"1\") == 0) print_hash_value = 1;")
 		}
 	} else {
 		writeLine(b, 0, "int main(void) {")
+		if useRuntime {
+			writeLine(b, 1, "int print_hash_value = 0;")
+		}
 	}
 
 	if useRuntime {
