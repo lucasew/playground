@@ -55,13 +55,13 @@ type funcInfo struct {
 }
 
 type functionFlowState struct {
-	funcs    []funcInfo
-	maxFuncs int
-	nextIdx  int
-	pool     []CType
-	opts     Options
-	dynGlobals []globalInfo
-	lateGlobals strings.Builder
+	funcs        []funcInfo
+	maxFuncs     int
+	nextIdx      int
+	pool         []CType
+	opts         Options
+	dynGlobals   []globalInfo
+	lateGlobals  strings.Builder
 	nextGlobalID int
 }
 
@@ -1726,7 +1726,7 @@ func emitSingleFuncDefOnce(
 	scope := scopeInfo{params: fn.params, locals: locals}
 	ctx := &genContext{
 		state: state,
-		from: idx,
+		from:  idx,
 	}
 
 	for _, p := range fn.params {
@@ -1814,12 +1814,12 @@ func makeFuncSignature(r *rng, opts Options, pool []CType, idx int) funcInfo {
 func emitFunctionsUpstreamFlow(b *strings.Builder, r *rng, opts Options, pool []CType, maxBlock int, env envInfo, info compositeInfo) ([]funcInfo, []globalInfo) {
 	maxFuncs := max(opts.MaxFuncs, 1)
 	state := &functionFlowState{
-		funcs:    []funcInfo{makeFuncSignature(r, opts, pool, 1)},
-		maxFuncs: maxFuncs,
-		nextIdx:  2,
-		pool:     pool,
-		opts:     opts,
-		dynGlobals: []globalInfo{},
+		funcs:        []funcInfo{makeFuncSignature(r, opts, pool, 1)},
+		maxFuncs:     maxFuncs,
+		nextIdx:      2,
+		pool:         pool,
+		opts:         opts,
+		dynGlobals:   []globalInfo{},
 		nextGlobalID: len(env.globals),
 	}
 	built := []bool{false}
@@ -1927,6 +1927,7 @@ func Generate(opts Options) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	opts = opts.normalizeUpstreamFlow()
 
 	if err := opts.validate(); err != nil {
 		return "", err

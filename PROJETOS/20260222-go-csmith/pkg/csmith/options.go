@@ -26,6 +26,8 @@ type Options struct {
 	PlatformInfoPath string
 	IntSize          int
 	PointerSize      int
+	IntSizeExplicit  bool
+	PointerExplicit  bool
 
 	// Size/depth controls
 	MaxFuncs             int
@@ -166,10 +168,10 @@ func Defaults() Options {
 	return Options{
 		OutputPath:       "",
 		MaxSplitFiles:    0,
-		SplitFilesDir:    "./output",
+		SplitFilesDir:    "",
 		NoMain:           false,
 		PlatformInfoPath: defaultPlatformInfoPath,
-		IntSize:          4,
+		IntSize:          int(unsafe.Sizeof(int(0))),
 		PointerSize:      int(unsafe.Sizeof(uintptr(0))),
 
 		MaxFuncs:             10,
@@ -181,7 +183,7 @@ func Defaults() Options {
 		MaxStructFields:      10,
 		MaxUnionFields:       5,
 		MaxNestedStructLevel: 3,
-		MaxPointerDepth:      5,
+		MaxPointerDepth:      2,
 		MaxArrayDim:          3,
 		MaxArrayLenPerDim:    10,
 		MaxArrayLength:       256,
@@ -256,7 +258,7 @@ func Defaults() Options {
 		Paranoid:                 false,
 		Quiet:                    false,
 		Concise:                  false,
-		Builtins:                 true,
+		Builtins:                 false,
 		RandomRandom:             false,
 		StepHashByStmt:           false,
 		ConstAsCondition:         false,
@@ -304,54 +306,66 @@ func Defaults() Options {
 }
 
 func (o Options) resolvePlatformInfo() (Options, error) {
-	if o.IntSize > 0 && o.PointerSize > 0 {
-		path := strings.TrimSpace(o.PlatformInfoPath)
-		if path == "" {
-			path = defaultPlatformInfoPath
-		}
-		f, err := os.Open(path)
-		if err != nil {
-			if os.IsNotExist(err) {
-				return o, nil
+	path := strings.TrimSpace(o.PlatformInfoPath)
+	if path == "" {
+		path = defaultPlatformInfoPath
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			if o.IntSize <= 0 {
+				o.IntSize = int(unsafe.Sizeof(int(0)))
 			}
-			return o, err
+			if o.PointerSize <= 0 {
+				o.PointerSize = int(unsafe.Sizeof(uintptr(0)))
+			}
+			return o, nil
 		}
-		defer f.Close()
+		return o, err
+	}
+	defer f.Close()
 
-		seenInt := false
-		seenPtr := false
+	seenInt := false
+	seenPtr := false
+	fileInt := 0
+	filePtr := 0
 
-		scanner := bufio.NewScanner(f)
-		for scanner.Scan() {
-			line := strings.TrimSpace(scanner.Text())
-			if strings.HasPrefix(line, "integer size =") {
-				v := strings.TrimSpace(strings.TrimPrefix(line, "integer size ="))
-				n, err := strconv.Atoi(v)
-				if err != nil {
-					return o, fmt.Errorf("invalid integer size in %s", path)
-				}
-				o.IntSize = n
-				seenInt = true
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if strings.HasPrefix(line, "integer size =") {
+			v := strings.TrimSpace(strings.TrimPrefix(line, "integer size ="))
+			n, err := strconv.Atoi(v)
+			if err != nil {
+				return o, fmt.Errorf("invalid integer size in %s", path)
 			}
-			if strings.HasPrefix(line, "pointer size =") {
-				v := strings.TrimSpace(strings.TrimPrefix(line, "pointer size ="))
-				n, err := strconv.Atoi(v)
-				if err != nil {
-					return o, fmt.Errorf("invalid pointer size in %s", path)
-				}
-				o.PointerSize = n
-				seenPtr = true
+			fileInt = n
+			seenInt = true
+		}
+		if strings.HasPrefix(line, "pointer size =") {
+			v := strings.TrimSpace(strings.TrimPrefix(line, "pointer size ="))
+			n, err := strconv.Atoi(v)
+			if err != nil {
+				return o, fmt.Errorf("invalid pointer size in %s", path)
 			}
+			filePtr = n
+			seenPtr = true
 		}
-		if err := scanner.Err(); err != nil {
-			return o, err
-		}
-		if !seenInt {
-			return o, fmt.Errorf("please specify integer size in %s", path)
-		}
-		if !seenPtr {
-			return o, fmt.Errorf("please specify pointer size in %s", path)
-		}
+	}
+	if err := scanner.Err(); err != nil {
+		return o, err
+	}
+	if !seenInt {
+		return o, fmt.Errorf("please specify integer size in %s", path)
+	}
+	if !seenPtr {
+		return o, fmt.Errorf("please specify pointer size in %s", path)
+	}
+	if !o.IntSizeExplicit {
+		o.IntSize = fileInt
+	}
+	if !o.PointerExplicit {
+		o.PointerSize = filePtr
 	}
 	return o, nil
 }
@@ -419,12 +433,18 @@ func (o Options) Validate() error {
 		if o.MaxSplitFiles > 0 {
 			return fmt.Errorf("max_split_files can only be applied to random mode")
 		}
-		if o.SplitFilesDir != "" && o.SplitFilesDir != "./output" {
+		if o.SplitFilesDir != "" {
 			return fmt.Errorf("split_files_dir can only be applied to random mode")
 		}
 	}
-	if o.FastExecution && !o.LangCPP {
-		return fmt.Errorf("fast-execution requires C++ mode semantics (lang-cpp)")
+	if o.DeltaMonitor != "" && o.GoDelta != "" {
+		return fmt.Errorf("you cannot specify --delta-monitor and --go-delta monitor at the same time")
+	}
+	if o.MaxSplitFiles > 0 && o.SplitFilesDir == "" {
+		o.SplitFilesDir = "./output"
+		if err := os.MkdirAll(o.SplitFilesDir, 0o755); err != nil {
+			return fmt.Errorf("cannot create dir for split files: %w", err)
+		}
 	}
 	extCount := 0
 	if o.Klee {
@@ -442,6 +462,26 @@ func (o Options) Validate() error {
 	return nil
 }
 
+func (o Options) normalizeUpstreamFlow() Options {
+	// Upstream fast-execution turns on C++ mode and tightens options.
+	if o.FastExecution {
+		o.LangCPP = true
+		o.Jumps = false
+		o.MaxArrayLenPerDim = min(o.MaxArrayLenPerDim, 5)
+	}
+	// Upstream C++ normalization.
+	if o.LangCPP {
+		o.MatchExactQualifiers = true
+		o.VolStructUnionFields = false
+		o.ConstStructUnionFields = false
+	}
+	// Upstream DFS mode forces fixed struct fields.
+	if o.DFSExhaustive {
+		o.FixedStructFields = true
+	}
+	return o
+}
+
 func (o Options) validate() error {
-	return o.Validate()
+	return o.normalizeUpstreamFlow().Validate()
 }

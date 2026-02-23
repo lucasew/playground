@@ -94,6 +94,10 @@ func NewRootCmd() *cobra.Command {
 			if !seedSet {
 				opts.Seed = uint64(time.Now().UnixNano())
 			}
+			if opts.DFSExhaustive {
+				// Upstream parser flips random_based off when dfs-exhaustive is enabled.
+				opts.RandomBased = false
+			}
 			opts.OutputPath = outputPath
 
 			program, err := csmith.Generate(opts)
@@ -257,6 +261,8 @@ func NewRootCmd() *cobra.Command {
 
 	cmd.PreRun = func(cmd *cobra.Command, args []string) {
 		seedSet = cmd.Flags().Changed("seed")
+		opts.IntSizeExplicit = cmd.Flags().Changed("int-size")
+		opts.PointerExplicit = cmd.Flags().Changed("ptr-size")
 		for _, b := range negBindings {
 			if *b.neg {
 				*b.target = false
