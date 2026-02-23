@@ -2,7 +2,6 @@ package csmith
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 )
 
@@ -76,7 +75,6 @@ const (
 	stmtBreak
 	stmtGoto
 	stmtArrayOp
-	stmtInvoke
 )
 
 type localInfo struct {
@@ -1147,19 +1145,6 @@ func emitGlobals(b *strings.Builder, r *rng, opts Options, info compositeInfo, p
 				env.arrays = append(env.arrays, ai)
 			}
 
-			// Additional upstream-like global array pressure: emit extra multidim arrays.
-			extraArrays := 12 + int(r.upto(uint32(max(1, min(opts.MaxGlobals/5, 12)))))
-			for i := 0; i < extraArrays; i++ {
-				t := pickType(r, pool)
-				name := fmt.Sprintf("garr_%d", i)
-				dims := 1 + int(r.upto(uint32(max(1, min(opts.MaxArrayDim, 3)))))
-				sfx := strings.Builder{}
-				for d := 0; d < dims; d++ {
-					dlen := 2 + int(r.upto(uint32(max(2, min(opts.MaxArrayLenPerDim, 10)))))
-					sfx.WriteString(fmt.Sprintf("[%d]", dlen))
-				}
-				writeLine(b, 0, fmt.Sprintf("static %s %s%s = {0};", t.Name, name, sfx.String()))
-			}
 		}
 
 		if opts.Pointers {
@@ -1484,7 +1469,7 @@ func emitStatement(
 	chooseStmt := func() stmtKind {
 		// Upstream default statement probabilities from pStatementProb:
 		// ifelse 15, for 30, return 35, continue 40, break 45,
-		// plus invocation-like expansion before falling back to assign.
+		// goto 50 (if jumps), arrayop 60/55 (if arrays), assign 100.
 		tryPick := func() (stmtKind, bool) {
 			v := int(dec.pick(0, 100))
 			k := stmtAssign
@@ -1499,15 +1484,13 @@ func emitStatement(
 				k = stmtContinue
 			case v < 45:
 				k = stmtBreak
-			case v < 47:
-				k = stmtInvoke
-			case opts.Jumps && opts.Arrays && v < 52:
+			case opts.Jumps && opts.Arrays && v < 50:
 				k = stmtGoto
-			case opts.Jumps && opts.Arrays && v < 62:
+			case opts.Jumps && opts.Arrays && v < 60:
 				k = stmtArrayOp
-			case opts.Jumps && !opts.Arrays && v < 52:
+			case opts.Jumps && !opts.Arrays && v < 50:
 				k = stmtGoto
-			case !opts.Jumps && opts.Arrays && v < 57:
+			case !opts.Jumps && opts.Arrays && v < 55:
 				k = stmtArrayOp
 			default:
 				k = stmtAssign
@@ -1518,10 +1501,6 @@ func emitStatement(
 				return k, false
 			}
 			if depth >= max(1, opts.MaxBlockDepth) && (k == stmtIfElse || k == stmtFor) {
-				return k, false
-			}
-			if state != nil && len(state.funcs) >= state.maxFuncs && k == stmtInvoke {
-				// Upstream StatementFilter filters out invoke when max funcs is reached.
 				return k, false
 			}
 			return k, true
@@ -1582,10 +1561,6 @@ func emitStatement(
 			return false
 		}
 		emitArrayMutation(b, r, opts, env, scope, ctx)
-	case stmtInvoke:
-		if !emitFunctionCallMutation(b, r, opts, env, scope, state, from, ctx) {
-			return false
-		}
 	default:
 		return false
 	}
@@ -1609,7 +1584,7 @@ func emitStatements(
 	if stmtBudget != nil && *stmtBudget == 0 {
 		return
 	}
-	stmtCount := 2 + int(r.upto(uint32(max(3, opts.MaxBlockSize*2+1))))
+	stmtCount := 2 + int(r.upto(uint32(max(1, opts.MaxBlockSize))))
 	for s := 0; s < stmtCount; s++ {
 		if stmtBudget != nil && *stmtBudget == 0 {
 			break
@@ -1655,40 +1630,7 @@ func emitSingleFuncDef(
 	info compositeInfo,
 	stmtBudget *int,
 ) string {
-	const maxBuildAttempts = 6
-	last := ""
-	for i := 0; i < maxBuildAttempts; i++ {
-		snapFuncsLen := len(state.funcs)
-		snapNextIdx := state.nextIdx
-		snapDynGlobalsLen := len(state.dynGlobals)
-		snapNextGlobalID := state.nextGlobalID
-		snapLateGlobals := state.lateGlobals.String()
-		snapStmtBudget := -1
-		if stmtBudget != nil {
-			snapStmtBudget = *stmtBudget
-		}
-
-		candidate := emitSingleFuncDefOnce(r, opts, fn, state, idx, maxBlock, env, info, stmtBudget)
-		last = candidate
-		allGlobals := make([]globalInfo, 0, len(env.globals)+len(state.dynGlobals))
-		allGlobals = append(allGlobals, env.globals...)
-		allGlobals = append(allGlobals, state.dynGlobals...)
-		if validateFunctionBody(candidate, allGlobals) {
-			return candidate
-		}
-
-		// Reject path: discard side effects introduced during this attempt.
-		state.funcs = state.funcs[:snapFuncsLen]
-		state.nextIdx = snapNextIdx
-		state.dynGlobals = state.dynGlobals[:snapDynGlobalsLen]
-		state.nextGlobalID = snapNextGlobalID
-		state.lateGlobals.Reset()
-		state.lateGlobals.WriteString(snapLateGlobals)
-		if stmtBudget != nil && snapStmtBudget >= 0 {
-			*stmtBudget = snapStmtBudget
-		}
-	}
-	return last
+	return emitSingleFuncDefOnce(r, opts, fn, state, idx, maxBlock, env, info, stmtBudget)
 }
 
 func emitSingleFuncDefOnce(
@@ -1765,38 +1707,6 @@ func emitSingleFuncDefOnce(
 	return b.String()
 }
 
-var (
-	reUnsafeDivZero  = regexp.MustCompile(`/\s*\(\s*0[uUlL]*\s*\)`)
-	reUnsafeModZero  = regexp.MustCompile(`%\s*\(\s*0[uUlL]*\s*\)`)
-	reUnsafeShiftNeg = regexp.MustCompile(`(<<|>>)\s*\(\s*-\d+`)
-)
-
-func validateFunctionBody(def string, globals []globalInfo) bool {
-	if strings.Count(def, "{") != strings.Count(def, "}") {
-		return false
-	}
-	if !strings.Contains(def, "return") {
-		return false
-	}
-	if (strings.Contains(def, "continue;") || strings.Contains(def, "break;")) && !strings.Contains(def, "for (") {
-		return false
-	}
-	if reUnsafeDivZero.MatchString(def) || reUnsafeModZero.MatchString(def) || reUnsafeShiftNeg.MatchString(def) {
-		return false
-	}
-	for _, g := range globals {
-		if !g.isConst {
-			continue
-		}
-		id := regexp.QuoteMeta(g.name)
-		writePat := `\b(` + id + `\s*(=|\+=|-=|\*=|/=|%=|<<=|>>=|&=|\|=|\^=)|(\+\+|--)\s*` + id + `|` + id + `\s*(\+\+|--))\b`
-		if regexp.MustCompile(writePat).FindString(def) != "" {
-			return false
-		}
-	}
-	return true
-}
-
 func makeFuncSignature(r *rng, opts Options, pool []CType, idx int) funcInfo {
 	fn := funcInfo{
 		name: fmt.Sprintf("func_%d", idx),
@@ -1868,6 +1778,32 @@ func emitFunctionsUpstreamFlow(b *strings.Builder, r *rng, opts Options, pool []
 	return state.funcs, state.dynGlobals
 }
 
+func emitComputeHashFunc(b *strings.Builder, env envInfo, info compositeInfo) {
+	writeLine(b, 0, "void csmith_compute_hash(void)")
+	writeLine(b, 0, "{")
+	for _, g := range env.globals {
+		writeLine(b, 1, fmt.Sprintf("transparent_crc((uint64_t)%s, \"%s\", print_hash_value);", g.name, g.name))
+	}
+	for _, arr := range env.arrays {
+		writeLine(b, 1, fmt.Sprintf("for (int i = 0; i < %d; i++)", arr.len))
+		writeLine(b, 2, fmt.Sprintf("transparent_crc((uint64_t)%s[i], \"%s[i]\", print_hash_value);", arr.name, arr.name))
+	}
+	for i, st := range info.structs {
+		for _, f := range st.fields {
+			writeLine(b, 1, fmt.Sprintf("transparent_crc((uint64_t)gs_%d.%s, \"gs_%d.%s\", print_hash_value);", i, f.name, i, f.name))
+		}
+	}
+	for i, ut := range info.unions {
+		if len(ut.fields) == 0 {
+			continue
+		}
+		f := ut.fields[0]
+		writeLine(b, 1, fmt.Sprintf("transparent_crc((uint64_t)gu_%d.%s, \"gu_%d.%s\", print_hash_value);", i, f.name, i, f.name))
+	}
+	writeLine(b, 0, "}")
+	writeLine(b, 0, "")
+}
+
 func emitMain(b *strings.Builder, opts Options, env envInfo, info compositeInfo, entry string) {
 	useRuntime := opts.SafeMath || opts.ComputeHash
 	useHashPrintf := opts.HashValuePrintf
@@ -1890,43 +1826,13 @@ func emitMain(b *strings.Builder, opts Options, env envInfo, info compositeInfo,
 			writeLine(b, 1, "crc32_gentab();")
 		}
 	}
-	writeLine(b, 1, "uint32_t checksum = 0u;")
-	writeLine(b, 1, fmt.Sprintf("uint32_t x = (uint32_t)%s();", entry))
+	writeLine(b, 1, fmt.Sprintf("(void)%s();", entry))
 	if opts.ComputeHash {
-		for _, g := range env.globals {
-			if useRuntime {
-				writeLine(b, 1, fmt.Sprintf("transparent_crc((uint64_t)%s, \"%s\", print_hash_value);", g.name, g.name))
-			}
-			writeLine(b, 1, fmt.Sprintf("checksum ^= (uint32_t)%s + 0x9E3779B9u + (checksum << 6) + (checksum >> 2);", g.name))
-		}
-		for _, arr := range env.arrays {
-			if useRuntime {
-				writeLine(b, 1, fmt.Sprintf("for (int ai = 0; ai < %d; ++ai) transparent_crc((uint64_t)%s[ai], \"%s\", print_hash_value);", arr.len, arr.name, arr.name))
-			}
-			writeLine(b, 1, fmt.Sprintf("checksum ^= (uint32_t)%s[0] + 0x9E3779B9u;", arr.name))
-		}
-		for i, st := range info.structs {
-			for _, f := range st.fields {
-				if useRuntime {
-					writeLine(b, 1, fmt.Sprintf("transparent_crc((uint64_t)gs_%d.%s, \"gs\", print_hash_value);", i, f.name))
-				}
-				writeLine(b, 1, fmt.Sprintf("checksum ^= (uint32_t)gs_%d.%s + 0x9E3779B9u;", i, f.name))
-			}
-		}
-		for i, ut := range info.unions {
-			if len(ut.fields) > 0 {
-				f := ut.fields[0]
-				if useRuntime {
-					writeLine(b, 1, fmt.Sprintf("transparent_crc((uint64_t)gu_%d.%s, \"gu\", print_hash_value);", i, f.name))
-				}
-				writeLine(b, 1, fmt.Sprintf("checksum ^= (uint32_t)gu_%d.%s + 0x9E3779B9u;", i, f.name))
-			}
-		}
-		writeLine(b, 1, "checksum ^= x;")
+		writeLine(b, 1, "csmith_compute_hash();")
 		if useRuntime {
 			writeLine(b, 1, "platform_main_end(crc32_context ^ 0xFFFFFFFFUL, print_hash_value);")
 		} else {
-			writeLine(b, 1, "printf(\"checksum = %u\\n\", checksum);")
+			writeLine(b, 1, "platform_main_end(0,0);")
 		}
 	}
 	if !opts.ComputeHash && useRuntime {

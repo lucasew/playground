@@ -58,6 +58,9 @@ func (g *defaultProgramGenerator) generateFunctions() {
 }
 
 func (g *defaultProgramGenerator) output() {
+	if g.opts.ComputeHash {
+		emitComputeHashFunc(&g.b, g.env, g.info)
+	}
 	if g.opts.NoMain || len(g.funcs) == 0 {
 		return
 	}
