@@ -38,6 +38,17 @@ type pointerInfo struct {
 	targetTy CType
 }
 
+type paramInfo struct {
+	name  string
+	ctype CType
+}
+
+type funcInfo struct {
+	name   string
+	ret    CType
+	params []paramInfo
+}
+
 type compositeInfo struct {
 	structs []structTypeInfo
 	unions  []unionTypeInfo
@@ -69,6 +80,46 @@ func writeLine(b *strings.Builder, indent int, s string) {
 	}
 	b.WriteString(s)
 	b.WriteByte('\n')
+}
+
+func safeAddExpr(t CType, a, b string, opts Options) string {
+	if !opts.SafeMath {
+		return fmt.Sprintf("((%s) + (%s))", a, b)
+	}
+	sign := "u_u"
+	if t.Signed {
+		sign = "s_s"
+	}
+	bits := t.Bits
+	if bits != 8 && bits != 16 && bits != 32 && bits != 64 {
+		bits = 32
+	}
+	prefix := "uint"
+	if t.Signed {
+		prefix = "int"
+	}
+	return fmt.Sprintf("safe_add_func_%s%d_t_%s(%s, %s)", prefix, bits, sign, a, b)
+}
+
+func safeDivU32Expr(a, b string, opts Options) string {
+	if !opts.SafeMath {
+		return fmt.Sprintf("((%s) / (%s))", a, b)
+	}
+	return fmt.Sprintf("safe_div_func_uint32_t_u_u(%s, %s)", a, b)
+}
+
+func safeLShiftU32Expr(a, b string, opts Options) string {
+	if !opts.SafeMath {
+		return fmt.Sprintf("((%s) << (%s))", a, b)
+	}
+	return fmt.Sprintf("safe_lshift_func_uint32_t_u_s(%s, %s)", a, b)
+}
+
+func safeRShiftU32Expr(a, b string, opts Options) string {
+	if !opts.SafeMath {
+		return fmt.Sprintf("((%s) >> (%s))", a, b)
+	}
+	return fmt.Sprintf("safe_rshift_func_uint32_t_u_s(%s, %s)", a, b)
 }
 
 func emitCompositeTypes(b *strings.Builder, r *rng, opts Options, pool []CType) compositeInfo {
@@ -200,23 +251,35 @@ func emitGlobals(b *strings.Builder, r *rng, opts Options, info compositeInfo, p
 	return env
 }
 
-func emitFuncDecls(b *strings.Builder, funcs int) {
-	for i := 0; i < funcs; i++ {
-		writeLine(b, 0, fmt.Sprintf("static uint32_t func_%d(void);", i))
+func emitFuncDecls(b *strings.Builder, funcs []funcInfo) {
+	for _, fn := range funcs {
+		params := "void"
+		if len(fn.params) > 0 {
+			pp := make([]string, 0, len(fn.params))
+			for _, p := range fn.params {
+				pp = append(pp, fmt.Sprintf("%s %s", p.ctype.Name, p.name))
+			}
+			params = strings.Join(pp, ", ")
+		}
+		writeLine(b, 0, fmt.Sprintf("static %s %s(%s);", fn.ret.Name, fn.name, params))
 	}
 	writeLine(b, 0, "")
 }
 
 func emitArithmeticMutation(b *strings.Builder, r *rng, opts Options) {
 	if opts.Divs && r.upto(3) == 0 {
-		writeLine(b, 1, "x = x / ((x & 255u) + 1u);")
+		writeLine(b, 1, fmt.Sprintf("x = %s;", safeDivU32Expr("x", "((x & 255u) + 1u)", opts)))
 		return
 	}
 	if opts.UnaryPlusOperator && r.upto(3) == 0 {
 		writeLine(b, 1, fmt.Sprintf("x = (+x) ^ 0x%08Xu;", r.next31()))
 		return
 	}
-	writeLine(b, 1, fmt.Sprintf("x = (x << 1) ^ (x >> 1) ^ 0x%08Xu;", r.next31()))
+	writeLine(
+		b,
+		1,
+		fmt.Sprintf("x = (%s) ^ (%s) ^ 0x%08Xu;", safeLShiftU32Expr("x", "1", opts), safeRShiftU32Expr("x", "1", opts), r.next31()),
+	)
 }
 
 func emitIncDecMutation(b *strings.Builder, r *rng, opts Options) bool {
@@ -263,7 +326,7 @@ func emitGlobalMutation(b *strings.Builder, r *rng, opts Options, env envInfo) {
 	if opts.CompoundAssignment {
 		writeLine(b, 1, fmt.Sprintf("%s += %s;", g.name, rhs))
 	} else {
-		writeLine(b, 1, fmt.Sprintf("%s = %s + %s;", g.name, g.name, rhs))
+		writeLine(b, 1, fmt.Sprintf("%s = %s;", g.name, safeAddExpr(g.ctype, g.name, rhs, opts)))
 	}
 }
 
@@ -278,7 +341,16 @@ func emitArrayMutation(b *strings.Builder, r *rng, opts Options, env envInfo) {
 	writeLine(b, 1, fmt.Sprintf("%s[x & %du] ^= %s;", ai.name, idxMask, rhs))
 	if opts.EmbeddedAssigns {
 		one := castLiteral(ai.ctype, "1u")
-		writeLine(b, 1, fmt.Sprintf("x = (%s[x & %du] = %s[x & %du] + %s);", ai.name, idxMask, ai.name, idxMask, one))
+		writeLine(
+			b,
+			1,
+			fmt.Sprintf(
+				"x = (%s[x & %du] = %s);",
+				ai.name,
+				idxMask,
+				safeAddExpr(ai.ctype, fmt.Sprintf("%s[x & %du]", ai.name, idxMask), one, opts),
+			),
+		)
 	}
 }
 
@@ -296,7 +368,7 @@ func emitPointerMutation(b *strings.Builder, r *rng, opts Options, env envInfo) 
 	}
 }
 
-func emitFuncDefs(b *strings.Builder, r *rng, opts Options, funcs, maxBlock int, env envInfo, info compositeInfo) {
+func emitFuncDefs(b *strings.Builder, r *rng, opts Options, funcs []funcInfo, maxBlock int, env envInfo, info compositeInfo) {
 	extraCases := 0
 	if len(info.structs) > 0 {
 		extraCases++
@@ -313,8 +385,18 @@ func emitFuncDefs(b *strings.Builder, r *rng, opts Options, funcs, maxBlock int,
 	baseCases := 5
 	maxChoice := uint32(baseCases + extraCases)
 
-	for i := funcs - 1; i >= 0; i-- {
-		writeLine(b, 0, fmt.Sprintf("static uint32_t func_%d(void) {", i))
+	for i := len(funcs) - 1; i >= 0; i-- {
+		fn := funcs[i]
+		params := "void"
+		if len(fn.params) > 0 {
+			pp := make([]string, 0, len(fn.params))
+			for _, p := range fn.params {
+				pp = append(pp, fmt.Sprintf("%s %s", p.ctype.Name, p.name))
+			}
+			params = strings.Join(pp, ", ")
+		}
+		writeLine(b, 0, fmt.Sprintf("static %s %s(%s) {", fn.ret.Name, fn.name, params))
+		writeLine(b, 1, fmt.Sprintf("%s l_0 = %s;", fn.ret.Name, castLiteral(fn.ret, fmt.Sprintf("0x%08Xu", r.next31()))))
 		if len(env.globals) >= 2 {
 			writeLine(
 				b,
@@ -326,6 +408,9 @@ func emitFuncDefs(b *strings.Builder, r *rng, opts Options, funcs, maxBlock int,
 			)
 		} else {
 			writeLine(b, 1, fmt.Sprintf("uint32_t x = 0x%08Xu;", r.next31()))
+		}
+		for _, p := range fn.params {
+			writeLine(b, 1, fmt.Sprintf("x ^= (uint32_t)%s;", p.name))
 		}
 		stmtCount := 2 + int(r.upto(uint32(maxBlock)))
 		for s := 0; s < stmtCount; s++ {
@@ -365,8 +450,21 @@ func emitFuncDefs(b *strings.Builder, r *rng, opts Options, funcs, maxBlock int,
 				emitPointerMutation(b, r, opts, env)
 			}
 		}
-		if i+1 < funcs {
-			writeLine(b, 1, fmt.Sprintf("x ^= func_%d();", i+1))
+		if i+1 < len(funcs) {
+			next := funcs[i+1]
+			args := "void"
+			if len(next.params) > 0 {
+				argExprs := make([]string, 0, len(next.params))
+				for pidx, p := range next.params {
+					argExprs = append(argExprs, castLiteral(p.ctype, fmt.Sprintf("(x + 0x%08Xu)", uint32(pidx)+r.next31())))
+				}
+				args = strings.Join(argExprs, ", ")
+			}
+			if args == "void" {
+				writeLine(b, 1, fmt.Sprintf("x ^= (uint32_t)%s();", next.name))
+			} else {
+				writeLine(b, 1, fmt.Sprintf("x ^= (uint32_t)%s(%s);", next.name, args))
+			}
 		}
 		if len(env.globals) > 0 {
 			start := 0
@@ -377,13 +475,14 @@ func emitFuncDefs(b *strings.Builder, r *rng, opts Options, funcs, maxBlock int,
 			g := env.globals[gix]
 			writeLine(b, 1, fmt.Sprintf("%s ^= %s;", g.name, castLiteral(g.ctype, fmt.Sprintf("(x + 0x%08Xu)", r.next31()))))
 		}
-		writeLine(b, 1, "return x;")
+		writeLine(b, 1, fmt.Sprintf("l_0 ^= %s;", castLiteral(fn.ret, "x")))
+		writeLine(b, 1, "return l_0;")
 		writeLine(b, 0, "}")
 		writeLine(b, 0, "")
 	}
 }
 
-func emitMain(b *strings.Builder, opts Options, env envInfo, info compositeInfo) {
+func emitMain(b *strings.Builder, opts Options, env envInfo, info compositeInfo, entry string) {
 	useRuntime := opts.SafeMath || opts.ComputeHash
 	if opts.AcceptArgc {
 		writeLine(b, 0, "int main(int argc, char *argv[]) {")
@@ -402,7 +501,7 @@ func emitMain(b *strings.Builder, opts Options, env envInfo, info compositeInfo)
 		}
 	}
 	writeLine(b, 1, "uint32_t checksum = 0u;")
-	writeLine(b, 1, "uint32_t x = func_0();")
+	writeLine(b, 1, fmt.Sprintf("uint32_t x = (uint32_t)%s();", entry))
 	if opts.ComputeHash {
 		for _, g := range env.globals {
 			if useRuntime {
@@ -461,7 +560,34 @@ func Generate(opts Options) (string, error) {
 
 	r := newRNG(opts.Seed)
 	pool := typePool(opts)
-	funcs := 1 + int(r.upto(uint32(min(opts.MaxFuncs, 8))))
+	funcCount := 1 + int(r.upto(uint32(min(opts.MaxFuncs, 8))))
+	funcs := make([]funcInfo, 0, funcCount)
+	for i := 0; i < funcCount; i++ {
+		fn := funcInfo{
+			name: fmt.Sprintf("func_%d", i+1),
+			ret:  pickType(r, pool),
+		}
+		maxParams := min(opts.MaxParams, 4)
+		if i == 0 {
+			// Csmith keeps func_1(void) as the top-level entry.
+			maxParams = 0
+		}
+		if maxParams < 0 {
+			maxParams = 0
+		}
+		pcount := 0
+		if maxParams > 0 {
+			pcount = int(r.upto(uint32(maxParams + 1)))
+		}
+		fn.params = make([]paramInfo, 0, pcount)
+		for p := 0; p < pcount; p++ {
+			fn.params = append(fn.params, paramInfo{
+				name:  fmt.Sprintf("p_%d", p+1),
+				ctype: pickType(r, pool),
+			})
+		}
+		funcs = append(funcs, fn)
+	}
 
 	var b strings.Builder
 	b.WriteString("/* csmith-go: seed = ")
@@ -486,7 +612,7 @@ func Generate(opts Options) (string, error) {
 	emitFuncDefs(&b, r, opts, funcs, opts.MaxBlockSize, env, info)
 
 	if !opts.NoMain {
-		emitMain(&b, opts, env, info)
+		emitMain(&b, opts, env, info, funcs[0].name)
 	}
 
 	return b.String(), nil
