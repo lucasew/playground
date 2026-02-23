@@ -1932,44 +1932,7 @@ func Generate(opts Options) (string, error) {
 	if err := opts.validate(); err != nil {
 		return "", err
 	}
-
-	r := newRNG(opts.Seed)
-	pool := typePool(opts)
-
-	var b strings.Builder
-	// Phase 1 (upstream-like): output header/comments/includes.
-	b.WriteString("/* csmith-go: seed = ")
-	b.WriteString(fmt.Sprintf("%d", opts.Seed))
-	b.WriteString(" */\n")
-	b.WriteString("/* int-size = ")
-	b.WriteString(fmt.Sprintf("%d", opts.IntSize))
-	b.WriteString(", ptr-size = ")
-	b.WriteString(fmt.Sprintf("%d", opts.PointerSize))
-	b.WriteString(" */\n")
-	if opts.SafeMath || opts.ComputeHash {
-		b.WriteString("#include \"csmith.h\"\n")
-	} else {
-		b.WriteString("#include <stdint.h>\n")
-		b.WriteString("#include <stdio.h>\n")
-	}
-	b.WriteString("\n")
-
-	// Phase 2 (upstream-like GenerateAllTypes): synthesize types.
-	info := emitCompositeTypes(&b, r, opts, pool)
-
-	// Phase 3 (upstream-like GenerateFunctions pre-state): globals/state.
-	env := emitGlobals(&b, r, opts, info, pool)
-
-	// Phase 4 (upstream-like GenerateFunctions): first function + FuncList walk.
-	funcs, dynGlobals := emitFunctionsUpstreamFlow(&b, r, opts, pool, opts.MaxBlockSize, env, info)
-	if len(dynGlobals) > 0 {
-		env.globals = append(env.globals, dynGlobals...)
-	}
-
-	// Phase 5 (upstream Output): main / checksums.
-	if !opts.NoMain {
-		emitMain(&b, opts, env, info, funcs[0].name)
-	}
-
-	return b.String(), nil
+	gen := createProgramGenerator(opts)
+	gen.initialize()
+	return gen.goGenerator(), nil
 }
