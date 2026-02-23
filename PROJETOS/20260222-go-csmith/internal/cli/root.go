@@ -59,6 +59,9 @@ func NewRootCmd() *cobra.Command {
 
 	cmd.Flags().BoolVarP(&showVersion, "version", "v", false, "print version")
 	cmd.Flags().Uint64VarP(&opts.Seed, "seed", "s", 0, "seed for deterministic generation")
+	cmd.Flags().IntVar(&opts.MaxFuncs, "max-funcs", opts.MaxFuncs, "maximum number of generated helper functions")
+	cmd.Flags().IntVar(&opts.MaxBlockSize, "max-block-size", opts.MaxBlockSize, "maximum random statement count per function body")
+	cmd.Flags().IntVar(&opts.MaxGlobals, "max-globals", opts.MaxGlobals, "maximum number of generated globals")
 	cmd.Flags().StringVarP(&outputPath, "output", "o", "", "write generated C code to file")
 
 	_ = cmd.MarkFlagFilename("output", "c")
