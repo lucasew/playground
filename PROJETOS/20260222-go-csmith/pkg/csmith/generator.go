@@ -78,6 +78,25 @@ type genContext struct {
 	mustUse *exprVarCandidate
 }
 
+type stmtDecision struct {
+	vals [12]uint32
+}
+
+func nextStmtDecision(r *rng) stmtDecision {
+	d := stmtDecision{}
+	for i := 0; i < len(d.vals); i++ {
+		d.vals[i] = r.next31()
+	}
+	return d
+}
+
+func (d stmtDecision) pick(i int, n uint32) uint32 {
+	if n == 0 || i < 0 || i >= len(d.vals) {
+		return 0
+	}
+	return d.vals[i] % n
+}
+
 type compositeInfo struct {
 	structs []structTypeInfo
 	unions  []unionTypeInfo
@@ -688,6 +707,7 @@ func emitStatement(
 	maxChoice uint32,
 	stmtBudget *int,
 	ctx *genContext,
+	dec stmtDecision,
 ) {
 	if stmtBudget != nil && *stmtBudget == 0 {
 		return
@@ -695,7 +715,7 @@ func emitStatement(
 	if stmtBudget != nil && *stmtBudget > 0 {
 		*stmtBudget = *stmtBudget - 1
 	}
-	choice := r.upto(maxChoice)
+	choice := dec.pick(0, maxChoice)
 	switch {
 	case choice == 0:
 		if !emitLValueAssignment(b, r, opts, env, scope, ctx) {
@@ -705,14 +725,22 @@ func emitStatement(
 		emitArithmeticMutation(b, r, opts)
 	case choice == 2:
 		if !emitIncDecMutation(b, r, opts) {
-			writeLine(b, 1, fmt.Sprintf("if ((x & 1u) == 0u) { x += 0x%08Xu; } else { x ^= 0x%08Xu; }", r.next31(), r.next31()))
+			writeLine(
+				b,
+				1,
+				fmt.Sprintf(
+					"if ((x & 1u) == 0u) { x += 0x%08Xu; } else { x ^= 0x%08Xu; }",
+					dec.vals[1],
+					dec.vals[2],
+				),
+			)
 		}
 	case choice == 3:
 		if opts.Jumps {
-			bound := 1 + int(r.upto(5))
-			writeLine(b, 1, fmt.Sprintf("for (uint32_t i = 0; i < %du; ++i) { x += (i ^ 0x%08Xu); }", bound, r.next31()))
+			bound := 1 + int(dec.pick(3, 5))
+			writeLine(b, 1, fmt.Sprintf("for (uint32_t i = 0; i < %du; ++i) { x += (i ^ 0x%08Xu); }", bound, dec.vals[4]))
 		} else {
-			writeLine(b, 1, fmt.Sprintf("x += 0x%08Xu;", r.next31()))
+			writeLine(b, 1, fmt.Sprintf("x += 0x%08Xu;", dec.vals[5]))
 		}
 	case choice == 4:
 		emitLocalMutation(b, r, opts, env, scope, ctx)
@@ -767,26 +795,27 @@ func emitStatements(
 	}
 	stmtCount := 2 + int(r.upto(uint32(max(1, opts.MaxBlockSize))))
 	for s := 0; s < stmtCount; s++ {
+		dec := nextStmtDecision(r)
 		if stmtBudget != nil && *stmtBudget == 0 {
 			break
 		}
 		// Introduce nested blocks to better match Csmith statement shape.
-		if depth+1 < max(1, opts.MaxBlockDepth) && opts.Jumps && r.upto(100) < 25 {
-			mask := 1 + r.upto(7)
+		if depth+1 < max(1, opts.MaxBlockDepth) && opts.Jumps && dec.pick(6, 100) < 25 {
+			mask := 1 + dec.pick(7, 7)
 			cond := fmt.Sprintf("((x & %du) != 0u)", mask)
-			if opts.ConstAsCondition && r.upto(5) == 0 {
+			if opts.ConstAsCondition && dec.pick(8, 5) == 0 {
 				cond = fmt.Sprintf("(%s != 0u)", randomConstantExpr(CType{Name: "uint32_t", Signed: false, Bits: 32}, r, opts))
-			} else if r.upto(3) == 0 {
+			} else if dec.pick(9, 3) == 0 {
 				cond = fmt.Sprintf("((uint32_t)%s != 0u)", randomTypedExpr(CType{Name: "uint32_t", Signed: false, Bits: 32}, r, opts, env, scope, ctx))
 			}
 			writeLine(b, 1, fmt.Sprintf("if %s {", cond))
 			emitStatements(b, r, opts, env, scope, funcs, info, from, maxChoice, depth+1, stmtBudget, ctx)
 			writeLine(b, 1, "} else {")
-			emitStatement(b, r, opts, env, scope, funcs, info, from, maxChoice, stmtBudget, ctx)
+			emitStatement(b, r, opts, env, scope, funcs, info, from, maxChoice, stmtBudget, ctx, dec)
 			writeLine(b, 1, "}")
 			continue
 		}
-		emitStatement(b, r, opts, env, scope, funcs, info, from, maxChoice, stmtBudget, ctx)
+		emitStatement(b, r, opts, env, scope, funcs, info, from, maxChoice, stmtBudget, ctx, dec)
 	}
 }
 
