@@ -61,6 +61,20 @@ type functionFlowState struct {
 	opts     Options
 }
 
+type stmtKind int
+
+const (
+	stmtAssign stmtKind = iota
+	stmtIfElse
+	stmtFor
+	stmtReturn
+	stmtContinue
+	stmtBreak
+	stmtGoto
+	stmtArrayOp
+	stmtInvoke
+)
+
 type localInfo struct {
 	name  string
 	ctype CType
@@ -84,6 +98,9 @@ type exprVarCandidate struct {
 
 type genContext struct {
 	mustUse *exprVarCandidate
+	state   *functionFlowState
+	from    int
+	dynLocs []localInfo
 }
 
 type stmtDecision struct {
@@ -294,7 +311,17 @@ func sameBaseType(a, b CType) bool {
 	return a.Bits == b.Bits && a.Signed == b.Signed
 }
 
-func buildExprCandidates(r *rng, env envInfo, scope scopeInfo) []exprVarCandidate {
+func mergedLocals(scope scopeInfo, ctx *genContext) []localInfo {
+	if ctx == nil || len(ctx.dynLocs) == 0 {
+		return scope.locals
+	}
+	out := make([]localInfo, 0, len(scope.locals)+len(ctx.dynLocs))
+	out = append(out, scope.locals...)
+	out = append(out, ctx.dynLocs...)
+	return out
+}
+
+func buildExprCandidates(r *rng, env envInfo, scope scopeInfo, ctx *genContext) []exprVarCandidate {
 	candidates := make([]exprVarCandidate, 0, len(env.globals)+len(scope.params)+len(scope.locals)+len(env.pointers)+len(env.arrays))
 	for _, g := range env.globals {
 		candidates = append(candidates, exprVarCandidate{expr: g.name, ctype: g.ctype, assignable: !g.isConst})
@@ -302,7 +329,7 @@ func buildExprCandidates(r *rng, env envInfo, scope scopeInfo) []exprVarCandidat
 	for _, p := range scope.params {
 		candidates = append(candidates, exprVarCandidate{expr: p.name, ctype: p.ctype, assignable: true})
 	}
-	for _, l := range scope.locals {
+	for _, l := range mergedLocals(scope, ctx) {
 		if l.name == "x" {
 			candidates = append(candidates, exprVarCandidate{expr: l.name, ctype: l.ctype, assignable: true})
 			continue
@@ -322,7 +349,7 @@ func buildExprCandidates(r *rng, env envInfo, scope scopeInfo) []exprVarCandidat
 	return candidates
 }
 
-func buildExprCandidatesFromER(er *exprRand, env envInfo, scope scopeInfo) []exprVarCandidate {
+func buildExprCandidatesFromER(er *exprRand, env envInfo, scope scopeInfo, ctx *genContext) []exprVarCandidate {
 	candidates := make([]exprVarCandidate, 0, len(env.globals)+len(scope.params)+len(scope.locals)+len(env.pointers)+len(env.arrays))
 	for _, g := range env.globals {
 		candidates = append(candidates, exprVarCandidate{expr: g.name, ctype: g.ctype, assignable: !g.isConst})
@@ -330,7 +357,7 @@ func buildExprCandidatesFromER(er *exprRand, env envInfo, scope scopeInfo) []exp
 	for _, p := range scope.params {
 		candidates = append(candidates, exprVarCandidate{expr: p.name, ctype: p.ctype, assignable: true})
 	}
-	for _, l := range scope.locals {
+	for _, l := range mergedLocals(scope, ctx) {
 		candidates = append(candidates, exprVarCandidate{expr: l.name, ctype: l.ctype, assignable: true})
 	}
 	for _, p := range env.pointers {
@@ -344,6 +371,63 @@ func buildExprCandidatesFromER(er *exprRand, env envInfo, scope scopeInfo) []exp
 		})
 	}
 	return candidates
+}
+
+func variableScopePickFromER(er *exprRand, opts Options) int {
+	// Upstream VariableSelector::InitScopeTable probabilities.
+	// 0=global, 1=parent local, 2=parent param, 3=new value.
+	v := int(er.pick(100))
+	if opts.GlobalVariables {
+		switch {
+		case v < 35:
+			return 0
+		case v < 65:
+			return 1
+		case v < 95:
+			return 2
+		default:
+			return 3
+		}
+	}
+	switch {
+	case v < 50:
+		return 1
+	case v < 95:
+		return 2
+	default:
+		return 3
+	}
+}
+
+func buildScopedCandidatesFromER(er *exprRand, env envInfo, scope scopeInfo, scopePick int, ctx *genContext) []exprVarCandidate {
+	out := make([]exprVarCandidate, 0, 16)
+	switch scopePick {
+	case 0:
+		for _, g := range env.globals {
+			out = append(out, exprVarCandidate{expr: g.name, ctype: g.ctype, assignable: !g.isConst})
+		}
+	case 1:
+		for _, l := range mergedLocals(scope, ctx) {
+			out = append(out, exprVarCandidate{expr: l.name, ctype: l.ctype, assignable: true})
+		}
+	case 2:
+		for _, p := range scope.params {
+			out = append(out, exprVarCandidate{expr: p.name, ctype: p.ctype, assignable: true})
+		}
+	}
+	if scopePick != 2 {
+		for _, ptr := range env.pointers {
+			out = append(out, exprVarCandidate{expr: "*" + ptr.name, ctype: ptr.targetTy, assignable: !ptr.constTarget})
+		}
+		for _, arr := range env.arrays {
+			out = append(out, exprVarCandidate{
+				expr:       fmt.Sprintf("%s[%d]", arr.name, int(er.pick(uint32(arr.len)))),
+				ctype:      arr.ctype,
+				assignable: true,
+			})
+		}
+	}
+	return out
 }
 
 func selectExprVariable(t CType, r *rng, candidates []exprVarCandidate, forAssign bool) (exprVarCandidate, bool) {
@@ -410,15 +494,130 @@ func selectExprVariableFromER(t CType, er *exprRand, candidates []exprVarCandida
 	return filtered[int(er.pick(uint32(len(filtered))))], true
 }
 
-func randomLeafExpr(t CType, er *exprRand, opts Options, env envInfo, scope scopeInfo, ctx *genContext) string {
-	if ctx != nil && ctx.mustUse != nil && er.pick(100) < 60 {
-		return castLiteral(t, ctx.mustUse.expr)
+func buildFunctionCallExpr(
+	t CType,
+	er *exprRand,
+	opts Options,
+	env envInfo,
+	scope scopeInfo,
+	depth int,
+	ctx *genContext,
+) (string, bool) {
+	if ctx == nil || ctx.state == nil {
+		return "", false
 	}
-	candidates := buildExprCandidatesFromER(er, env, scope)
-	if len(candidates) > 0 && er.pick(100) < 80 {
-		c, ok := selectExprVariableFromER(t, er, candidates, false)
+	state := ctx.state
+	from := ctx.from
+
+	candidates := make([]int, 0, len(state.funcs))
+	for i := 0; i < len(state.funcs); i++ {
+		if i <= from {
+			continue
+		}
+		candidates = append(candidates, i)
+	}
+
+	useExisting := len(candidates) > 0 && er.pick(2) == 0
+	var callee funcInfo
+	if useExisting {
+		callee = state.funcs[candidates[int(er.pick(uint32(len(candidates))))]]
+	} else {
+		created, ok := state.appendNewFunction(er.fallback)
 		if ok {
-			return castLiteral(t, c.expr)
+			callee = created
+		} else if len(candidates) > 0 {
+			callee = state.funcs[candidates[int(er.pick(uint32(len(candidates))))]]
+		} else {
+			return "", false
+		}
+	}
+
+	args := "void"
+	if len(callee.params) > 0 {
+		argExprs := make([]string, 0, len(callee.params))
+		for _, p := range callee.params {
+			argExprs = append(argExprs, randomTypedExprDepth(p.ctype, er, opts, env, scope, depth+1, ctx))
+		}
+		args = strings.Join(argExprs, ", ")
+	}
+	if args == "void" {
+		return castLiteral(t, fmt.Sprintf("%s()", callee.name)), true
+	}
+	return castLiteral(t, fmt.Sprintf("%s(%s)", callee.name, args)), true
+}
+
+func randomLeafExpr(t CType, er *exprRand, opts Options, env envInfo, scope scopeInfo, depth int, ctx *genContext) string {
+	type termChoice int
+	const (
+		termFunction termChoice = iota
+		termVariable
+		termConstant
+		termAssign
+		termComma
+	)
+
+	weighted := make([]termChoice, 0, 120)
+	for i := 0; i < 70; i++ {
+		weighted = append(weighted, termFunction)
+	}
+	for i := 0; i < 20; i++ {
+		weighted = append(weighted, termVariable)
+	}
+	for i := 0; i < 10; i++ {
+		weighted = append(weighted, termConstant)
+	}
+	if opts.EmbeddedAssigns {
+		for i := 0; i < 10; i++ {
+			weighted = append(weighted, termAssign)
+		}
+	}
+	if opts.CommaOperators {
+		for i := 0; i < 10; i++ {
+			weighted = append(weighted, termComma)
+		}
+	}
+
+	for tries := 0; tries < 6; tries++ {
+		choice := weighted[int(er.pick(uint32(len(weighted))))]
+		switch choice {
+		case termFunction:
+			if depth < maxExprDepth(opts) {
+				if call, ok := buildFunctionCallExpr(t, er, opts, env, scope, depth, ctx); ok {
+					return call
+				}
+			}
+		case termVariable:
+			scopePick := variableScopePickFromER(er, opts)
+			if scopePick == 3 {
+				return randomConstantExprFromER(t, er, opts)
+			}
+				candidates := buildScopedCandidatesFromER(er, env, scope, scopePick, ctx)
+				if len(candidates) == 0 {
+					candidates = buildExprCandidatesFromER(er, env, scope, ctx)
+				}
+			if len(candidates) > 0 {
+				if c, ok := selectExprVariableFromER(t, er, candidates, false); ok {
+					return castLiteral(t, c.expr)
+				}
+			}
+		case termConstant:
+			return randomConstantExprFromER(t, er, opts)
+		case termAssign:
+			scopePick := variableScopePickFromER(er, opts)
+			candidates := buildScopedCandidatesFromER(er, env, scope, scopePick, ctx)
+			if len(candidates) == 0 {
+				candidates = buildExprCandidatesFromER(er, env, scope, ctx)
+			}
+			if len(candidates) > 0 {
+				if lv, ok := selectExprVariableFromER(t, er, candidates, true); ok {
+					rhs := randomConstantExprFromER(lv.ctype, er, opts)
+					return castLiteral(t, fmt.Sprintf("(%s = %s)", lv.expr, rhs))
+				}
+			}
+		case termComma:
+			lhs := randomConstantExprFromER(t, er, opts)
+			rhs := randomConstantExprFromER(t, er, opts)
+			return castLiteral(t, fmt.Sprintf("((%s), (%s))", lhs, rhs))
 		}
 	}
 
@@ -442,7 +641,7 @@ func randomTypedExprDepth(t CType, er *exprRand, opts Options, env envInfo, scop
 	limit := maxExprDepth(opts)
 	// Bias toward leaves to avoid giant expressions while still creating nested trees.
 	if depth >= limit || er.pick(100) < uint32(40+depth*15) {
-		return randomLeafExpr(t, er, opts, env, scope, ctx)
+		return randomLeafExpr(t, er, opts, env, scope, depth, ctx)
 	}
 
 	lhs := randomTypedExprDepth(t, er, opts, env, scope, depth+1, ctx)
@@ -481,8 +680,67 @@ func randomTypedExpr(t CType, r *rng, opts Options, env envInfo, scope scopeInfo
 	return randomTypedExprDepth(t, er, opts, env, scope, 0, ctx)
 }
 
-func chooseLValue(r *rng, target CType, env envInfo, scope scopeInfo) (lvalueInfo, bool) {
-	c := buildExprCandidates(r, env, scope)
+func variableScopePick(r *rng, opts Options) int {
+	v := int(r.upto(100))
+	if opts.GlobalVariables {
+		switch {
+		case v < 35:
+			return 0
+		case v < 65:
+			return 1
+		case v < 95:
+			return 2
+		default:
+			return 3
+		}
+	}
+	switch {
+	case v < 50:
+		return 1
+	case v < 95:
+		return 2
+	default:
+		return 3
+	}
+}
+
+func buildScopedCandidates(r *rng, env envInfo, scope scopeInfo, scopePick int, ctx *genContext) []exprVarCandidate {
+	out := make([]exprVarCandidate, 0, 16)
+	switch scopePick {
+	case 0:
+		for _, g := range env.globals {
+			out = append(out, exprVarCandidate{expr: g.name, ctype: g.ctype, assignable: !g.isConst})
+		}
+	case 1:
+		for _, l := range mergedLocals(scope, ctx) {
+			out = append(out, exprVarCandidate{expr: l.name, ctype: l.ctype, assignable: true})
+		}
+	case 2:
+		for _, p := range scope.params {
+			out = append(out, exprVarCandidate{expr: p.name, ctype: p.ctype, assignable: true})
+		}
+	}
+	if scopePick != 2 {
+		for _, ptr := range env.pointers {
+			out = append(out, exprVarCandidate{expr: "*" + ptr.name, ctype: ptr.targetTy, assignable: !ptr.constTarget})
+		}
+		for _, arr := range env.arrays {
+			out = append(out, exprVarCandidate{
+				expr:       fmt.Sprintf("%s[%d]", arr.name, int(r.upto(uint32(arr.len)))),
+				ctype:      arr.ctype,
+				assignable: true,
+			})
+		}
+	}
+	return out
+}
+
+func chooseLValue(r *rng, opts Options, target CType, env envInfo, scope scopeInfo, ctx *genContext) (lvalueInfo, bool) {
+	scopePick := variableScopePick(r, opts)
+	c := buildScopedCandidates(r, env, scope, scopePick, ctx)
+	if len(c) == 0 {
+		c = buildExprCandidates(r, env, scope, ctx)
+	}
 	pick, ok := selectExprVariable(target, r, c, true)
 	if !ok {
 		return lvalueInfo{}, false
@@ -498,9 +756,12 @@ func emitLValueAssignment(b *strings.Builder, r *rng, opts Options, env envInfo,
 		targetType = env.globals[int(r.upto(uint32(len(env.globals))))].ctype
 	}
 
-	lv, ok := chooseLValue(r, targetType, env, scope)
+	lv, ok := chooseLValue(r, opts, targetType, env, scope, ctx)
 	if !ok {
-		return false
+		// Upstream-like fallback: create a new value when selection fails.
+		name := fmt.Sprintf("lv_%d", r.next31()&0xFFFF)
+		writeLine(b, 1, fmt.Sprintf("%s %s = %s;", targetType.Name, name, randomConstantExpr(targetType, r, opts)))
+		lv = lvalueInfo{expr: name, ctype: targetType}
 	}
 	rhs := randomTypedExpr(lv.ctype, r, opts, env, scope, ctx)
 	if opts.CompoundAssignment && r.upto(2) == 0 {
@@ -516,8 +777,31 @@ func emitLValueAssignment(b *strings.Builder, r *rng, opts Options, env envInfo,
 	return true
 }
 
+func maybeDeclareOnDemandLocal(b *strings.Builder, r *rng, opts Options, ctx *genContext) {
+	if ctx == nil {
+		return
+	}
+	if variableScopePick(r, opts) != 3 {
+		return
+	}
+	t := pickType(r, typePool(opts))
+	name := fmt.Sprintf("ld_%d", r.next31()&0xFFFF)
+	writeLine(b, 1, fmt.Sprintf("%s %s = %s;", t.Name, name, randomConstantExpr(t, r, opts)))
+	ctx.dynLocs = append(ctx.dynLocs, localInfo{name: name, ctype: t})
+}
+
 func emitCompositeTypes(b *strings.Builder, r *rng, opts Options, pool []CType) compositeInfo {
 	info := compositeInfo{}
+	totalTypes := len(pool)
+
+	// Upstream-like MoreTypesProbability:
+	// keep adding aggregate types while type universe is small, then 50% chance.
+	moreTypes := func() bool {
+		if totalTypes < 10 {
+			return true
+		}
+		return r.upto(100) < 50
+	}
 
 	if opts.PackedStruct {
 		writeLine(b, 0, "#if defined(__GNUC__) || defined(__clang__)")
@@ -529,8 +813,8 @@ func emitCompositeTypes(b *strings.Builder, r *rng, opts Options, pool []CType) 
 	}
 
 	if opts.Structs {
-		structTypes := 1 + int(r.upto(uint32(min(opts.MaxStructFields, 2))))
-		for sidx := 0; sidx < structTypes; sidx++ {
+		sidx := 0
+		for moreTypes() && sidx < min(max(opts.MaxStructFields, 1), 32) {
 			fieldCount := 1 + int(r.upto(uint32(max(1, min(opts.MaxStructFields, 6)))))
 			st := structTypeInfo{fields: make([]fieldInfo, 0, fieldCount)}
 			if opts.PackedStruct {
@@ -556,12 +840,14 @@ func emitCompositeTypes(b *strings.Builder, r *rng, opts Options, pool []CType) 
 			writeLine(b, 0, fmt.Sprintf("} S_%d;", sidx))
 			writeLine(b, 0, "")
 			info.structs = append(info.structs, st)
+			totalTypes++
+			sidx++
 		}
 	}
 
 	if opts.Unions {
-		unionTypes := 1 + int(r.upto(uint32(min(opts.MaxUnionFields, 2))))
-		for uidx := 0; uidx < unionTypes; uidx++ {
+		uidx := 0
+		for moreTypes() && uidx < min(max(opts.MaxUnionFields, 1), 32) {
 			fieldCount := 2 + int(r.upto(uint32(max(1, min(opts.MaxUnionFields, 4)))))
 			ut := unionTypeInfo{fields: make([]fieldInfo, 0, fieldCount)}
 			writeLine(b, 0, fmt.Sprintf("typedef union U_%d {", uidx))
@@ -574,6 +860,8 @@ func emitCompositeTypes(b *strings.Builder, r *rng, opts Options, pool []CType) 
 			writeLine(b, 0, fmt.Sprintf("} U_%d;", uidx))
 			writeLine(b, 0, "")
 			info.unions = append(info.unions, ut)
+			totalTypes++
+			uidx++
 		}
 	}
 
@@ -584,14 +872,36 @@ func emitGlobals(b *strings.Builder, r *rng, opts Options, info compositeInfo, p
 	env := envInfo{}
 	if opts.GlobalVariables {
 		globalCap := min(max(opts.MaxGlobals, 2), 64)
-		globalCount := 2 + int(r.upto(uint32(globalCap)))
-		env.globals = make([]globalInfo, 0, globalCount)
-		for i := 0; i < globalCount; i++ {
+		env.globals = make([]globalInfo, 0, globalCap)
+		moreGlobals := func() bool {
+			// Upstream creates globals on-demand through VariableSelector.
+			// Keep a larger initial universe, then taper probabilistically.
+			if len(env.globals) < min(70, globalCap) {
+				return true
+			}
+			if len(env.globals) < min(75, globalCap) {
+				return len(env.globals) < globalCap && r.upto(100) < 80
+			}
+			return len(env.globals) < globalCap && r.upto(100) < 45
+		}
+		for i := 0; moreGlobals(); i++ {
+			isConst := false
+			if opts.Consts {
+				isConst = r.upto(100) < 22
+			}
+			isVolatile := false
+			if opts.Volatiles {
+				isVolatile = r.upto(100) < 20
+			}
+			// Avoid degenerate const+volatile saturation.
+			if isConst && isVolatile && r.upto(2) == 0 {
+				isConst = false
+			}
 			g := globalInfo{
 				name:       fmt.Sprintf("g_%d", i),
 				ctype:      pickType(r, pool),
-				isConst:    opts.Consts && i == 0,
-				isVolatile: opts.Volatiles && r.upto(4) == 0,
+				isConst:    isConst,
+				isVolatile: isVolatile,
 			}
 			lit := castLiteral(g.ctype, fmt.Sprintf("0x%08Xu", r.next31()))
 			qual := ""
@@ -610,7 +920,10 @@ func emitGlobals(b *strings.Builder, r *rng, opts Options, info compositeInfo, p
 		}
 
 		if opts.Arrays {
-			arrayCount := 1 + int(r.upto(uint32(min(opts.MaxArrayDim, 2))))
+			arrayCount := 1
+			for arrayCount < min(max(opts.MaxArrayDim, 1), 4) && r.upto(100) < 50 {
+				arrayCount++
+			}
 			arrLen := max(2, min(opts.MaxArrayLenPerDim, 8))
 			env.arrays = make([]arrayInfo, 0, arrayCount)
 			for i := 0; i < arrayCount; i++ {
@@ -629,7 +942,11 @@ func emitGlobals(b *strings.Builder, r *rng, opts Options, info compositeInfo, p
 			if opts.Consts && len(env.globals) > 1 {
 				start = 1
 			}
-			ptrCount := min(max(len(env.globals)-start, 0), 6)
+			ptrCount := min(max(len(env.globals)-start, 0), 8)
+			if ptrCount > 1 {
+				// Avoid eagerly creating pointers for all globals; closer to progressive creation.
+				ptrCount = 1 + int(r.upto(uint32(ptrCount)))
+			}
 			env.pointers = make([]pointerInfo, 0, ptrCount)
 			for i := 0; i < ptrCount; i++ {
 				target := env.globals[start+i]
@@ -925,7 +1242,8 @@ func emitStatement(
 	state *functionFlowState,
 	info compositeInfo,
 	from int,
-	maxChoice uint32,
+	depth int,
+	inLoop bool,
 	stmtBudget *int,
 	ctx *genContext,
 	dec stmtDecision,
@@ -933,67 +1251,103 @@ func emitStatement(
 	if stmtBudget != nil && *stmtBudget == 0 {
 		return
 	}
+	maybeDeclareOnDemandLocal(b, r, opts, ctx)
 	if stmtBudget != nil && *stmtBudget > 0 {
 		*stmtBudget = *stmtBudget - 1
 	}
-	choice := dec.pick(0, maxChoice)
-	switch {
-	case choice == 0:
+	chooseStmt := func() stmtKind {
+		// Upstream default statement probabilities from pStatementProb:
+		// ifelse 15, for 30, return 35, continue 40, break 45,
+		// goto 50 (if jumps), arrayop 60/55 (if arrays), assign 100.
+		tryPick := func() (stmtKind, bool) {
+			v := int(dec.pick(0, 100))
+			k := stmtAssign
+			switch {
+			case v < 15:
+				k = stmtIfElse
+			case v < 30:
+				k = stmtFor
+			case v < 35:
+				k = stmtReturn
+			case v < 40:
+				k = stmtContinue
+			case v < 45:
+				k = stmtBreak
+			case opts.Jumps && opts.Arrays && v < 50:
+				k = stmtGoto
+			case opts.Jumps && opts.Arrays && v < 60:
+				k = stmtArrayOp
+			case opts.Jumps && !opts.Arrays && v < 50:
+				k = stmtGoto
+			case !opts.Jumps && opts.Arrays && v < 55:
+				k = stmtArrayOp
+			default:
+				k = stmtAssign
+			}
+
+			// StatementFilter-like constraints.
+			if (k == stmtBreak || k == stmtContinue) && !inLoop {
+				return k, false
+			}
+			if depth >= max(1, opts.MaxBlockDepth) && (k == stmtIfElse || k == stmtFor) {
+				return k, false
+			}
+			if state != nil && len(state.funcs) >= state.maxFuncs && k == stmtInvoke {
+				// Upstream StatementFilter filters out invoke when max funcs is reached.
+				return k, false
+			}
+			return k, true
+		}
+		for i := 0; i < 8; i++ {
+			k, ok := tryPick()
+			if ok {
+				return k
+			}
+		}
+		return stmtAssign
+	}
+
+	switch chooseStmt() {
+	case stmtAssign:
 		if !emitLValueAssignment(b, r, opts, env, scope, ctx) {
 			emitGlobalMutation(b, r, opts, env, scope, ctx)
 		}
-	case choice == 1:
+	case stmtIfElse:
+		cond := fmt.Sprintf("((x & %du) != 0u)", 1+dec.pick(1, 7))
+		if opts.ConstAsCondition && dec.pick(2, 5) == 0 {
+			cond = fmt.Sprintf("(%s != 0u)", randomConstantExpr(CType{Name: "uint32_t", Signed: false, Bits: 32}, r, opts))
+		}
+		writeLine(b, 1, fmt.Sprintf("if %s {", cond))
+		emitStatements(b, r, opts, env, scope, state, info, from, depth+1, false, stmtBudget, ctx)
+		writeLine(b, 1, "} else {")
+		emitStatement(b, r, opts, env, scope, state, info, from, depth+1, false, stmtBudget, ctx, nextStmtDecision(r))
+		writeLine(b, 1, "}")
+	case stmtFor:
+		bound := 1 + int(dec.pick(3, 5))
+		writeLine(b, 1, fmt.Sprintf("for (uint32_t i = 0; i < %du; ++i) {", bound))
+		writeLine(b, 2, fmt.Sprintf("x += (i ^ 0x%08Xu);", dec.vals[4]))
+		emitStatement(b, r, opts, env, scope, state, info, from, depth+1, true, stmtBudget, ctx, nextStmtDecision(r))
+		writeLine(b, 1, "}")
+	case stmtReturn:
+		writeLine(b, 1, "l_0 ^= (uint32_t)x;")
+		writeLine(b, 1, "return l_0;")
+		if stmtBudget != nil && *stmtBudget > 0 {
+			*stmtBudget = 0
+		}
+	case stmtContinue:
+		writeLine(b, 1, "continue;")
+	case stmtBreak:
+		writeLine(b, 1, "break;")
+	case stmtGoto:
 		emitArithmeticMutation(b, r, opts)
-	case choice == 2:
-		if !emitIncDecMutation(b, r, opts) {
-			writeLine(
-				b,
-				1,
-				fmt.Sprintf(
-					"if ((x & 1u) == 0u) { x += 0x%08Xu; } else { x ^= 0x%08Xu; }",
-					dec.vals[1],
-					dec.vals[2],
-				),
-			)
-		}
-	case choice == 3:
-		if opts.Jumps {
-			bound := 1 + int(dec.pick(3, 5))
-			writeLine(b, 1, fmt.Sprintf("for (uint32_t i = 0; i < %du; ++i) { x += (i ^ 0x%08Xu); }", bound, dec.vals[4]))
-		} else {
-			writeLine(b, 1, fmt.Sprintf("x += 0x%08Xu;", dec.vals[5]))
-		}
-	case choice == 4:
-		emitLocalMutation(b, r, opts, env, scope, ctx)
-	case choice == 5 && len(info.structs) > 0:
-		si := int(r.upto(uint32(len(info.structs))))
-		fields := info.structs[si].fields
-		fi := int(r.upto(uint32(len(fields))))
-		f := fields[fi]
-		writeLine(b, 1, fmt.Sprintf("gs_%d.%s ^= %s;", si, f.name, randomTypedExpr(f.ctype, r, opts, env, scope, ctx)))
-		if ctx != nil {
-			c := exprVarCandidate{expr: fmt.Sprintf("gs_%d.%s", si, f.name), ctype: f.ctype, assignable: true}
-			ctx.mustUse = &c
-		}
-	case len(info.unions) > 0 && (choice == 6 || (len(info.structs) == 0 && choice == 5)):
-		ui := int(r.upto(uint32(len(info.unions))))
-		fields := info.unions[ui].fields
-		fi := int(r.upto(uint32(len(fields))))
-		f := fields[fi]
-		writeLine(b, 1, fmt.Sprintf("gu_%d.%s = %s;", ui, f.name, randomTypedExpr(f.ctype, r, opts, env, scope, ctx)))
-		writeLine(b, 1, fmt.Sprintf("x ^= (uint32_t)gu_%d.%s;", ui, f.name))
-		if ctx != nil {
-			c := exprVarCandidate{expr: fmt.Sprintf("gu_%d.%s", ui, f.name), ctype: f.ctype, assignable: true}
-			ctx.mustUse = &c
-		}
-	case state != nil && len(state.funcs) > 1:
+	case stmtArrayOp:
+		emitArrayMutation(b, r, opts, env, scope, ctx)
+	case stmtInvoke:
 		if !emitFunctionCallMutation(b, r, opts, env, scope, state, from, ctx) {
 			emitArithmeticMutation(b, r, opts)
 		}
-	case opts.Arrays && len(env.arrays) > 0:
-		emitArrayMutation(b, r, opts, env, scope, ctx)
 	default:
-		emitPointerMutation(b, r, opts, env, scope, ctx)
+		emitArithmeticMutation(b, r, opts)
 	}
 }
 
@@ -1006,8 +1360,8 @@ func emitStatements(
 	state *functionFlowState,
 	info compositeInfo,
 	from int,
-	maxChoice uint32,
 	depth int,
+	inLoop bool,
 	stmtBudget *int,
 	ctx *genContext,
 ) {
@@ -1020,45 +1374,8 @@ func emitStatements(
 		if stmtBudget != nil && *stmtBudget == 0 {
 			break
 		}
-		// Introduce nested blocks to better match Csmith statement shape.
-		if depth+1 < max(1, opts.MaxBlockDepth) && opts.Jumps && dec.pick(6, 100) < 25 {
-			mask := 1 + dec.pick(7, 7)
-			cond := fmt.Sprintf("((x & %du) != 0u)", mask)
-			if opts.ConstAsCondition && dec.pick(8, 5) == 0 {
-				cond = fmt.Sprintf("(%s != 0u)", randomConstantExpr(CType{Name: "uint32_t", Signed: false, Bits: 32}, r, opts))
-			} else if dec.pick(9, 3) == 0 {
-				cond = fmt.Sprintf("((uint32_t)%s != 0u)", randomTypedExpr(CType{Name: "uint32_t", Signed: false, Bits: 32}, r, opts, env, scope, ctx))
-			}
-			writeLine(b, 1, fmt.Sprintf("if %s {", cond))
-			emitStatements(b, r, opts, env, scope, state, info, from, maxChoice, depth+1, stmtBudget, ctx)
-			writeLine(b, 1, "} else {")
-			emitStatement(b, r, opts, env, scope, state, info, from, maxChoice, stmtBudget, ctx, dec)
-			writeLine(b, 1, "}")
-			continue
-		}
-		emitStatement(b, r, opts, env, scope, state, info, from, maxChoice, stmtBudget, ctx, dec)
+		emitStatement(b, r, opts, env, scope, state, info, from, depth, inLoop, stmtBudget, ctx, dec)
 	}
-}
-
-func statementChoiceCount(opts Options, env envInfo, info compositeInfo, funcs []funcInfo) uint32 {
-	extraCases := 0
-	if len(info.structs) > 0 {
-		extraCases++
-	}
-	if len(info.unions) > 0 {
-		extraCases++
-	}
-	if opts.Arrays && len(env.arrays) > 0 {
-		extraCases++
-	}
-	if opts.Pointers && len(env.pointers) > 0 {
-		extraCases++
-	}
-	if len(funcs) > 1 {
-		extraCases++
-	}
-	baseCases := 6
-	return uint32(baseCases + extraCases)
 }
 
 func emitSingleFuncDef(
@@ -1073,7 +1390,6 @@ func emitSingleFuncDef(
 	stmtBudget *int,
 ) string {
 	fdec := nextFuncDecision(r)
-	maxChoice := statementChoiceCount(opts, env, info, state.funcs)
 	var b strings.Builder
 
 	params := "void"
@@ -1099,7 +1415,8 @@ func emitSingleFuncDef(
 		writeLine(&b, 1, fmt.Sprintf("uint32_t x = 0x%08Xu;", r.next31()))
 	}
 
-	localCount := 1 + int(fdec.pick(0, uint32(max(1, min(maxBlock, 3)))))
+	localCap := max(2, min(maxBlock*2, 12))
+	localCount := 1 + int(fdec.pick(0, uint32(localCap)))
 	locals := make([]localInfo, 0, localCount+1)
 	tpool := typePool(opts)
 	for l := 0; l < localCount; l++ {
@@ -1110,13 +1427,12 @@ func emitSingleFuncDef(
 	}
 	locals = append(locals, localInfo{name: "x", ctype: CType{Name: "uint32_t", Signed: false, Bits: 32}})
 	scope := scopeInfo{params: fn.params, locals: locals}
-	ctx := &genContext{}
+	ctx := &genContext{state: state, from: idx}
 
 	for _, p := range fn.params {
 		writeLine(&b, 1, fmt.Sprintf("x ^= (uint32_t)%s;", p.name))
 	}
-	emitStatements(&b, r, opts, env, scope, state, info, idx, maxChoice, 0, stmtBudget, ctx)
-	_ = emitFunctionCallMutation(&b, r, opts, env, scope, state, idx, ctx)
+	emitStatements(&b, r, opts, env, scope, state, info, idx, 0, false, stmtBudget, ctx)
 	if len(env.globals) > 0 {
 		start := 0
 		if opts.Consts && len(env.globals) > 1 {
@@ -1164,7 +1480,7 @@ func makeFuncSignature(r *rng, opts Options, pool []CType, idx int) funcInfo {
 }
 
 func emitFunctionsUpstreamFlow(b *strings.Builder, r *rng, opts Options, pool []CType, maxBlock int, env envInfo, info compositeInfo) []funcInfo {
-	maxFuncs := min(max(opts.MaxFuncs, 1), 8)
+	maxFuncs := max(opts.MaxFuncs, 1)
 	state := &functionFlowState{
 		funcs:    []funcInfo{makeFuncSignature(r, opts, pool, 1)},
 		maxFuncs: maxFuncs,
