@@ -986,7 +986,7 @@ func emitStatements(
 	}
 }
 
-func emitFuncDefs(b *strings.Builder, r *rng, opts Options, funcs []funcInfo, maxBlock int, env envInfo, info compositeInfo) {
+func statementChoiceCount(opts Options, env envInfo, info compositeInfo, funcs []funcInfo) uint32 {
 	extraCases := 0
 	if len(info.structs) > 0 {
 		extraCases++
@@ -1004,74 +1004,153 @@ func emitFuncDefs(b *strings.Builder, r *rng, opts Options, funcs []funcInfo, ma
 		extraCases++
 	}
 	baseCases := 6
-	maxChoice := uint32(baseCases + extraCases)
+	return uint32(baseCases + extraCases)
+}
 
+func emitSingleFuncDef(
+	r *rng,
+	opts Options,
+	fn funcInfo,
+	funcs []funcInfo,
+	idx int,
+	maxBlock int,
+	env envInfo,
+	info compositeInfo,
+	stmtBudget *int,
+) string {
+	fdec := nextFuncDecision(r)
+	maxChoice := statementChoiceCount(opts, env, info, funcs)
+	var b strings.Builder
+
+	params := "void"
+	if len(fn.params) > 0 {
+		pp := make([]string, 0, len(fn.params))
+		for _, p := range fn.params {
+			pp = append(pp, fmt.Sprintf("%s %s", p.ctype.Name, p.name))
+		}
+		params = strings.Join(pp, ", ")
+	}
+	writeLine(&b, 0, fmt.Sprintf("static %s %s(%s) {", fn.ret.Name, fn.name, params))
+	writeLine(&b, 1, fmt.Sprintf("%s l_0 = %s;", fn.ret.Name, castLiteral(fn.ret, fmt.Sprintf("0x%08Xu", r.next31()))))
+	if len(env.globals) >= 2 {
+		writeLine(
+			&b,
+			1,
+			fmt.Sprintf(
+				"uint32_t x = ((uint32_t)%s ^ 0x%08Xu) + ((uint32_t)%s + 0x%08Xu);",
+				env.globals[0].name, r.next31(), env.globals[1].name, r.next31(),
+			),
+		)
+	} else {
+		writeLine(&b, 1, fmt.Sprintf("uint32_t x = 0x%08Xu;", r.next31()))
+	}
+
+	localCount := 1 + int(fdec.pick(0, uint32(max(1, min(maxBlock, 3)))))
+	locals := make([]localInfo, 0, localCount+1)
+	tpool := typePool(opts)
+	for l := 0; l < localCount; l++ {
+		lt := pickType(r, tpool)
+		name := fmt.Sprintf("l_%d", l+1)
+		writeLine(&b, 1, fmt.Sprintf("%s %s = %s;", lt.Name, name, randomConstantExpr(lt, r, opts)))
+		locals = append(locals, localInfo{name: name, ctype: lt})
+	}
+	locals = append(locals, localInfo{name: "x", ctype: CType{Name: "uint32_t", Signed: false, Bits: 32}})
+	scope := scopeInfo{params: fn.params, locals: locals}
+	ctx := &genContext{}
+
+	for _, p := range fn.params {
+		writeLine(&b, 1, fmt.Sprintf("x ^= (uint32_t)%s;", p.name))
+	}
+	emitStatements(&b, r, opts, env, scope, funcs, info, idx, maxChoice, 0, stmtBudget, ctx)
+	if idx+1 < len(funcs) && fdec.pick(1, 100) < 90 {
+		_ = emitFunctionCallMutation(&b, r, opts, env, scope, funcs, idx, ctx)
+	}
+	if len(env.globals) > 0 {
+		start := 0
+		if opts.Consts && len(env.globals) > 1 {
+			start = 1
+		}
+		gix := start + int(fdec.pick(2, uint32(max(len(env.globals)-start, 1))))
+		g := env.globals[gix]
+		writeLine(&b, 1, fmt.Sprintf("%s ^= %s;", g.name, randomTypedExpr(g.ctype, r, opts, env, scope, ctx)))
+	}
+	writeLine(&b, 1, fmt.Sprintf("l_0 ^= %s;", castLiteral(fn.ret, "x")))
+	writeLine(&b, 1, "return l_0;")
+	writeLine(&b, 0, "}")
+	writeLine(&b, 0, "")
+	return b.String()
+}
+
+func makeFuncSignature(r *rng, opts Options, pool []CType, idx int) funcInfo {
+	fn := funcInfo{
+		name: fmt.Sprintf("func_%d", idx),
+		ret:  pickType(r, pool),
+	}
+	if idx == 1 {
+		// Upstream's entry function is func_1(void), returning a fixed integral type.
+		fn.ret = CType{Name: "uint32_t", Signed: false, Bits: 32}
+	}
+	maxParams := min(opts.MaxParams, 4)
+	if idx == 1 {
+		maxParams = 0
+	}
+	if maxParams < 0 {
+		maxParams = 0
+	}
+	pcount := 0
+	if maxParams > 0 {
+		pcount = int(r.upto(uint32(maxParams + 1)))
+	}
+	fn.params = make([]paramInfo, 0, pcount)
+	for p := 0; p < pcount; p++ {
+		fn.params = append(fn.params, paramInfo{
+			name:  fmt.Sprintf("p_%d", p+1),
+			ctype: pickType(r, pool),
+		})
+	}
+	return fn
+}
+
+func emitFunctionsUpstreamFlow(b *strings.Builder, r *rng, opts Options, pool []CType, maxBlock int, env envInfo, info compositeInfo) []funcInfo {
+	maxFuncs := min(max(opts.MaxFuncs, 1), 8)
+	funcs := []funcInfo{makeFuncSignature(r, opts, pool, 1)}
+	built := []bool{false}
+	defs := []string{""}
+	nextIdx := 2
 	stmtBudget := opts.StopByStmt
 	if stmtBudget < 0 {
 		stmtBudget = -1
 	}
 
-	for i := len(funcs) - 1; i >= 0; i-- {
-		fn := funcs[i]
-		fdec := nextFuncDecision(r)
-		params := "void"
-		if len(fn.params) > 0 {
-			pp := make([]string, 0, len(fn.params))
-			for _, p := range fn.params {
-				pp = append(pp, fmt.Sprintf("%s %s", p.ctype.Name, p.name))
+	for cur := 0; cur < len(funcs); cur++ {
+		if built[cur] {
+			continue
+		}
+		// Upstream-like behavior: function discovery can expand FuncList as bodies are generated.
+		if len(funcs) < maxFuncs && r.upto(100) < 45 {
+			add := 1 + int(r.upto(2))
+			for i := 0; i < add && len(funcs) < maxFuncs; i++ {
+				funcs = append(funcs, makeFuncSignature(r, opts, pool, nextIdx))
+				built = append(built, false)
+				defs = append(defs, "")
+				nextIdx++
 			}
-			params = strings.Join(pp, ", ")
 		}
-		writeLine(b, 0, fmt.Sprintf("static %s %s(%s) {", fn.ret.Name, fn.name, params))
-		writeLine(b, 1, fmt.Sprintf("%s l_0 = %s;", fn.ret.Name, castLiteral(fn.ret, fmt.Sprintf("0x%08Xu", r.next31()))))
-		if len(env.globals) >= 2 {
-			writeLine(
-				b,
-				1,
-				fmt.Sprintf(
-					"uint32_t x = ((uint32_t)%s ^ 0x%08Xu) + ((uint32_t)%s + 0x%08Xu);",
-					env.globals[0].name, r.next31(), env.globals[1].name, r.next31(),
-				),
-			)
-		} else {
-			writeLine(b, 1, fmt.Sprintf("uint32_t x = 0x%08Xu;", r.next31()))
+		defs[cur] = emitSingleFuncDef(r, opts, funcs[cur], funcs, cur, maxBlock, env, info, &stmtBudget)
+		built[cur] = true
+		if len(funcs) < maxFuncs && r.upto(100) < 30 {
+			funcs = append(funcs, makeFuncSignature(r, opts, pool, nextIdx))
+			built = append(built, false)
+			defs = append(defs, "")
+			nextIdx++
 		}
-
-		localCount := 1 + int(fdec.pick(0, uint32(max(1, min(maxBlock, 3)))))
-		locals := make([]localInfo, 0, localCount+1)
-		tpool := typePool(opts)
-		for l := 0; l < localCount; l++ {
-			lt := pickType(r, tpool)
-			name := fmt.Sprintf("l_%d", l+1)
-			writeLine(b, 1, fmt.Sprintf("%s %s = %s;", lt.Name, name, randomConstantExpr(lt, r, opts)))
-			locals = append(locals, localInfo{name: name, ctype: lt})
-		}
-		locals = append(locals, localInfo{name: "x", ctype: CType{Name: "uint32_t", Signed: false, Bits: 32}})
-		scope := scopeInfo{params: fn.params, locals: locals}
-		ctx := &genContext{}
-
-		for _, p := range fn.params {
-			writeLine(b, 1, fmt.Sprintf("x ^= (uint32_t)%s;", p.name))
-		}
-		_ = maxBlock
-		emitStatements(b, r, opts, env, scope, funcs, info, i, maxChoice, 0, &stmtBudget, ctx)
-		if i+1 < len(funcs) && fdec.pick(1, 100) < 90 {
-			_ = emitFunctionCallMutation(b, r, opts, env, scope, funcs, i, ctx)
-		}
-		if len(env.globals) > 0 {
-			start := 0
-			if opts.Consts && len(env.globals) > 1 {
-				start = 1
-			}
-			gix := start + int(fdec.pick(2, uint32(max(len(env.globals)-start, 1))))
-			g := env.globals[gix]
-			writeLine(b, 1, fmt.Sprintf("%s ^= %s;", g.name, randomTypedExpr(g.ctype, r, opts, env, scope, ctx)))
-		}
-		writeLine(b, 1, fmt.Sprintf("l_0 ^= %s;", castLiteral(fn.ret, "x")))
-		writeLine(b, 1, "return l_0;")
-		writeLine(b, 0, "}")
-		writeLine(b, 0, "")
 	}
+
+	emitFuncDecls(b, funcs)
+	for i := 0; i < len(defs); i++ {
+		b.WriteString(defs[i])
+	}
+	return funcs
 }
 
 func emitMain(b *strings.Builder, opts Options, env envInfo, info compositeInfo, entry string) {
@@ -1156,39 +1235,9 @@ func Generate(opts Options) (string, error) {
 
 	r := newRNG(opts.Seed)
 	pool := typePool(opts)
-	funcCount := 1 + int(r.upto(uint32(min(opts.MaxFuncs, 8))))
-	funcs := make([]funcInfo, 0, funcCount)
-	for i := 0; i < funcCount; i++ {
-		fn := funcInfo{
-			name: fmt.Sprintf("func_%d", i+1),
-			ret:  pickType(r, pool),
-		}
-		if i == 0 {
-			fn.ret = CType{Name: "uint32_t", Signed: false, Bits: 32}
-		}
-		maxParams := min(opts.MaxParams, 4)
-		if i == 0 {
-			// Csmith keeps func_1(void) as the top-level entry.
-			maxParams = 0
-		}
-		if maxParams < 0 {
-			maxParams = 0
-		}
-		pcount := 0
-		if maxParams > 0 {
-			pcount = int(r.upto(uint32(maxParams + 1)))
-		}
-		fn.params = make([]paramInfo, 0, pcount)
-		for p := 0; p < pcount; p++ {
-			fn.params = append(fn.params, paramInfo{
-				name:  fmt.Sprintf("p_%d", p+1),
-				ctype: pickType(r, pool),
-			})
-		}
-		funcs = append(funcs, fn)
-	}
 
 	var b strings.Builder
+	// Phase 1 (upstream-like): output header/comments/includes.
 	b.WriteString("/* csmith-go: seed = ")
 	b.WriteString(fmt.Sprintf("%d", opts.Seed))
 	b.WriteString(" */\n")
@@ -1205,11 +1254,16 @@ func Generate(opts Options) (string, error) {
 	}
 	b.WriteString("\n")
 
+	// Phase 2 (upstream-like GenerateAllTypes): synthesize types.
 	info := emitCompositeTypes(&b, r, opts, pool)
-	env := emitGlobals(&b, r, opts, info, pool)
-	emitFuncDecls(&b, funcs)
-	emitFuncDefs(&b, r, opts, funcs, opts.MaxBlockSize, env, info)
 
+	// Phase 3 (upstream-like GenerateFunctions pre-state): globals/state.
+	env := emitGlobals(&b, r, opts, info, pool)
+
+	// Phase 4 (upstream-like GenerateFunctions): first function + FuncList walk.
+	funcs := emitFunctionsUpstreamFlow(&b, r, opts, pool, opts.MaxBlockSize, env, info)
+
+	// Phase 5 (upstream Output): main / checksums.
 	if !opts.NoMain {
 		emitMain(&b, opts, env, info, funcs[0].name)
 	}
