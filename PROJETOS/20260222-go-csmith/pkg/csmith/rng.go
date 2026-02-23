@@ -43,6 +43,23 @@ func (r *rng) upto(n uint32) uint32 {
 		return 0
 	}
 	x := r.next31() % n
+	r.traceU(n, x)
+	return x
+}
+
+func (r *rng) uptoWithFilter(n uint32, reject func(uint32) bool) uint32 {
+	if n == 0 {
+		return 0
+	}
+	x := r.next31() % n
+	for reject != nil && reject(x) {
+		x = r.next31() % n
+	}
+	r.traceU(n, x)
+	return x
+}
+
+func (r *rng) traceU(n uint32, x uint32) {
 	if r.trace {
 		r.tracePos++
 		f, err := os.OpenFile(r.traceFile, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
@@ -51,7 +68,6 @@ func (r *rng) upto(n uint32) uint32 {
 			_ = f.Close()
 		}
 	}
-	return x
 }
 
 func (r *rng) flipcoin(p uint32) bool {

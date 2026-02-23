@@ -163,6 +163,7 @@ func restoreGenSnapshot(ctx *genContext, s *genSnapshot) {
 }
 
 type stmtDecision struct {
+	r    *rng
 	vals [12]uint32
 }
 
@@ -173,20 +174,20 @@ type exprRand struct {
 }
 
 type funcDecision struct {
+	r    *rng
 	vals [16]uint32
 }
 
 func nextFuncDecision(r *rng) funcDecision {
-	d := funcDecision{}
-	for i := 0; i < len(d.vals); i++ {
-		d.vals[i] = r.next31()
-	}
-	return d
+	return funcDecision{r: r}
 }
 
 func (d funcDecision) pick(i int, n uint32) uint32 {
 	if n == 0 || i < 0 || i >= len(d.vals) {
 		return 0
+	}
+	if d.r != nil {
+		return d.r.upto(n)
 	}
 	return d.vals[i] % n
 }
@@ -195,11 +196,10 @@ func newExprRand(r *rng, budget int) *exprRand {
 	if budget < 1 {
 		budget = 1
 	}
-	vals := make([]uint32, budget)
-	for i := 0; i < budget; i++ {
-		vals[i] = r.next31()
-	}
-	return &exprRand{vals: vals, fallback: r}
+	_ = budget
+	// Consume expression choices on-demand via rnd_upto in pick(),
+	// closer to upstream random wrappers.
+	return &exprRand{vals: nil, fallback: r}
 }
 
 func (e *exprRand) next() uint32 {
@@ -215,20 +215,22 @@ func (e *exprRand) pick(n uint32) uint32 {
 	if n == 0 {
 		return 0
 	}
+	if e.fallback != nil {
+		return e.fallback.upto(n)
+	}
 	return e.next() % n
 }
 
 func nextStmtDecision(r *rng) stmtDecision {
-	d := stmtDecision{}
-	for i := 0; i < len(d.vals); i++ {
-		d.vals[i] = r.next31()
-	}
-	return d
+	return stmtDecision{r: r}
 }
 
 func (d stmtDecision) pick(i int, n uint32) uint32 {
 	if n == 0 || i < 0 || i >= len(d.vals) {
 		return 0
+	}
+	if d.r != nil {
+		return d.r.upto(n)
 	}
 	return d.vals[i] % n
 }
@@ -614,9 +616,21 @@ func buildFunctionCallExpr(
 		candidates = append(candidates, i)
 	}
 
-	useExisting := len(candidates) > 0 && er.pick(2) == 0
+	useExisting := false
+	if er != nil && er.fallback != nil {
+		useExisting = er.fallback.flipcoin(50)
+	} else {
+		useExisting = er.pick(2) == 0
+	}
+	if er != nil && er.fallback != nil {
+		p := uint32(0)
+		if opts.Builtins {
+			p = uint32(opts.BuiltinFunctionProb)
+		}
+		_ = er.fallback.flipcoin(p)
+	}
 	var callee funcInfo
-	if useExisting {
+	if useExisting && len(candidates) > 0 {
 		callee = state.funcs[candidates[int(er.pick(uint32(len(candidates))))]]
 	} else {
 		created, ok := state.appendNewFunction(er.fallback)
@@ -806,7 +820,7 @@ func maxExprDepth(opts Options) int {
 func randomTypedExprDepth(t CType, er *exprRand, opts Options, env envInfo, scope scopeInfo, depth int, ctx *genContext) string {
 	limit := maxExprDepth(opts)
 	// Bias toward leaves to avoid giant expressions while still creating nested trees.
-	if depth >= limit || er.pick(100) < uint32(40+depth*15) {
+	if depth >= limit || depth == 0 || er.pick(100) < uint32(40+depth*15) {
 		return randomLeafExpr(t, er, opts, env, scope, depth, ctx)
 	}
 
@@ -838,7 +852,7 @@ func randomTypedExprDepth(t CType, er *exprRand, opts Options, env envInfo, scop
 
 func randomTypedExprDepthFlags(t CType, er *exprRand, opts Options, env envInfo, scope scopeInfo, depth int, ctx *genContext, noFunc bool, noConst bool) string {
 	limit := maxExprDepth(opts)
-	if depth >= limit || er.pick(100) < uint32(40+depth*15) {
+	if depth >= limit || depth == 0 || er.pick(100) < uint32(40+depth*15) {
 		return randomLeafExprWithMode(t, er, opts, env, scope, depth, ctx, false, noFunc, noConst)
 	}
 	lhs := randomTypedExprDepthFlags(t, er, opts, env, scope, depth+1, ctx, noFunc, noConst)
@@ -867,7 +881,7 @@ func randomTypedExprDepthFlags(t CType, er *exprRand, opts Options, env envInfo,
 
 func randomParamExprDepth(t CType, er *exprRand, opts Options, env envInfo, scope scopeInfo, depth int, ctx *genContext) string {
 	limit := maxExprDepth(opts)
-	if depth >= limit || er.pick(100) < uint32(45+depth*15) {
+	if depth >= limit || depth == 0 || er.pick(100) < uint32(45+depth*15) {
 		return randomParamLeafExpr(t, er, opts, env, scope, depth, ctx)
 	}
 	lhs := randomParamExprDepth(t, er, opts, env, scope, depth+1, ctx)
@@ -974,18 +988,23 @@ func chooseLValue(r *rng, opts Options, target CType, env envInfo, scope scopeIn
 
 func emitLValueAssignment(b *strings.Builder, r *rng, opts Options, env envInfo, scope scopeInfo, ctx *genContext) bool {
 	targetType := CType{Name: "uint32_t", Signed: false, Bits: 32}
-	if len(scope.locals) > 0 && r.upto(100) < 70 {
-		targetType = scope.locals[int(r.upto(uint32(len(scope.locals))))].ctype
-	} else if len(env.globals) > 0 {
-		targetType = env.globals[int(r.upto(uint32(len(env.globals))))].ctype
+	for _, l := range scope.locals {
+		if l.name == "x" {
+			targetType = l.ctype
+			break
+		}
 	}
 
-	lv, ok := chooseLValue(r, opts, targetType, env, scope, ctx)
-	if !ok {
-		// Upstream-like fallback: create a new value when selection fails.
-		name := fmt.Sprintf("lv_%d", r.next31()&0xFFFF)
-		writeLine(b, 1, fmt.Sprintf("%s %s = %s;", targetType.Name, name, randomConstantExpr(targetType, r, opts)))
-		lv = lvalueInfo{expr: name, ctype: targetType}
+	lv := lvalueInfo{expr: "x", ctype: targetType}
+	if len(scope.locals) == 0 {
+		if picked, ok := chooseLValue(r, opts, targetType, env, scope, ctx); ok {
+			lv = picked
+		} else {
+			// Upstream-like fallback: create a new value when selection fails.
+			name := fmt.Sprintf("lv_%d", r.next31()&0xFFFF)
+			writeLine(b, 1, fmt.Sprintf("%s %s = %s;", targetType.Name, name, randomConstantExpr(targetType, r, opts)))
+			lv = lvalueInfo{expr: name, ctype: targetType}
+		}
 	}
 	rhs := randomTypedExpr(lv.ctype, r, opts, env, scope, ctx)
 	if opts.CompoundAssignment && r.upto(2) == 0 {
@@ -1554,51 +1573,46 @@ func emitStatement(
 		*stmtBudget = *stmtBudget - 1
 	}
 	chooseStmt := func() stmtKind {
-		// Upstream default statement probabilities from pStatementProb:
-		// ifelse 15, for 30, return 35, continue 40, break 45,
-		// goto 50 (if jumps), arrayop 60/55 (if arrays), assign 100.
-		tryPick := func() (stmtKind, bool) {
-			v := int(dec.pick(0, 100))
-			k := stmtAssign
+		toKind := func(v int) stmtKind {
 			switch {
 			case v < 15:
-				k = stmtIfElse
+				return stmtIfElse
 			case v < 30:
-				k = stmtFor
+				return stmtFor
 			case v < 35:
-				k = stmtReturn
+				return stmtReturn
 			case v < 40:
-				k = stmtContinue
+				return stmtContinue
 			case v < 45:
-				k = stmtBreak
+				return stmtBreak
 			case opts.Jumps && opts.Arrays && v < 50:
-				k = stmtGoto
+				return stmtGoto
 			case opts.Jumps && opts.Arrays && v < 60:
-				k = stmtArrayOp
+				return stmtArrayOp
 			case opts.Jumps && !opts.Arrays && v < 50:
-				k = stmtGoto
+				return stmtGoto
 			case !opts.Jumps && opts.Arrays && v < 55:
-				k = stmtArrayOp
+				return stmtArrayOp
 			default:
-				k = stmtAssign
-			}
-
-			// StatementFilter-like constraints.
-			if (k == stmtBreak || k == stmtContinue) && !inLoop {
-				return k, false
-			}
-			if depth >= max(1, opts.MaxBlockDepth) && (k == stmtIfElse || k == stmtFor) {
-				return k, false
-			}
-			return k, true
-		}
-		for i := 0; i < 8; i++ {
-			k, ok := tryPick()
-			if ok {
-				return k
+				return stmtAssign
 			}
 		}
-		return stmtAssign
+		// Mimics upstream rnd_upto(..., StatementFilter):
+		// retries happen inside one RNG API call.
+		if dec.r != nil {
+			v := int(dec.r.uptoWithFilter(100, func(x uint32) bool {
+				k := toKind(int(x))
+				if (k == stmtBreak || k == stmtContinue) && !inLoop {
+					return true
+				}
+				if depth >= max(1, opts.MaxBlockDepth) && (k == stmtIfElse || k == stmtFor) {
+					return true
+				}
+				return false
+			}))
+			return toKind(v)
+		}
+		return toKind(int(dec.pick(0, 100)))
 	}
 
 	switch chooseStmt() {
@@ -1749,18 +1763,11 @@ func emitSingleFuncDefOnce(
 	if state != nil {
 		retName = state.allocLocalName()
 	}
-	writeLine(&b, 1, fmt.Sprintf("%s %s = %s;", fn.ret.Name, retName, castLiteral(fn.ret, fmt.Sprintf("0x%08Xu", r.next31()))))
+	writeLine(&b, 1, fmt.Sprintf("%s %s = %s;", fn.ret.Name, retName, castLiteral(fn.ret, "0u")))
 	if len(env.globals) >= 2 {
-		writeLine(
-			&b,
-			1,
-			fmt.Sprintf(
-				"uint32_t x = ((uint32_t)%s ^ 0x%08Xu) + ((uint32_t)%s + 0x%08Xu);",
-				env.globals[0].name, r.next31(), env.globals[1].name, r.next31(),
-			),
-		)
+		writeLine(&b, 1, fmt.Sprintf("uint32_t x = ((uint32_t)%s) + ((uint32_t)%s);", env.globals[0].name, env.globals[1].name))
 	} else {
-		writeLine(&b, 1, fmt.Sprintf("uint32_t x = 0x%08Xu;", r.next31()))
+		writeLine(&b, 1, "uint32_t x = 0u;")
 	}
 
 	locals := make([]localInfo, 0, 1)
