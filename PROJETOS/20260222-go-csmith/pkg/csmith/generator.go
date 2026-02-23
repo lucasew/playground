@@ -1082,15 +1082,15 @@ func emitCompositeTypes(b *strings.Builder, r *rng, opts Options, pool []CType) 
 func emitGlobals(b *strings.Builder, r *rng, opts Options, info compositeInfo, pool []CType) envInfo {
 	env := envInfo{}
 	if opts.GlobalVariables {
-		globalCap := min(max(opts.MaxGlobals, 2), 64)
+		globalCap := max(opts.MaxGlobals, 2)
 		env.globals = make([]globalInfo, 0, globalCap)
 		moreGlobals := func() bool {
-			// Upstream creates globals on-demand through VariableSelector.
-			// Keep a larger initial universe, then taper probabilistically.
-			if len(env.globals) < min(70, globalCap) {
+			// Upstream keeps creating globals while generation requests new vars.
+			// Here we approximate that pressure with a high-growth prefix.
+			if len(env.globals) < min(70, globalCap/2+1) {
 				return true
 			}
-			if len(env.globals) < min(75, globalCap) {
+			if len(env.globals) < min(90, globalCap) {
 				return len(env.globals) < globalCap && r.upto(100) < 80
 			}
 			return len(env.globals) < globalCap && r.upto(100) < 45
@@ -1153,7 +1153,7 @@ func emitGlobals(b *strings.Builder, r *rng, opts Options, info compositeInfo, p
 			if opts.Consts && len(env.globals) > 1 {
 				start = 1
 			}
-			ptrCount := min(max(len(env.globals)-start, 0), 8)
+			ptrCount := max(len(env.globals)-start, 0)
 			if ptrCount > 1 {
 				// Avoid eagerly creating pointers for all globals; closer to progressive creation.
 				ptrCount = 1 + int(r.upto(uint32(ptrCount)))
@@ -1790,7 +1790,7 @@ func makeFuncSignature(r *rng, opts Options, pool []CType, idx int) funcInfo {
 		// Upstream's entry function is func_1(void), returning a fixed integral type.
 		fn.ret = CType{Name: "uint32_t", Signed: false, Bits: 32}
 	}
-	maxParams := min(opts.MaxParams, 4)
+	maxParams := opts.MaxParams
 	if idx == 1 {
 		maxParams = 0
 	}
