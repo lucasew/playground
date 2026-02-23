@@ -38,6 +38,8 @@ func NewRootCmd() *cobra.Command {
 	returnDeadPointerFlag := false
 	noHashValuePrintfFlag := false
 	noSignedCharIndexFlag := false
+	compilerAttributesFlag := false
+	noCompilerAttributesFlag := false
 	negBindings := make([]negBoolBinding, 0, 32)
 
 	cmd := &cobra.Command{
@@ -76,6 +78,18 @@ func NewRootCmd() *cobra.Command {
 			if noSignedCharIndexFlag {
 				opts.SignedCharIndex = false
 			}
+			if compilerAttributesFlag {
+				opts.FunctionAttributes = true
+				opts.TypeAttributes = true
+				opts.LabelAttributes = true
+				opts.VariableAttributes = true
+			}
+			if noCompilerAttributesFlag {
+				opts.FunctionAttributes = false
+				opts.TypeAttributes = false
+				opts.LabelAttributes = false
+				opts.VariableAttributes = false
+			}
 
 			if !seedSet {
 				opts.Seed = uint64(time.Now().UnixNano())
@@ -112,6 +126,8 @@ func NewRootCmd() *cobra.Command {
 	cmd.Flags().IntVar(&opts.MaxBlockDepth, "max-block-depth", opts.MaxBlockDepth, "limit depth of nested blocks")
 	cmd.Flags().IntVar(&opts.MaxExprComplexity, "max-expr-complexity", opts.MaxExprComplexity, "limit expression complexity")
 	cmd.Flags().IntVar(&opts.MaxStructFields, "max-struct-fields", opts.MaxStructFields, "limit struct field count")
+	cmd.Flags().IntVar(&opts.MaxNestedStructLevel, "max-struct-nested-level", opts.MaxNestedStructLevel, "limit nested struct depth")
+	cmd.Flags().IntVar(&opts.MaxNestedStructLevel, "max-nested-struct-level", opts.MaxNestedStructLevel, "limit nested struct depth")
 	cmd.Flags().IntVar(&opts.MaxUnionFields, "max-union-fields", opts.MaxUnionFields, "limit union field count")
 	cmd.Flags().IntVar(&opts.MaxPointerDepth, "max-pointer-depth", opts.MaxPointerDepth, "limit pointer indirection depth")
 	cmd.Flags().IntVar(&opts.MaxArrayDim, "max-array-dim", opts.MaxArrayDim, "limit array dimensions")
@@ -125,9 +141,28 @@ func NewRootCmd() *cobra.Command {
 	cmd.Flags().IntVar(&opts.DanglingPtrDerefProb, "dangling-ptr-deref-prob", opts.DanglingPtrDerefProb, "probability [0,100]")
 	cmd.Flags().IntVar(&opts.StopByStmt, "stop-by-stmt", opts.StopByStmt, "stop generation after N statements")
 	cmd.Flags().IntVar(&opts.MaxGlobals, "max-globals", opts.MaxGlobals, "maximum number of generated globals")
+	cmd.Flags().IntVar(&opts.MaxSplitFiles, "max-split-files", opts.MaxSplitFiles, "maximum number of split output files")
+	cmd.Flags().IntVar(&opts.CoverageTestSize, "coverage-test-size", opts.CoverageTestSize, "coverage test size")
+	cmd.Flags().StringVar(&opts.SplitFilesDir, "split-files-dir", opts.SplitFilesDir, "directory for split files output")
+	cmd.Flags().StringVar(&opts.StructOutput, "struct-output", opts.StructOutput, "write generated struct declarations to file")
+	cmd.Flags().StringVar(&opts.DFSDebugSequence, "dfs-debug-sequence", opts.DFSDebugSequence, "debug sequence for dfs-exhaustive mode")
+	cmd.Flags().StringVar(&opts.PartialExpand, "partial-expand", opts.PartialExpand, "partial expansion strategy")
+	cmd.Flags().StringVar(&opts.DeltaMonitor, "delta-monitor", opts.DeltaMonitor, "delta monitor executable")
+	cmd.Flags().StringVar(&opts.DeltaOutput, "delta-output", opts.DeltaOutput, "delta output file")
+	cmd.Flags().StringVar(&opts.GoDelta, "go-delta", opts.GoDelta, "run selected delta reduction monitor")
+	cmd.Flags().StringVar(&opts.DeltaInput, "delta-input", opts.DeltaInput, "delta input file")
+	cmd.Flags().StringVar(&opts.ProbabilityConfiguration, "probability-configuration", opts.ProbabilityConfiguration, "probability configuration file")
+	cmd.Flags().StringVar(&opts.DumpDefaultProbabilities, "dump-default-probabilities", opts.DumpDefaultProbabilities, "dump default probabilities to file")
+	cmd.Flags().StringVar(&opts.DumpRandomProbabilities, "dump-random-probabilities", opts.DumpRandomProbabilities, "dump randomized probabilities to file")
+	cmd.Flags().StringVar(&opts.SafeMathWrappers, "safe-math-wrappers", opts.SafeMathWrappers, "comma-separated safe math wrapper IDs")
+	cmd.Flags().StringVar(&opts.MonitorFuncs, "monitor-funcs", opts.MonitorFuncs, "comma-separated list of functions to monitor")
+	cmd.Flags().StringVar(&opts.EnableBuiltinKinds, "enable-builtin-kinds", opts.EnableBuiltinKinds, "enable builtin kinds list")
+	cmd.Flags().StringVar(&opts.DisableBuiltinKinds, "disable-builtin-kinds", opts.DisableBuiltinKinds, "disable builtin kinds list")
 
 	addBoolPair(cmd, &negBindings, &opts.AcceptArgc, "argc", "generate argc/argv in main")
 	addBoolPair(cmd, &negBindings, &opts.Arrays, "arrays", "enable arrays")
+	addBoolPair(cmd, &negBindings, &opts.FixedStructFields, "fixed-struct-fields", "use fixed number of struct fields")
+	cmd.Flags().BoolVar(&opts.ExpandStruct, "expand-struct", opts.ExpandStruct, "expand struct fields more aggressively")
 	addBoolPair(cmd, &negBindings, &opts.Bitfields, "bitfields", "enable bitfields")
 	addBoolPair(cmd, &negBindings, &opts.ComputeHash, "checksum", "enable checksum calculation")
 	addBoolPair(cmd, &negBindings, &opts.CompoundAssignment, "compound-assignment", "enable compound assignment")
@@ -186,6 +221,24 @@ func NewRootCmd() *cobra.Command {
 	addBoolPair(cmd, &negBindings, &opts.Int128, "int128", "enable __int128 type")
 	addBoolPair(cmd, &negBindings, &opts.UInt128, "uint128", "enable unsigned __int128 type")
 	addBoolPair(cmd, &negBindings, &opts.BinaryConstant, "binary-constant", "enable binary constants")
+	addBoolPair(cmd, &negBindings, &opts.MathNoTmp, "math-notmp", "use no-temp safe math wrappers")
+	cmd.Flags().BoolVar(&opts.StrictFloat, "strict-float", opts.StrictFloat, "enforce strict floating-point semantics")
+	cmd.Flags().BoolVar(&opts.DepthProtect, "depth-protect", opts.DepthProtect, "enable depth protection")
+	cmd.Flags().BoolVar(&opts.CompactOutput, "compact-output", opts.CompactOutput, "emit compact output")
+	cmd.Flags().BoolVar(&opts.PrefixName, "prefix-name", opts.PrefixName, "prefix generated symbol names")
+	cmd.Flags().BoolVar(&opts.SequenceNamePrefix, "sequence-name-prefix", opts.SequenceNamePrefix, "prefix names based on DFS sequence")
+	cmd.Flags().BoolVar(&opts.CompatibleCheck, "compatible-check", opts.CompatibleCheck, "enable compatibility checking")
+	cmd.Flags().BoolVar(&opts.Klee, "klee", opts.Klee, "enable KLEE-compatible generation")
+	cmd.Flags().BoolVar(&opts.Crest, "crest", opts.Crest, "enable CREST-compatible generation")
+	cmd.Flags().BoolVar(&opts.CComp, "ccomp", opts.CComp, "enable CompCert-compatible generation")
+	cmd.Flags().BoolVar(&opts.CoverageTest, "coverage-test", opts.CoverageTest, "enable coverage-test mode")
+	cmd.Flags().BoolVar(&opts.NoDeltaReduction, "no-delta-reduction", opts.NoDeltaReduction, "disable delta reduction support")
+	addBoolPair(cmd, &negBindings, &opts.FunctionAttributes, "function-attributes", "enable function attributes")
+	addBoolPair(cmd, &negBindings, &opts.TypeAttributes, "type-attributes", "enable type attributes")
+	addBoolPair(cmd, &negBindings, &opts.LabelAttributes, "label-attributes", "enable label attributes")
+	addBoolPair(cmd, &negBindings, &opts.VariableAttributes, "variable-attributes", "enable variable attributes")
+	cmd.Flags().BoolVar(&compilerAttributesFlag, "compiler-attributes", false, "enable all compiler attributes")
+	cmd.Flags().BoolVar(&noCompilerAttributesFlag, "no-compiler-attributes", false, "disable all compiler attributes")
 	addBoolPair(cmd, &negBindings, &opts.SafeMath, "safe-math", "emit safe math wrappers")
 	addBoolPair(cmd, &negBindings, &opts.PackedStruct, "packed-struct", "enable packed structs")
 	addBoolPair(cmd, &negBindings, &opts.Paranoid, "paranoid", "enable paranoid pointer checks")

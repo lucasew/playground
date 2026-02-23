@@ -49,6 +49,7 @@ type Options struct {
 	NullPtrDerefProb     int
 	DanglingPtrDerefProb int
 	StopByStmt           int
+	CoverageTestSize     int
 
 	// Extension/mode switches
 	RandomBased   bool
@@ -56,6 +57,7 @@ type Options struct {
 	LangCPP       bool
 	CPP11         bool
 	FastExecution bool
+	DepthProtect  bool
 
 	// Core generation features
 	ComputeHash              bool
@@ -121,6 +123,40 @@ type Options struct {
 	FreshArrayCtrlVarNames   bool
 	IdentifyWrappers         bool
 	MarkMutableConst         bool
+	Klee                     bool
+	Crest                    bool
+	CComp                    bool
+	CoverageTest             bool
+	FixedStructFields        bool
+	ExpandStruct             bool
+	CompactOutput            bool
+	PrefixName               bool
+	SequenceNamePrefix       bool
+	CompatibleCheck          bool
+	MathNoTmp                bool
+	StrictFloat              bool
+	WrapVolatiles            bool
+	AllowConstVolatile       bool
+	FunctionAttributes       bool
+	TypeAttributes           bool
+	LabelAttributes          bool
+	VariableAttributes       bool
+
+	StructOutput             string
+	DFSDebugSequence         string
+	PartialExpand            string
+	DeltaMonitor             string
+	DeltaOutput              string
+	GoDelta                  string
+	DeltaInput               string
+	ProbabilityConfiguration string
+	DumpDefaultProbabilities string
+	DumpRandomProbabilities  string
+	SafeMathWrappers         string
+	MonitorFuncs             string
+	EnableBuiltinKinds       string
+	DisableBuiltinKinds      string
+	NoDeltaReduction         bool
 
 	// Keep an escape hatch for the current simplified generator shape.
 	MaxGlobals int
@@ -157,12 +193,14 @@ func Defaults() Options {
 		NullPtrDerefProb:     0,
 		DanglingPtrDerefProb: 0,
 		StopByStmt:           -1,
+		CoverageTestSize:     500,
 
 		RandomBased:   true,
 		DFSExhaustive: false,
 		LangCPP:       false,
 		CPP11:         false,
 		FastExecution: false,
+		DepthProtect:  false,
 
 		ComputeHash:              true,
 		AcceptArgc:               true,
@@ -227,6 +265,39 @@ func Defaults() Options {
 		FreshArrayCtrlVarNames:   false,
 		IdentifyWrappers:         false,
 		MarkMutableConst:         false,
+		Klee:                     false,
+		Crest:                    false,
+		CComp:                    false,
+		CoverageTest:             false,
+		FixedStructFields:        false,
+		ExpandStruct:             false,
+		CompactOutput:            false,
+		PrefixName:               false,
+		SequenceNamePrefix:       false,
+		CompatibleCheck:          false,
+		MathNoTmp:                false,
+		StrictFloat:              false,
+		WrapVolatiles:            false,
+		AllowConstVolatile:       true,
+		FunctionAttributes:       false,
+		TypeAttributes:           false,
+		LabelAttributes:          false,
+		VariableAttributes:       false,
+		StructOutput:             "",
+		DFSDebugSequence:         "",
+		PartialExpand:            "",
+		DeltaMonitor:             "",
+		DeltaOutput:              "",
+		GoDelta:                  "",
+		DeltaInput:               "",
+		ProbabilityConfiguration: "",
+		DumpDefaultProbabilities: "",
+		DumpRandomProbabilities:  "",
+		SafeMathWrappers:         "",
+		MonitorFuncs:             "",
+		EnableBuiltinKinds:       "",
+		DisableBuiltinKinds:      "",
+		NoDeltaReduction:         false,
 
 		MaxGlobals: 6,
 	}
@@ -329,13 +400,19 @@ func (o Options) Validate() error {
 		if o.MaxExhaustiveDepth <= 0 {
 			return fmt.Errorf("max-exhaustive-depth must be at least 0")
 		}
-		if !o.Structs && o.PackedStruct {
+		if !o.Structs && o.ExpandStruct {
 			return fmt.Errorf("expand-struct/struct-specific options cannot be used with --no-structs")
+		}
+		if o.Klee || o.Crest || o.CoverageTest {
+			return fmt.Errorf("exhaustive mode doesn't support klee|crest|coverage-test extension")
 		}
 	}
 	if o.RandomBased {
 		if o.DFSExhaustive {
 			return fmt.Errorf("random-based and dfs-exhaustive modes cannot both be enabled")
+		}
+		if o.SequenceNamePrefix {
+			return fmt.Errorf("--sequence-name-prefix option can only be used with --dfs-exhaustive")
 		}
 	}
 	if !o.RandomBased {
@@ -348,6 +425,19 @@ func (o Options) Validate() error {
 	}
 	if o.FastExecution && !o.LangCPP {
 		return fmt.Errorf("fast-execution requires C++ mode semantics (lang-cpp)")
+	}
+	extCount := 0
+	if o.Klee {
+		extCount++
+	}
+	if o.Crest {
+		extCount++
+	}
+	if o.CoverageTest {
+		extCount++
+	}
+	if extCount > 1 {
+		return fmt.Errorf("you could only specify --klee or --crest or --coverage-test")
 	}
 	return nil
 }
