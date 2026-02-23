@@ -3,6 +3,7 @@ package csmith
 import (
 	"fmt"
 	"os"
+	"runtime"
 )
 
 const (
@@ -15,6 +16,7 @@ const (
 type rng struct {
 	state     uint64
 	trace     bool
+	traceSite bool
 	traceFile string
 	tracePos  uint64
 }
@@ -24,6 +26,7 @@ func newRNG(seed uint64) *rng {
 	r := &rng{state: ((seed << 16) + 0x330E) & lcgMask}
 	if os.Getenv("CSMITH_TRACE_RNG") != "" {
 		r.trace = true
+		r.traceSite = os.Getenv("CSMITH_TRACE_RNG_SITE") != ""
 		r.traceFile = os.Getenv("CSMITH_TRACE_RNG_FILE")
 		if r.traceFile == "" {
 			r.traceFile = "/tmp/csmith-go-rng.trace"
@@ -64,7 +67,11 @@ func (r *rng) traceU(n uint32, x uint32) {
 		r.tracePos++
 		f, err := os.OpenFile(r.traceFile, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
 		if err == nil {
-			_, _ = fmt.Fprintf(f, "%d U %d -> %d\n", r.tracePos, n, x)
+			if r.traceSite {
+				_, _ = fmt.Fprintf(f, "%d U %d -> %d @%s\n", r.tracePos, n, x, traceCaller())
+			} else {
+				_, _ = fmt.Fprintf(f, "%d U %d -> %d\n", r.tracePos, n, x)
+			}
 			_ = f.Close()
 		}
 	}
@@ -84,9 +91,30 @@ func (r *rng) flipcoin(p uint32) bool {
 			if ok {
 				b = 1
 			}
-			_, _ = fmt.Fprintf(f, "%d F %d -> %d\n", r.tracePos, p, b)
+			if r.traceSite {
+				_, _ = fmt.Fprintf(f, "%d F %d -> %d @%s\n", r.tracePos, p, b, traceCaller())
+			} else {
+				_, _ = fmt.Fprintf(f, "%d F %d -> %d\n", r.tracePos, p, b)
+			}
 			_ = f.Close()
 		}
 	}
 	return ok
+}
+
+func traceCaller() string {
+	var pcs [12]uintptr
+	n := runtime.Callers(3, pcs[:])
+	frames := runtime.CallersFrames(pcs[:n])
+	for {
+		fr, more := frames.Next()
+		name := fr.Function
+		if name != "" && name != "csmith/pkg/csmith.(*rng).upto" && name != "csmith/pkg/csmith.(*rng).uptoWithFilter" && name != "csmith/pkg/csmith.(*rng).flipcoin" {
+			return name
+		}
+		if !more {
+			break
+		}
+	}
+	return "unknown"
 }

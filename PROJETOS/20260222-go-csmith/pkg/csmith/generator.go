@@ -652,6 +652,11 @@ func buildFunctionCallExpr(
 		calleeIdx = candidates[int(er.pick(uint32(len(candidates))))]
 		callee = state.funcs[calleeIdx]
 	} else {
+		if len(candidates) == 0 {
+			// Upstream often fails this path early when no callable function is
+			// available in context; caller retries another expression form.
+			return "", false
+		}
 		created, newIdx, ok := state.appendNewFunction(er.fallback, &t)
 		if ok {
 			calleeIdx = newIdx
@@ -713,12 +718,16 @@ func randomLeafExprWithMode(
 		termComma
 	)
 
-	weighted := make([]termChoice, 0, 140)
+	type termEntry struct {
+		term termChoice
+		prob int
+	}
+	entries := make([]termEntry, 0, 5)
 	funcW := 70
 	varW := 20
 	constW := 10
-	assignW := 0
-	commaW := 0
+	assignW := 10
+	commaW := 10
 	if isParam {
 		// Upstream make_random_param baseline:
 		// function 40, variable 40, constant 0 (+ optional assign/comma).
@@ -726,50 +735,82 @@ func randomLeafExprWithMode(
 		varW = 40
 		constW = 0
 	}
-	if noFunc || depth+2 > maxExprDepth(opts) {
-		funcW = 0
-	}
-	if noConst {
-		constW = 0
-	}
-	if depth+2 > maxExprDepth(opts) {
+	if !opts.EmbeddedAssigns {
 		assignW = 0
+	}
+	if !opts.CommaOperators {
 		commaW = 0
 	}
-	for i := 0; i < funcW; i++ {
-		weighted = append(weighted, termFunction)
-	}
-	for i := 0; i < varW; i++ {
-		weighted = append(weighted, termVariable)
-	}
-	for i := 0; i < constW; i++ {
-		weighted = append(weighted, termConstant)
-	}
-	if opts.EmbeddedAssigns && assignW == 0 {
-		assignW = 10
-	}
+	entries = append(entries, termEntry{term: termFunction, prob: funcW})
+	entries = append(entries, termEntry{term: termVariable, prob: varW})
+	entries = append(entries, termEntry{term: termConstant, prob: constW})
 	if assignW > 0 {
-		for i := 0; i < assignW; i++ {
-			weighted = append(weighted, termAssign)
-		}
-	}
-	if opts.CommaOperators && commaW == 0 {
-		commaW = 10
+		entries = append(entries, termEntry{term: termAssign, prob: assignW})
 	}
 	if commaW > 0 {
-		for i := 0; i < commaW; i++ {
-			weighted = append(weighted, termComma)
-		}
+		entries = append(entries, termEntry{term: termComma, prob: commaW})
 	}
-	if len(weighted) == 0 {
+	maxProb := 0
+	for _, e := range entries {
+		maxProb += e.prob
+	}
+	if maxProb <= 0 {
 		return randomConstantExprFromER(t, er, opts)
+	}
+	decode := func(v int) termChoice {
+		for _, e := range entries {
+			if e.prob <= 0 {
+				continue
+			}
+			if v < e.prob {
+				return e.term
+			}
+			v -= e.prob
+		}
+		return termVariable
+	}
+	disallowed := func(tc termChoice) bool {
+		if (tc == termFunction && (noFunc || depth+2 > maxExprDepth(opts))) ||
+			(tc == termConstant && noConst) ||
+			((tc == termAssign || tc == termComma) && depth+2 > maxExprDepth(opts)) {
+			return true
+		}
+		return false
 	}
 
 	for tries := 0; tries < 6; tries++ {
 		snap := takeGenSnapshot(ctx)
-		choice := weighted[int(er.pick(uint32(len(weighted))))]
+		var choice termChoice
+		if er != nil && er.fallback != nil {
+			raw := int(er.fallback.uptoWithFilter(uint32(maxProb), func(x uint32) bool {
+				return disallowed(decode(int(x)))
+			}))
+			choice = decode(raw)
+		} else {
+			raw := int(er.pick(uint32(maxProb)))
+			choice = decode(raw)
+			if disallowed(choice) {
+				restoreGenSnapshot(ctx, snap)
+				continue
+			}
+		}
 		switch choice {
 		case termFunction:
+			if noConst && er != nil && er.fallback != nil {
+				// ExpressionFuncall::ExpressionFunctionProbability + stdfunc path.
+				if er.fallback.flipcoin(80) {
+					if er.fallback.flipcoin(5) {
+						return castLiteral(t, "(~x)")
+					}
+					ptrCmpProb := uint32(0)
+					if opts.Pointers {
+						ptrCmpProb = 10
+					}
+					_ = er.fallback.flipcoin(ptrCmpProb)
+					_ = er.fallback.upto(18)
+					return castLiteral(t, "x")
+				}
+			}
 			if depth < maxExprDepth(opts) {
 				if call, ok := buildFunctionCallExpr(t, er, opts, env, scope, depth, ctx); ok {
 					return call
@@ -822,8 +863,25 @@ func randomLeafExprWithMode(
 			}
 			restoreGenSnapshot(ctx, snap)
 		case termComma:
-			lhs := randomConstantExprFromER(t, er, opts)
-			rhs := randomConstantExprFromER(t, er, opts)
+			lhsType := t
+			if er != nil && er.fallback != nil && ctx != nil && ctx.state != nil {
+				allCount := len(ctx.state.pool) + len(ctx.state.info.structs) + len(ctx.state.info.unions)
+				if allCount > 0 {
+					pick := int(er.fallback.upto(uint32(allCount)))
+					switch {
+					case pick < len(ctx.state.pool):
+						lhsType = ctx.state.pool[pick]
+					case pick < len(ctx.state.pool)+len(ctx.state.info.structs):
+						lhsType = CType{Name: fmt.Sprintf("struct S%d", pick-len(ctx.state.pool)), Bits: 32}
+					default:
+						lhsType = CType{Name: fmt.Sprintf("union U%d", pick-len(ctx.state.pool)-len(ctx.state.info.structs)), Bits: 32}
+					}
+				}
+			}
+			// Upstream ExpressionComma::make_random:
+			// lhs = make_random(..., type=nil, no_const=true), rhs = make_random(..., type=t)
+			lhs := randomTypedExprDepthFlags(lhsType, er, opts, env, scope, depth+1, ctx, false, true)
+			rhs := randomTypedExprDepthFlags(t, er, opts, env, scope, depth+1, ctx, false, false)
 			return castLiteral(t, fmt.Sprintf("((%s), (%s))", lhs, rhs))
 		}
 	}
@@ -853,94 +911,18 @@ func maxExprDepth(opts Options) int {
 }
 
 func randomTypedExprDepth(t CType, er *exprRand, opts Options, env envInfo, scope scopeInfo, depth int, ctx *genContext) string {
-	limit := maxExprDepth(opts)
-	// Bias toward leaves to avoid giant expressions while still creating nested trees.
-	if depth >= limit || depth == 0 || er.pick(100) < uint32(40+depth*15) {
-		return randomLeafExpr(t, er, opts, env, scope, depth, ctx)
-	}
-
-	lhs := randomTypedExprDepth(t, er, opts, env, scope, depth+1, ctx)
-	rhs := randomTypedExprDepth(t, er, opts, env, scope, depth+1, ctx)
-
-	ops := []string{"+", "-", "^", "|", "&"}
-	if opts.Muls {
-		ops = append(ops, "*")
-	}
-	if opts.Divs {
-		ops = append(ops, "/")
-	}
-	if opts.CommaOperators {
-		ops = append(ops, ",")
-	}
-
-	op := ops[int(er.pick(uint32(len(ops))))]
-	switch op {
-	case "/":
-		den := randomTypedExprDepth(t, er, opts, env, scope, depth+1, ctx)
-		return castLiteral(t, fmt.Sprintf("((%s) / ((%s) | 1))", lhs, den))
-	case ",":
-		return castLiteral(t, fmt.Sprintf("((%s), (%s))", lhs, rhs))
-	default:
-		return castLiteral(t, fmt.Sprintf("((%s) %s (%s))", lhs, op, rhs))
-	}
+	_ = depth
+	return randomLeafExpr(t, er, opts, env, scope, depth, ctx)
 }
 
 func randomTypedExprDepthFlags(t CType, er *exprRand, opts Options, env envInfo, scope scopeInfo, depth int, ctx *genContext, noFunc bool, noConst bool) string {
-	limit := maxExprDepth(opts)
-	if depth >= limit || depth == 0 || er.pick(100) < uint32(40+depth*15) {
-		return randomLeafExprWithMode(t, er, opts, env, scope, depth, ctx, false, noFunc, noConst)
-	}
-	lhs := randomTypedExprDepthFlags(t, er, opts, env, scope, depth+1, ctx, noFunc, noConst)
-	rhs := randomTypedExprDepthFlags(t, er, opts, env, scope, depth+1, ctx, noFunc, noConst)
-	ops := []string{"+", "-", "^", "|", "&"}
-	if opts.Muls {
-		ops = append(ops, "*")
-	}
-	if opts.Divs {
-		ops = append(ops, "/")
-	}
-	if opts.CommaOperators && !noConst {
-		ops = append(ops, ",")
-	}
-	op := ops[int(er.pick(uint32(len(ops))))]
-	switch op {
-	case "/":
-		den := randomTypedExprDepthFlags(t, er, opts, env, scope, depth+1, ctx, noFunc, noConst)
-		return castLiteral(t, fmt.Sprintf("((%s) / ((%s) | 1))", lhs, den))
-	case ",":
-		return castLiteral(t, fmt.Sprintf("((%s), (%s))", lhs, rhs))
-	default:
-		return castLiteral(t, fmt.Sprintf("((%s) %s (%s))", lhs, op, rhs))
-	}
+	_ = depth
+	return randomLeafExprWithMode(t, er, opts, env, scope, depth, ctx, false, noFunc, noConst)
 }
 
 func randomParamExprDepth(t CType, er *exprRand, opts Options, env envInfo, scope scopeInfo, depth int, ctx *genContext) string {
-	limit := maxExprDepth(opts)
-	if depth >= limit || depth == 0 || er.pick(100) < uint32(45+depth*15) {
-		return randomParamLeafExpr(t, er, opts, env, scope, depth, ctx)
-	}
-	lhs := randomParamExprDepth(t, er, opts, env, scope, depth+1, ctx)
-	rhs := randomParamExprDepth(t, er, opts, env, scope, depth+1, ctx)
-	ops := []string{"+", "-", "^", "|", "&"}
-	if opts.Muls {
-		ops = append(ops, "*")
-	}
-	if opts.Divs {
-		ops = append(ops, "/")
-	}
-	if opts.CommaOperators {
-		ops = append(ops, ",")
-	}
-	op := ops[int(er.pick(uint32(len(ops))))]
-	switch op {
-	case "/":
-		den := randomParamExprDepth(t, er, opts, env, scope, depth+1, ctx)
-		return castLiteral(t, fmt.Sprintf("((%s) / ((%s) | 1))", lhs, den))
-	case ",":
-		return castLiteral(t, fmt.Sprintf("((%s), (%s))", lhs, rhs))
-	default:
-		return castLiteral(t, fmt.Sprintf("((%s) %s (%s))", lhs, op, rhs))
-	}
+	_ = depth
+	return randomParamLeafExpr(t, er, opts, env, scope, depth, ctx)
 }
 
 func exprDecisionBudget(opts Options) int {
