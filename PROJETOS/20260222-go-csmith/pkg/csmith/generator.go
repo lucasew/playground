@@ -442,7 +442,7 @@ func variableScopePickFromER(er *exprRand, opts Options) int {
 			return 0
 		case v < 65:
 			return 1
-		case v < 95:
+		case v < 99:
 			return 2
 		default:
 			return 3
@@ -451,7 +451,7 @@ func variableScopePickFromER(er *exprRand, opts Options) int {
 	switch {
 	case v < 50:
 		return 1
-	case v < 95:
+	case v < 99:
 		return 2
 	default:
 		return 3
@@ -1001,41 +1001,20 @@ func maybeDeclareOnDemandLocal(b *strings.Builder, r *rng, opts Options, ctx *ge
 
 func emitCompositeTypes(b *strings.Builder, r *rng, opts Options, pool []CType) compositeInfo {
 	info := compositeInfo{}
-	totalTypes := len(pool)
-
-	// Upstream-like MoreTypesProbability:
-	// keep adding aggregate types while type universe is small, then 50% chance.
-	moreTypes := func() bool {
-		if totalTypes < 10 {
-			return true
-		}
-		return r.upto(100) < 50
-	}
-
-	if opts.PackedStruct {
-		writeLine(b, 0, "#if defined(__GNUC__) || defined(__clang__)")
-		writeLine(b, 0, "#define CSMITH_GO_PACKED __attribute__((packed))")
-		writeLine(b, 0, "#else")
-		writeLine(b, 0, "#define CSMITH_GO_PACKED")
-		writeLine(b, 0, "#endif")
-		writeLine(b, 0, "")
-	}
+	writeLine(b, 0, "/* --- Struct/Union Declarations --- */")
 
 	if opts.Structs {
 		sidx := 0
-		for moreTypes() && sidx < min(max(opts.MaxStructFields, 1), 32) {
+		// Always emit at least one struct, then continue probabilistically.
+		for sidx == 0 || (r.upto(100) < 25 && sidx < min(max(opts.MaxStructFields, 1), 32)) {
 			fieldCount := 1 + int(r.upto(uint32(max(1, min(opts.MaxStructFields, 6)))))
 			st := structTypeInfo{fields: make([]fieldInfo, 0, fieldCount)}
-			if opts.PackedStruct {
-				writeLine(b, 0, fmt.Sprintf("typedef struct CSMITH_GO_PACKED S_%d {", sidx))
-			} else {
-				writeLine(b, 0, fmt.Sprintf("typedef struct S_%d {", sidx))
-			}
+			writeLine(b, 0, fmt.Sprintf("struct S%d {", sidx))
 			for f := 0; f < fieldCount; f++ {
 				if opts.Bitfields && r.upto(4) == 0 {
 					name := fmt.Sprintf("bf_%d", f)
 					width := 1 + int(r.upto(31))
-					writeLine(b, 1, fmt.Sprintf("uint32_t %s : %d;", name, width))
+					writeLine(b, 1, fmt.Sprintf("unsigned %s : %d;", name, width))
 					st.fields = append(st.fields, fieldInfo{
 						name: name, ctype: CType{Name: "uint32_t", Bits: 32}, bitfield: true, bitWidth: width,
 					})
@@ -1046,54 +1025,55 @@ func emitCompositeTypes(b *strings.Builder, r *rng, opts Options, pool []CType) 
 				writeLine(b, 1, fmt.Sprintf("%s %s;", t.Name, name))
 				st.fields = append(st.fields, fieldInfo{name: name, ctype: t})
 			}
-			writeLine(b, 0, fmt.Sprintf("} S_%d;", sidx))
+			writeLine(b, 0, "};")
 			writeLine(b, 0, "")
 			info.structs = append(info.structs, st)
-			totalTypes++
 			sidx++
 		}
 	}
 
 	if opts.Unions {
 		uidx := 0
-		for moreTypes() && uidx < min(max(opts.MaxUnionFields, 1), 32) {
+		for r.upto(100) < 35 && uidx < min(max(opts.MaxUnionFields, 1), 32) {
 			fieldCount := 2 + int(r.upto(uint32(max(1, min(opts.MaxUnionFields, 4)))))
 			ut := unionTypeInfo{fields: make([]fieldInfo, 0, fieldCount)}
-			writeLine(b, 0, fmt.Sprintf("typedef union U_%d {", uidx))
+			writeLine(b, 0, fmt.Sprintf("union U%d {", uidx))
 			for f := 0; f < fieldCount; f++ {
 				name := fmt.Sprintf("u_%d", f)
 				t := pickType(r, pool)
 				writeLine(b, 1, fmt.Sprintf("%s %s;", t.Name, name))
 				ut.fields = append(ut.fields, fieldInfo{name: name, ctype: t})
 			}
-			writeLine(b, 0, fmt.Sprintf("} U_%d;", uidx))
+			writeLine(b, 0, "};")
 			writeLine(b, 0, "")
 			info.unions = append(info.unions, ut)
-			totalTypes++
 			uidx++
 		}
 	}
+	writeLine(b, 0, "")
 
 	return info
 }
 
 func emitGlobals(b *strings.Builder, r *rng, opts Options, info compositeInfo, pool []CType) envInfo {
 	env := envInfo{}
+	writeLine(b, 0, "/* --- GLOBAL VARIABLES --- */")
 	if opts.GlobalVariables {
 		globalCap := max(opts.MaxGlobals, 2)
 		env.globals = make([]globalInfo, 0, globalCap)
-		moreGlobals := func() bool {
-			// Upstream keeps creating globals while generation requests new vars.
-			// Here we approximate that pressure with a high-growth prefix.
-			if len(env.globals) < min(70, globalCap/2+1) {
-				return true
-			}
-			if len(env.globals) < min(90, globalCap) {
-				return len(env.globals) < globalCap && r.upto(100) < 80
-			}
-			return len(env.globals) < globalCap && r.upto(100) < 45
+		env.arrays = make([]arrayInfo, 0, globalCap/2+1)
+		env.pointers = make([]pointerInfo, 0, globalCap/2+1)
+
+		nextGlobalID := 0
+		newGlobalName := func() string {
+			name := fmt.Sprintf("g_%d", nextGlobalID)
+			nextGlobalID++
+			return name
 		}
-		for i := 0; moreGlobals(); i++ {
+
+		// Keep scalar globals as the primary pool used by expressions.
+		scalarTarget := min(globalCap, 26+int(r.upto(18)))
+		for i := 0; i < scalarTarget; i++ {
 			isConst := false
 			if opts.Consts {
 				isConst = r.upto(100) < 22
@@ -1107,7 +1087,7 @@ func emitGlobals(b *strings.Builder, r *rng, opts Options, info compositeInfo, p
 				isConst = false
 			}
 			g := globalInfo{
-				name:       fmt.Sprintf("g_%d", i),
+				name:       newGlobalName(),
 				ctype:      pickType(r, pool),
 				isConst:    isConst,
 				isVolatile: isVolatile,
@@ -1120,31 +1100,23 @@ func emitGlobals(b *strings.Builder, r *rng, opts Options, info compositeInfo, p
 			if g.isVolatile {
 				qual += "volatile "
 			}
-			if g.isConst {
-				writeLine(b, 0, fmt.Sprintf("static %s%s %s = %s;", qual, g.ctype.Name, g.name, lit))
-			} else {
-				writeLine(b, 0, fmt.Sprintf("static %s%s %s = %s;", qual, g.ctype.Name, g.name, lit))
-			}
+			writeLine(b, 0, fmt.Sprintf("static %s%s %s = %s;", qual, g.ctype.Name, g.name, lit))
 			env.globals = append(env.globals, g)
 		}
 
 		if opts.Arrays {
-			arrayCount := 1
-			for arrayCount < min(max(opts.MaxArrayDim, 1), 4) && r.upto(100) < 50 {
-				arrayCount++
-			}
-			arrLen := max(2, min(opts.MaxArrayLenPerDim, 8))
-			env.arrays = make([]arrayInfo, 0, arrayCount)
-			for i := 0; i < arrayCount; i++ {
+			// Generate a richer array set with canonical g_N naming.
+			arrayTarget := min(max(12, len(env.globals)), 40)
+			for i := 0; i < arrayTarget; i++ {
+				arrLen := 2 + int(r.upto(uint32(max(2, min(opts.MaxArrayLenPerDim, 10)))))
 				ai := arrayInfo{
-					name:  fmt.Sprintf("ga_%d", i),
+					name:  newGlobalName(),
 					ctype: pickType(r, pool),
 					len:   arrLen,
 				}
 				writeLine(b, 0, fmt.Sprintf("static %s %s[%d] = {0};", ai.ctype.Name, ai.name, arrLen))
 				env.arrays = append(env.arrays, ai)
 			}
-
 		}
 
 		if opts.Pointers {
@@ -1152,16 +1124,11 @@ func emitGlobals(b *strings.Builder, r *rng, opts Options, info compositeInfo, p
 			if opts.Consts && len(env.globals) > 1 {
 				start = 1
 			}
-			ptrCount := max(len(env.globals)-start, 0)
-			if ptrCount > 1 {
-				// Avoid eagerly creating pointers for all globals; closer to progressive creation.
-				ptrCount = 1 + int(r.upto(uint32(ptrCount)))
-			}
-			env.pointers = make([]pointerInfo, 0, ptrCount)
-			for i := 0; i < ptrCount; i++ {
-				target := env.globals[start+i]
+			ptrTarget := min(max(4, len(env.globals)/4), 12)
+			for i := 0; i < ptrTarget; i++ {
+				target := env.globals[start+int(r.upto(uint32(max(1, len(env.globals)-start))))]
 				p := pointerInfo{
-					name:            fmt.Sprintf("gp_%d", i),
+					name:            newGlobalName(),
 					target:          target.name,
 					targetTy:        target.ctype,
 					volatilePointer: opts.VolatilePointers && r.upto(3) == 0,
@@ -1183,8 +1150,8 @@ func emitGlobals(b *strings.Builder, r *rng, opts Options, info compositeInfo, p
 				env.pointers = append(env.pointers, p)
 			}
 
-			// Extra pointer chains: closer to upstream global shape (T*, T**, T*** ...).
-			chainCount := min(max(len(env.pointers), 1), 3)
+			// Extra pointer chains: mimic global pointer ladders seen in upstream output.
+			chainCount := min(max(len(env.pointers)/2, 1), 4)
 			env.chains = make([]string, 0, chainCount)
 			for i := 0; i < chainCount; i++ {
 				chainBases := make([]pointerInfo, 0, len(env.pointers))
@@ -1203,7 +1170,7 @@ func emitGlobals(b *strings.Builder, r *rng, opts Options, info compositeInfo, p
 				prevName := base.name
 				baseType := base.targetTy.Name
 				for d := 2; d <= depth; d++ {
-					name := fmt.Sprintf("gpp_%d_%d", i, d)
+					name := newGlobalName()
 					stars := strings.Repeat("*", d)
 					writeLine(b, 0, fmt.Sprintf("static %s %s%s = &%s;", baseType, stars, name, prevName))
 					prevName = name
@@ -1214,16 +1181,17 @@ func emitGlobals(b *strings.Builder, r *rng, opts Options, info compositeInfo, p
 	}
 
 	for i := range info.structs {
-		writeLine(b, 0, fmt.Sprintf("static S_%d gs_%d;", i, i))
+		writeLine(b, 0, fmt.Sprintf("static struct S%d gs_%d;", i, i))
 	}
 	for i := range info.unions {
-		writeLine(b, 0, fmt.Sprintf("static U_%d gu_%d;", i, i))
+		writeLine(b, 0, fmt.Sprintf("static union U%d gu_%d;", i, i))
 	}
 	writeLine(b, 0, "")
 	return env
 }
 
 func emitFuncDecls(b *strings.Builder, funcs []funcInfo) {
+	writeLine(b, 0, "/* --- FORWARD DECLARATIONS --- */")
 	for _, fn := range funcs {
 		params := "void"
 		if len(fn.params) > 0 {
@@ -1532,24 +1500,17 @@ func emitStatement(
 		writeLine(b, 1, fmt.Sprintf("if %s {", cond))
 		emitStatements(b, r, opts, env, scope, state, info, from, depth+1, false, stmtBudget, ctx)
 		writeLine(b, 1, "} else {")
-		if !emitStatement(b, r, opts, env, scope, state, info, from, depth+1, false, stmtBudget, ctx, nextStmtDecision(r)) {
-			return false
-		}
+		emitStatements(b, r, opts, env, scope, state, info, from, depth+1, false, stmtBudget, ctx)
 		writeLine(b, 1, "}")
 	case stmtFor:
 		bound := 1 + int(dec.pick(3, 5))
 		writeLine(b, 1, fmt.Sprintf("for (uint32_t i = 0; i < %du; ++i) {", bound))
 		writeLine(b, 2, fmt.Sprintf("x += (i ^ 0x%08Xu);", dec.vals[4]))
-		if !emitStatement(b, r, opts, env, scope, state, info, from, depth+1, true, stmtBudget, ctx, nextStmtDecision(r)) {
-			return false
-		}
+		emitStatements(b, r, opts, env, scope, state, info, from, depth+1, true, stmtBudget, ctx)
 		writeLine(b, 1, "}")
 	case stmtReturn:
 		writeLine(b, 1, "l_0 ^= (uint32_t)x;")
 		writeLine(b, 1, "return l_0;")
-		if stmtBudget != nil && *stmtBudget > 0 {
-			*stmtBudget = 0
-		}
 	case stmtContinue:
 		writeLine(b, 1, "continue;")
 	case stmtBreak:
@@ -1772,6 +1733,8 @@ func emitFunctionsUpstreamFlow(b *strings.Builder, r *rng, opts Options, pool []
 		writeLine(b, 0, "")
 	}
 	emitFuncDecls(b, state.funcs)
+	writeLine(b, 0, "/* --- FUNCTIONS --- */")
+	writeLine(b, 0, "/* ------------------------------------------ */")
 	for i := 0; i < len(defs); i++ {
 		b.WriteString(defs[i])
 	}

@@ -28,21 +28,20 @@ func (g *defaultProgramGenerator) initialize() {
 }
 
 func (g *defaultProgramGenerator) outputHeader() {
-	g.b.WriteString("/* csmith-go: seed = ")
+	g.b.WriteString("/*\n")
+	g.b.WriteString(" * This is a RANDOMLY GENERATED PROGRAM.\n")
+	g.b.WriteString(" *\n")
+	g.b.WriteString(" * Generator: csmith 2.3.0\n")
+	g.b.WriteString(" * Git version: 30dccd7\n")
+	g.b.WriteString(" * Options:   --seed ")
 	g.b.WriteString(fmt.Sprintf("%d", g.opts.Seed))
-	g.b.WriteString(" */\n")
-	g.b.WriteString("/* int-size = ")
-	g.b.WriteString(fmt.Sprintf("%d", g.opts.IntSize))
-	g.b.WriteString(", ptr-size = ")
-	g.b.WriteString(fmt.Sprintf("%d", g.opts.PointerSize))
-	g.b.WriteString(" */\n")
-	if g.opts.SafeMath || g.opts.ComputeHash {
-		g.b.WriteString("#include \"csmith.h\"\n")
-	} else {
-		g.b.WriteString("#include <stdint.h>\n")
-		g.b.WriteString("#include <stdio.h>\n")
-	}
 	g.b.WriteString("\n")
+	g.b.WriteString(" * Seed:      ")
+	g.b.WriteString(fmt.Sprintf("%d", g.opts.Seed))
+	g.b.WriteString("\n")
+	g.b.WriteString(" */\n\n")
+	g.b.WriteString("#include \"csmith.h\"\n\n")
+	g.b.WriteString("static long __undefined;\n\n")
 }
 
 func (g *defaultProgramGenerator) generateAllTypes() {
