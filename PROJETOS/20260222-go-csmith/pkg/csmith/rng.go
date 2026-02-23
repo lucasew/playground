@@ -17,6 +17,7 @@ type rng struct {
 	state     uint64
 	trace     bool
 	traceSite bool
+	traceRaw  bool
 	traceFile string
 	tracePos  uint64
 }
@@ -27,6 +28,7 @@ func newRNG(seed uint64) *rng {
 	if os.Getenv("CSMITH_TRACE_RNG") != "" {
 		r.trace = true
 		r.traceSite = os.Getenv("CSMITH_TRACE_RNG_SITE") != ""
+		r.traceRaw = os.Getenv("CSMITH_TRACE_RNG_RAW") != ""
 		r.traceFile = os.Getenv("CSMITH_TRACE_RNG_FILE")
 		if r.traceFile == "" {
 			r.traceFile = "/tmp/csmith-go-rng.trace"
@@ -45,8 +47,9 @@ func (r *rng) upto(n uint32) uint32 {
 	if n == 0 {
 		return 0
 	}
-	x := r.next31() % n
-	r.traceU(n, x)
+	raw := r.next31()
+	x := raw % n
+	r.traceU(n, x, 0, raw)
 	return x
 }
 
@@ -54,21 +57,29 @@ func (r *rng) uptoWithFilter(n uint32, reject func(uint32) bool) uint32 {
 	if n == 0 {
 		return 0
 	}
-	x := r.next31() % n
+	raw := r.next31()
+	x := raw % n
+	var tries uint32
 	for reject != nil && reject(x) {
-		x = r.next31() % n
+		raw = r.next31()
+		x = raw % n
+		tries++
 	}
-	r.traceU(n, x)
+	r.traceU(n, x, tries, raw)
 	return x
 }
 
-func (r *rng) traceU(n uint32, x uint32) {
+func (r *rng) traceU(n uint32, x uint32, tries uint32, raw uint32) {
 	if r.trace {
 		r.tracePos++
 		f, err := os.OpenFile(r.traceFile, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
 		if err == nil {
-			if r.traceSite {
+			if r.traceSite && r.traceRaw {
+				_, _ = fmt.Fprintf(f, "%d U %d -> %d tries=%d raw=%d @%s\n", r.tracePos, n, x, tries, raw, traceCaller())
+			} else if r.traceSite {
 				_, _ = fmt.Fprintf(f, "%d U %d -> %d @%s\n", r.tracePos, n, x, traceCaller())
+			} else if r.traceRaw {
+				_, _ = fmt.Fprintf(f, "%d U %d -> %d tries=%d raw=%d\n", r.tracePos, n, x, tries, raw)
 			} else {
 				_, _ = fmt.Fprintf(f, "%d U %d -> %d\n", r.tracePos, n, x)
 			}
@@ -81,7 +92,8 @@ func (r *rng) flipcoin(p uint32) bool {
 	if p > 100 {
 		p = 100
 	}
-	v := r.next31() % 100
+	raw := r.next31()
+	v := raw % 100
 	ok := v < p
 	if r.trace {
 		r.tracePos++
@@ -91,8 +103,12 @@ func (r *rng) flipcoin(p uint32) bool {
 			if ok {
 				b = 1
 			}
-			if r.traceSite {
+			if r.traceSite && r.traceRaw {
+				_, _ = fmt.Fprintf(f, "%d F %d -> %d raw=%d @%s\n", r.tracePos, p, b, raw, traceCaller())
+			} else if r.traceSite {
 				_, _ = fmt.Fprintf(f, "%d F %d -> %d @%s\n", r.tracePos, p, b, traceCaller())
+			} else if r.traceRaw {
+				_, _ = fmt.Fprintf(f, "%d F %d -> %d raw=%d\n", r.tracePos, p, b, raw)
 			} else {
 				_, _ = fmt.Fprintf(f, "%d F %d -> %d\n", r.tracePos, p, b)
 			}

@@ -419,8 +419,8 @@ func buildExprCandidates(r *rng, env envInfo, scope scopeInfo, ctx *genContext) 
 		candidates = append(candidates, exprVarCandidate{expr: p.name, ctype: p.ctype, assignable: true})
 	}
 	for _, l := range mergedLocals(scope, ctx) {
+		// Synthetic accumulator local does not exist in upstream variable pools.
 		if l.name == "x" {
-			candidates = append(candidates, exprVarCandidate{expr: l.name, ctype: l.ctype, assignable: true})
 			continue
 		}
 		candidates = append(candidates, exprVarCandidate{expr: l.name, ctype: l.ctype, assignable: true})
@@ -447,6 +447,9 @@ func buildExprCandidatesFromER(er *exprRand, env envInfo, scope scopeInfo, ctx *
 		candidates = append(candidates, exprVarCandidate{expr: p.name, ctype: p.ctype, assignable: true})
 	}
 	for _, l := range mergedLocals(scope, ctx) {
+		if l.name == "x" {
+			continue
+		}
 		candidates = append(candidates, exprVarCandidate{expr: l.name, ctype: l.ctype, assignable: true})
 	}
 	for _, p := range env.pointers {
@@ -497,6 +500,9 @@ func buildScopedCandidatesFromER(er *exprRand, env envInfo, scope scopeInfo, sco
 		}
 	case 1:
 		for _, l := range mergedLocals(scope, ctx) {
+			if l.name == "x" {
+				continue
+			}
 			out = append(out, exprVarCandidate{expr: l.name, ctype: l.ctype, assignable: true})
 		}
 	case 2:
@@ -544,6 +550,34 @@ func createOnDemandGlobalFromER(er *exprRand, opts Options, t CType, ctx *genCon
 	g := globalInfo{name: name, ctype: t, isConst: isConst, isVolatile: isVolatile}
 	ctx.state.dynGlobals = append(ctx.state.dynGlobals, g)
 	return exprVarCandidate{expr: name, ctype: t, assignable: !isConst}, true
+}
+
+func createOnDemandFromParentLocalPathER(er *exprRand, opts Options, t CType, ctx *genContext) (exprVarCandidate, bool) {
+	if er == nil || er.fallback == nil || ctx == nil || ctx.state == nil {
+		return exprVarCandidate{}, false
+	}
+	// Type::random_type_from_type(type, true, false) for simple types maps to
+	// choose_random_simple() and consumes rnd_upto(MAX_SIMPLE_TYPES=14).
+	chosen := t
+	if t.Bits > 0 && len(ctx.state.pool) > 0 {
+		i := int(er.fallback.upto(14))
+		if i >= 0 && i < len(ctx.state.pool) {
+			chosen = ctx.state.pool[i]
+		} else {
+			chosen = ctx.state.pool[i%len(ctx.state.pool)]
+		}
+	}
+
+	// create_and_initialize + qualifier path consume these decisions in upstream.
+	_ = er.fallback.flipcoin(50) // NewArrayVariableProb
+	_ = er.fallback.flipcoin(10) // const prob
+	_ = er.fallback.flipcoin(20) // volatile prob
+	_ = er.fallback.flipcoin(50)
+	_ = er.fallback.flipcoin(50)
+	_ = er.fallback.upto(20)
+
+	// Materialize as a generated global in this simplified backend.
+	return createOnDemandGlobalFromER(er, opts, chosen, ctx)
 }
 
 func selectExprVariable(t CType, r *rng, candidates []exprVarCandidate, forAssign bool) (exprVarCandidate, bool) {
@@ -796,11 +830,16 @@ func randomLeafExprWithMode(
 		}
 		switch choice {
 		case termFunction:
-			if noConst && er != nil && er.fallback != nil {
+			if depth > 0 && er != nil && er.fallback != nil {
 				// ExpressionFuncall::ExpressionFunctionProbability + stdfunc path.
 				if er.fallback.flipcoin(80) {
 					if er.fallback.flipcoin(5) {
-						return castLiteral(t, "(~x)")
+						_ = er.fallback.flipcoin(50)
+						_ = er.fallback.upto(4)
+						// In upstream make_random_unary(), operand expression is
+						// generated under the current expr_depth context.
+						operand := randomTypedExprDepthFlags(t, er, opts, env, scope, depth, ctx, false, false)
+						return castLiteral(t, fmt.Sprintf("(~(%s))", operand))
 					}
 					ptrCmpProb := uint32(0)
 					if opts.Pointers {
@@ -808,7 +847,14 @@ func randomLeafExprWithMode(
 					}
 					_ = er.fallback.flipcoin(ptrCmpProb)
 					_ = er.fallback.upto(18)
-					return castLiteral(t, "x")
+					_ = er.fallback.flipcoin(50)
+					_ = er.fallback.flipcoin(50)
+					_ = er.fallback.upto(4)
+					// In upstream make_random_binary(), lhs/rhs are generated
+					// from child contexts carrying current expr_depth.
+					lhs := randomTypedExprDepthFlags(t, er, opts, env, scope, depth, ctx, false, false)
+					rhs := randomTypedExprDepthFlags(t, er, opts, env, scope, depth, ctx, false, false)
+					return castLiteral(t, fmt.Sprintf("((%s) ^ (%s))", lhs, rhs))
 				}
 			}
 			if depth < maxExprDepth(opts) {
@@ -826,10 +872,19 @@ func randomLeafExprWithMode(
 				restoreGenSnapshot(ctx, snap)
 				continue
 			}
+			if scopePick == 1 && er != nil && er.fallback != nil {
+				// Parent-local selection starts by choosing a parent stack block.
+				_ = er.pick(1)
+			}
 			candidates := buildScopedCandidatesFromER(er, env, scope, scopePick, ctx)
 			if len(candidates) == 0 {
 				if scopePick == 0 {
 					if g, ok := createOnDemandGlobalFromER(er, opts, t, ctx); ok {
+						return castLiteral(t, g.expr)
+					}
+				}
+				if scopePick == 1 {
+					if g, ok := createOnDemandFromParentLocalPathER(er, opts, t, ctx); ok {
 						return castLiteral(t, g.expr)
 					}
 				}
@@ -968,6 +1023,9 @@ func buildScopedCandidates(r *rng, env envInfo, scope scopeInfo, scopePick int, 
 		}
 	case 1:
 		for _, l := range mergedLocals(scope, ctx) {
+			if l.name == "x" {
+				continue
+			}
 			out = append(out, exprVarCandidate{expr: l.name, ctype: l.ctype, assignable: true})
 		}
 	case 2:
