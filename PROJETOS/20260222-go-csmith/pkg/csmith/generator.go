@@ -107,6 +107,53 @@ type genContext struct {
 	dynLocs []localInfo
 }
 
+type genSnapshot struct {
+	dynLocLen      int
+	funcsLen       int
+	nextIdx        int
+	dynGlobalsLen  int
+	nextGlobalID   int
+	lateGlobalsBuf string
+}
+
+func takeGenSnapshot(ctx *genContext) *genSnapshot {
+	if ctx == nil {
+		return nil
+	}
+	s := &genSnapshot{
+		dynLocLen: len(ctx.dynLocs),
+	}
+	if ctx.state != nil {
+		s.funcsLen = len(ctx.state.funcs)
+		s.nextIdx = ctx.state.nextIdx
+		s.dynGlobalsLen = len(ctx.state.dynGlobals)
+		s.nextGlobalID = ctx.state.nextGlobalID
+		s.lateGlobalsBuf = ctx.state.lateGlobals.String()
+	}
+	return s
+}
+
+func restoreGenSnapshot(ctx *genContext, s *genSnapshot) {
+	if ctx == nil || s == nil {
+		return
+	}
+	if len(ctx.dynLocs) >= s.dynLocLen {
+		ctx.dynLocs = ctx.dynLocs[:s.dynLocLen]
+	}
+	if ctx.state != nil {
+		if len(ctx.state.funcs) >= s.funcsLen {
+			ctx.state.funcs = ctx.state.funcs[:s.funcsLen]
+		}
+		if len(ctx.state.dynGlobals) >= s.dynGlobalsLen {
+			ctx.state.dynGlobals = ctx.state.dynGlobals[:s.dynGlobalsLen]
+		}
+		ctx.state.nextIdx = s.nextIdx
+		ctx.state.nextGlobalID = s.nextGlobalID
+		ctx.state.lateGlobals.Reset()
+		ctx.state.lateGlobals.WriteString(s.lateGlobalsBuf)
+	}
+}
+
 type stmtDecision struct {
 	vals [12]uint32
 }
@@ -573,7 +620,7 @@ func buildFunctionCallExpr(
 	if len(callee.params) > 0 {
 		argExprs := make([]string, 0, len(callee.params))
 		for _, p := range callee.params {
-			argExprs = append(argExprs, randomTypedExprDepth(p.ctype, er, opts, env, scope, depth+1, ctx))
+			argExprs = append(argExprs, randomParamExprDepth(p.ctype, er, opts, env, scope, depth+1, ctx))
 		}
 		args = strings.Join(argExprs, ", ")
 	}
@@ -583,7 +630,18 @@ func buildFunctionCallExpr(
 	return castLiteral(t, fmt.Sprintf("%s(%s)", callee.name, args)), true
 }
 
-func randomLeafExpr(t CType, er *exprRand, opts Options, env envInfo, scope scopeInfo, depth int, ctx *genContext) string {
+func randomLeafExprWithMode(
+	t CType,
+	er *exprRand,
+	opts Options,
+	env envInfo,
+	scope scopeInfo,
+	depth int,
+	ctx *genContext,
+	isParam bool,
+	noFunc bool,
+	noConst bool,
+) string {
 	type termChoice int
 	const (
 		termFunction termChoice = iota
@@ -593,28 +651,60 @@ func randomLeafExpr(t CType, er *exprRand, opts Options, env envInfo, scope scop
 		termComma
 	)
 
-	weighted := make([]termChoice, 0, 120)
-	for i := 0; i < 70; i++ {
+	weighted := make([]termChoice, 0, 140)
+	funcW := 70
+	varW := 20
+	constW := 10
+	assignW := 0
+	commaW := 0
+	if isParam {
+		// Upstream make_random_param baseline:
+		// function 40, variable 40, constant 0 (+ optional assign/comma).
+		funcW = 40
+		varW = 40
+		constW = 0
+	}
+	if noFunc || depth+2 > maxExprDepth(opts) {
+		funcW = 0
+	}
+	if noConst {
+		constW = 0
+	}
+	if depth+2 > maxExprDepth(opts) {
+		assignW = 0
+		commaW = 0
+	}
+	for i := 0; i < funcW; i++ {
 		weighted = append(weighted, termFunction)
 	}
-	for i := 0; i < 20; i++ {
+	for i := 0; i < varW; i++ {
 		weighted = append(weighted, termVariable)
 	}
-	for i := 0; i < 10; i++ {
+	for i := 0; i < constW; i++ {
 		weighted = append(weighted, termConstant)
 	}
-	if opts.EmbeddedAssigns {
-		for i := 0; i < 10; i++ {
+	if opts.EmbeddedAssigns && assignW == 0 {
+		assignW = 10
+	}
+	if assignW > 0 {
+		for i := 0; i < assignW; i++ {
 			weighted = append(weighted, termAssign)
 		}
 	}
-	if opts.CommaOperators {
-		for i := 0; i < 10; i++ {
+	if opts.CommaOperators && commaW == 0 {
+		commaW = 10
+	}
+	if commaW > 0 {
+		for i := 0; i < commaW; i++ {
 			weighted = append(weighted, termComma)
 		}
 	}
+	if len(weighted) == 0 {
+		return randomConstantExprFromER(t, er, opts)
+	}
 
 	for tries := 0; tries < 6; tries++ {
+		snap := takeGenSnapshot(ctx)
 		choice := weighted[int(er.pick(uint32(len(weighted))))]
 		switch choice {
 		case termFunction:
@@ -623,13 +713,15 @@ func randomLeafExpr(t CType, er *exprRand, opts Options, env envInfo, scope scop
 					return call
 				}
 			}
+			restoreGenSnapshot(ctx, snap)
 		case termVariable:
 			scopePick := variableScopePickFromER(er, opts)
 			if scopePick == 3 {
 				if g, ok := createOnDemandGlobalFromER(er, opts, t, ctx); ok {
 					return castLiteral(t, g.expr)
 				}
-				return randomConstantExprFromER(t, er, opts)
+				restoreGenSnapshot(ctx, snap)
+				continue
 			}
 			candidates := buildScopedCandidatesFromER(er, env, scope, scopePick, ctx)
 			if len(candidates) == 0 {
@@ -645,6 +737,7 @@ func randomLeafExpr(t CType, er *exprRand, opts Options, env envInfo, scope scop
 					return castLiteral(t, c.expr)
 				}
 			}
+			restoreGenSnapshot(ctx, snap)
 		case termConstant:
 			return randomConstantExprFromER(t, er, opts)
 		case termAssign:
@@ -665,6 +758,7 @@ func randomLeafExpr(t CType, er *exprRand, opts Options, env envInfo, scope scop
 					return castLiteral(t, fmt.Sprintf("(%s = %s)", lv.expr, rhs))
 				}
 			}
+			restoreGenSnapshot(ctx, snap)
 		case termComma:
 			lhs := randomConstantExprFromER(t, er, opts)
 			rhs := randomConstantExprFromER(t, er, opts)
@@ -673,6 +767,14 @@ func randomLeafExpr(t CType, er *exprRand, opts Options, env envInfo, scope scop
 	}
 
 	return randomConstantExprFromER(t, er, opts)
+}
+
+func randomLeafExpr(t CType, er *exprRand, opts Options, env envInfo, scope scopeInfo, depth int, ctx *genContext) string {
+	return randomLeafExprWithMode(t, er, opts, env, scope, depth, ctx, false, false, false)
+}
+
+func randomParamLeafExpr(t CType, er *exprRand, opts Options, env envInfo, scope scopeInfo, depth int, ctx *genContext) string {
+	return randomLeafExprWithMode(t, er, opts, env, scope, depth, ctx, true, false, false)
 }
 
 func maxExprDepth(opts Options) int {
@@ -713,6 +815,64 @@ func randomTypedExprDepth(t CType, er *exprRand, opts Options, env envInfo, scop
 	switch op {
 	case "/":
 		den := randomTypedExprDepth(t, er, opts, env, scope, depth+1, ctx)
+		return castLiteral(t, fmt.Sprintf("((%s) / ((%s) | 1))", lhs, den))
+	case ",":
+		return castLiteral(t, fmt.Sprintf("((%s), (%s))", lhs, rhs))
+	default:
+		return castLiteral(t, fmt.Sprintf("((%s) %s (%s))", lhs, op, rhs))
+	}
+}
+
+func randomTypedExprDepthFlags(t CType, er *exprRand, opts Options, env envInfo, scope scopeInfo, depth int, ctx *genContext, noFunc bool, noConst bool) string {
+	limit := maxExprDepth(opts)
+	if depth >= limit || er.pick(100) < uint32(40+depth*15) {
+		return randomLeafExprWithMode(t, er, opts, env, scope, depth, ctx, false, noFunc, noConst)
+	}
+	lhs := randomTypedExprDepthFlags(t, er, opts, env, scope, depth+1, ctx, noFunc, noConst)
+	rhs := randomTypedExprDepthFlags(t, er, opts, env, scope, depth+1, ctx, noFunc, noConst)
+	ops := []string{"+", "-", "^", "|", "&"}
+	if opts.Muls {
+		ops = append(ops, "*")
+	}
+	if opts.Divs {
+		ops = append(ops, "/")
+	}
+	if opts.CommaOperators && !noConst {
+		ops = append(ops, ",")
+	}
+	op := ops[int(er.pick(uint32(len(ops))))]
+	switch op {
+	case "/":
+		den := randomTypedExprDepthFlags(t, er, opts, env, scope, depth+1, ctx, noFunc, noConst)
+		return castLiteral(t, fmt.Sprintf("((%s) / ((%s) | 1))", lhs, den))
+	case ",":
+		return castLiteral(t, fmt.Sprintf("((%s), (%s))", lhs, rhs))
+	default:
+		return castLiteral(t, fmt.Sprintf("((%s) %s (%s))", lhs, op, rhs))
+	}
+}
+
+func randomParamExprDepth(t CType, er *exprRand, opts Options, env envInfo, scope scopeInfo, depth int, ctx *genContext) string {
+	limit := maxExprDepth(opts)
+	if depth >= limit || er.pick(100) < uint32(45+depth*15) {
+		return randomParamLeafExpr(t, er, opts, env, scope, depth, ctx)
+	}
+	lhs := randomParamExprDepth(t, er, opts, env, scope, depth+1, ctx)
+	rhs := randomParamExprDepth(t, er, opts, env, scope, depth+1, ctx)
+	ops := []string{"+", "-", "^", "|", "&"}
+	if opts.Muls {
+		ops = append(ops, "*")
+	}
+	if opts.Divs {
+		ops = append(ops, "/")
+	}
+	if opts.CommaOperators {
+		ops = append(ops, ",")
+	}
+	op := ops[int(er.pick(uint32(len(ops))))]
+	switch op {
+	case "/":
+		den := randomParamExprDepth(t, er, opts, env, scope, depth+1, ctx)
 		return castLiteral(t, fmt.Sprintf("((%s) / ((%s) | 1))", lhs, den))
 	case ",":
 		return castLiteral(t, fmt.Sprintf("((%s), (%s))", lhs, rhs))
@@ -1271,8 +1431,9 @@ func emitFunctionCallMutation(
 	args := "void"
 	if len(callee.params) > 0 {
 		argExprs := make([]string, 0, len(callee.params))
+		er := newExprRand(r, exprDecisionBudget(opts))
 		for _, p := range callee.params {
-			argExprs = append(argExprs, randomTypedExpr(p.ctype, r, opts, env, scope, ctx))
+			argExprs = append(argExprs, randomParamExprDepth(p.ctype, er, opts, env, scope, 0, ctx))
 		}
 		args = strings.Join(argExprs, ", ")
 	}
@@ -1367,6 +1528,11 @@ func emitStatement(
 		cond := fmt.Sprintf("((x & %du) != 0u)", 1+dec.pick(1, 7))
 		if opts.ConstAsCondition && dec.pick(2, 5) == 0 {
 			cond = fmt.Sprintf("(%s != 0u)", randomConstantExpr(CType{Name: "uint32_t", Signed: false, Bits: 32}, r, opts))
+		} else if dec.pick(3, 3) == 0 {
+			er := newExprRand(r, exprDecisionBudget(opts))
+			noConst := !opts.ConstAsCondition
+			e := randomTypedExprDepthFlags(CType{Name: "uint32_t", Signed: false, Bits: 32}, er, opts, env, scope, 0, ctx, false, noConst)
+			cond = fmt.Sprintf("((uint32_t)%s != 0u)", e)
 		}
 		writeLine(b, 1, fmt.Sprintf("if %s {", cond))
 		emitStatements(b, r, opts, env, scope, state, info, from, depth+1, false, stmtBudget, ctx)
@@ -1440,15 +1606,7 @@ func emitStatements(
 			if stmtBudget != nil {
 				snapStmtBudget = *stmtBudget
 			}
-			snapDynLocLen := 0
-			if ctx != nil {
-				snapDynLocLen = len(ctx.dynLocs)
-			}
-			snapFuncsLen := len(state.funcs)
-			snapNextIdx := state.nextIdx
-			snapDynGlobalsLen := len(state.dynGlobals)
-			snapNextGlobalID := state.nextGlobalID
-			snapLateGlobals := state.lateGlobals.String()
+			snap := takeGenSnapshot(ctx)
 
 			var tmp strings.Builder
 			if emitStatement(&tmp, r, opts, env, scope, state, info, from, depth, inLoop, stmtBudget, ctx, dec) {
@@ -1461,15 +1619,7 @@ func emitStatements(
 			if stmtBudget != nil && snapStmtBudget >= 0 {
 				*stmtBudget = snapStmtBudget
 			}
-			if ctx != nil {
-				ctx.dynLocs = ctx.dynLocs[:snapDynLocLen]
-			}
-			state.funcs = state.funcs[:snapFuncsLen]
-			state.nextIdx = snapNextIdx
-			state.dynGlobals = state.dynGlobals[:snapDynGlobalsLen]
-			state.nextGlobalID = snapNextGlobalID
-			state.lateGlobals.Reset()
-			state.lateGlobals.WriteString(snapLateGlobals)
+			restoreGenSnapshot(ctx, snap)
 		}
 		if !ok {
 			// Last-resort deterministic no-op-like mutation when all attempts fail.
