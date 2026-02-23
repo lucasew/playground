@@ -1545,7 +1545,12 @@ func emitStatements(
 	if stmtBudget != nil && *stmtBudget == 0 {
 		return
 	}
-	stmtCount := 2 + int(r.upto(uint32(max(1, opts.MaxBlockSize))))
+	stmtLimit := max(1, opts.MaxBlockSize)
+	base := 2
+	if depth > 0 {
+		base = 1
+	}
+	stmtCount := base + int(r.upto(uint32(stmtLimit)))
 	for s := 0; s < stmtCount; s++ {
 		if stmtBudget != nil && *stmtBudget == 0 {
 			break
