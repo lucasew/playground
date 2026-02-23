@@ -55,6 +55,8 @@ type funcInfo struct {
 
 type functionFlowState struct {
 	funcs        []funcInfo
+	built        []bool
+	defs         []string
 	maxFuncs     int
 	nextIdx      int
 	nextParamID  int
@@ -65,6 +67,7 @@ type functionFlowState struct {
 	dynGlobals   []globalInfo
 	lateGlobals  strings.Builder
 	nextGlobalID int
+	stmtBudget   int
 }
 
 type stmtKind int
@@ -107,16 +110,20 @@ type genContext struct {
 	state   *functionFlowState
 	from    int
 	dynLocs []localInfo
+	info    compositeInfo
 }
 
 type genSnapshot struct {
 	dynLocLen      int
 	funcsLen       int
+	builtLen       int
+	defsLen        int
 	nextIdx        int
 	nextParamID    int
 	nextLocalID    int
 	dynGlobalsLen  int
 	nextGlobalID   int
+	stmtBudget     int
 	lateGlobalsBuf string
 }
 
@@ -129,11 +136,14 @@ func takeGenSnapshot(ctx *genContext) *genSnapshot {
 	}
 	if ctx.state != nil {
 		s.funcsLen = len(ctx.state.funcs)
+		s.builtLen = len(ctx.state.built)
+		s.defsLen = len(ctx.state.defs)
 		s.nextIdx = ctx.state.nextIdx
 		s.nextParamID = ctx.state.nextParamID
 		s.nextLocalID = ctx.state.nextLocalID
 		s.dynGlobalsLen = len(ctx.state.dynGlobals)
 		s.nextGlobalID = ctx.state.nextGlobalID
+		s.stmtBudget = ctx.state.stmtBudget
 		s.lateGlobalsBuf = ctx.state.lateGlobals.String()
 	}
 	return s
@@ -150,6 +160,12 @@ func restoreGenSnapshot(ctx *genContext, s *genSnapshot) {
 		if len(ctx.state.funcs) >= s.funcsLen {
 			ctx.state.funcs = ctx.state.funcs[:s.funcsLen]
 		}
+		if len(ctx.state.built) >= s.builtLen {
+			ctx.state.built = ctx.state.built[:s.builtLen]
+		}
+		if len(ctx.state.defs) >= s.defsLen {
+			ctx.state.defs = ctx.state.defs[:s.defsLen]
+		}
 		if len(ctx.state.dynGlobals) >= s.dynGlobalsLen {
 			ctx.state.dynGlobals = ctx.state.dynGlobals[:s.dynGlobalsLen]
 		}
@@ -157,6 +173,7 @@ func restoreGenSnapshot(ctx *genContext, s *genSnapshot) {
 		ctx.state.nextParamID = s.nextParamID
 		ctx.state.nextLocalID = s.nextLocalID
 		ctx.state.nextGlobalID = s.nextGlobalID
+		ctx.state.stmtBudget = s.stmtBudget
 		ctx.state.lateGlobals.Reset()
 		ctx.state.lateGlobals.WriteString(s.lateGlobalsBuf)
 	}
@@ -630,14 +647,32 @@ func buildFunctionCallExpr(
 		_ = er.fallback.flipcoin(p)
 	}
 	var callee funcInfo
+	calleeIdx := -1
 	if useExisting && len(candidates) > 0 {
-		callee = state.funcs[candidates[int(er.pick(uint32(len(candidates))))]]
+		calleeIdx = candidates[int(er.pick(uint32(len(candidates))))]
+		callee = state.funcs[calleeIdx]
 	} else {
-		created, ok := state.appendNewFunction(er.fallback)
+		created, newIdx, ok := state.appendNewFunction(er.fallback, &t)
 		if ok {
+			calleeIdx = newIdx
 			callee = created
+			if !state.built[calleeIdx] {
+				state.defs[calleeIdx] = emitSingleFuncDef(
+					er.fallback,
+					opts,
+					callee,
+					state,
+					calleeIdx,
+					opts.MaxBlockSize,
+					env,
+					ctx.info,
+					&state.stmtBudget,
+				)
+				state.built[calleeIdx] = true
+			}
 		} else if len(candidates) > 0 {
-			callee = state.funcs[candidates[int(er.pick(uint32(len(candidates))))]]
+			calleeIdx = candidates[int(er.pick(uint32(len(candidates))))]
+			callee = state.funcs[calleeIdx]
 		} else {
 			return "", false
 		}
@@ -1481,14 +1516,38 @@ func emitLocalMutation(b *strings.Builder, r *rng, opts Options, env envInfo, sc
 	}
 }
 
-func (s *functionFlowState) appendNewFunction(r *rng) (funcInfo, bool) {
+func (s *functionFlowState) appendNewFunction(r *rng, forceRet *CType) (funcInfo, int, bool) {
 	if len(s.funcs) >= s.maxFuncs {
-		return funcInfo{}, false
+		return funcInfo{}, -1, false
 	}
-	fn := s.makeFuncSignature(r, s.nextIdx)
+	fn := funcInfo{
+		name: fmt.Sprintf("func_%d", s.nextIdx),
+	}
+	if forceRet != nil {
+		fn.ret = *forceRet
+		maxParams := s.opts.MaxParams
+		if maxParams < 0 {
+			maxParams = 0
+		}
+		pcount := 0
+		if maxParams > 0 {
+			pcount = int(r.upto(uint32(maxParams + 1)))
+		}
+		fn.params = make([]paramInfo, 0, pcount)
+		for p := 0; p < pcount; p++ {
+			fn.params = append(fn.params, paramInfo{
+				name:  s.allocParamName(),
+				ctype: pickType(r, s.pool),
+			})
+		}
+	} else {
+		fn = s.makeFuncSignature(r, s.nextIdx)
+	}
 	s.nextIdx++
 	s.funcs = append(s.funcs, fn)
-	return fn, true
+	s.built = append(s.built, false)
+	s.defs = append(s.defs, "")
+	return fn, len(s.funcs) - 1, true
 }
 
 func emitFunctionCallMutation(
@@ -1523,7 +1582,7 @@ func emitFunctionCallMutation(
 		calleeIdx := candidates[int(r.upto(uint32(len(candidates))))]
 		callee = state.funcs[calleeIdx]
 	} else {
-		created, ok := state.appendNewFunction(r)
+		created, _, ok := state.appendNewFunction(r, nil)
 		if ok {
 			callee = created
 		} else if len(candidates) > 0 {
@@ -1776,6 +1835,7 @@ func emitSingleFuncDefOnce(
 	ctx := &genContext{
 		state: state,
 		from:  idx,
+		info:  info,
 	}
 
 	for _, p := range fn.params {
@@ -1878,6 +1938,8 @@ func emitFunctionsUpstreamFlow(b *strings.Builder, r *rng, opts Options, pool []
 	maxFuncs := max(opts.MaxFuncs, 1)
 	state := &functionFlowState{
 		funcs:        []funcInfo{},
+		built:        []bool{},
+		defs:         []string{},
 		maxFuncs:     maxFuncs,
 		nextIdx:      2,
 		nextParamID:  1,
@@ -1887,25 +1949,21 @@ func emitFunctionsUpstreamFlow(b *strings.Builder, r *rng, opts Options, pool []
 		opts:         opts,
 		dynGlobals:   []globalInfo{},
 		nextGlobalID: env.nextID,
+		stmtBudget:   opts.StopByStmt,
 	}
 	state.funcs = append(state.funcs, state.makeFuncSignature(r, 1))
-	built := []bool{false}
-	defs := []string{""}
-	stmtBudget := opts.StopByStmt
-	if stmtBudget < 0 {
-		stmtBudget = -1
+	state.built = append(state.built, false)
+	state.defs = append(state.defs, "")
+	if state.stmtBudget < 0 {
+		state.stmtBudget = -1
 	}
 
 	for cur := 0; cur < len(state.funcs); cur++ {
-		if built[cur] {
+		if state.built[cur] {
 			continue
 		}
-		defs[cur] = emitSingleFuncDef(r, opts, state.funcs[cur], state, cur, maxBlock, env, info, &stmtBudget)
-		built[cur] = true
-		for len(built) < len(state.funcs) {
-			built = append(built, false)
-			defs = append(defs, "")
-		}
+		state.defs[cur] = emitSingleFuncDef(r, opts, state.funcs[cur], state, cur, maxBlock, env, info, &state.stmtBudget)
+		state.built[cur] = true
 	}
 
 	if state.lateGlobals.Len() > 0 {
@@ -1915,8 +1973,8 @@ func emitFunctionsUpstreamFlow(b *strings.Builder, r *rng, opts Options, pool []
 	emitFuncDecls(b, state.funcs)
 	writeLine(b, 0, "/* --- FUNCTIONS --- */")
 	writeLine(b, 0, "/* ------------------------------------------ */")
-	for i := 0; i < len(defs); i++ {
-		b.WriteString(defs[i])
+	for i := 0; i < len(state.defs); i++ {
+		b.WriteString(state.defs[i])
 	}
 	return state.funcs, state.dynGlobals
 }
