@@ -68,6 +68,12 @@ type lvalueInfo struct {
 	ctype CType
 }
 
+type exprVarCandidate struct {
+	expr       string
+	ctype      CType
+	assignable bool
+}
+
 type compositeInfo struct {
 	structs []structTypeInfo
 	unions  []unionTypeInfo
@@ -177,67 +183,100 @@ func randomConstantExpr(t CType, r *rng, opts Options) string {
 	return castLiteral(t, fmt.Sprintf("0x%08X%08X", r.next31(), r.next31()))
 }
 
-func randomTypedExpr(t CType, r *rng, opts Options, env envInfo, scope scopeInfo) string {
-	candidates := make([]string, 0, len(env.globals)+len(scope.params)+len(scope.locals))
+func sameBaseType(a, b CType) bool {
+	return a.Bits == b.Bits && a.Signed == b.Signed
+}
 
+func buildExprCandidates(r *rng, env envInfo, scope scopeInfo) []exprVarCandidate {
+	candidates := make([]exprVarCandidate, 0, len(env.globals)+len(scope.params)+len(scope.locals)+len(env.pointers)+len(env.arrays))
 	for _, g := range env.globals {
-		candidates = append(candidates, castLiteral(t, g.name))
+		candidates = append(candidates, exprVarCandidate{expr: g.name, ctype: g.ctype, assignable: !g.isConst})
 	}
 	for _, p := range scope.params {
-		candidates = append(candidates, castLiteral(t, p.name))
+		candidates = append(candidates, exprVarCandidate{expr: p.name, ctype: p.ctype, assignable: true})
 	}
 	for _, l := range scope.locals {
-		candidates = append(candidates, castLiteral(t, l.name))
+		if l.name == "x" {
+			candidates = append(candidates, exprVarCandidate{expr: l.name, ctype: l.ctype, assignable: true})
+			continue
+		}
+		candidates = append(candidates, exprVarCandidate{expr: l.name, ctype: l.ctype, assignable: true})
 	}
-
 	for _, p := range env.pointers {
-		candidates = append(candidates, castLiteral(t, "*"+p.name))
+		candidates = append(candidates, exprVarCandidate{expr: "*" + p.name, ctype: p.targetTy, assignable: !p.constTarget})
 	}
 	for _, arr := range env.arrays {
-		candidates = append(candidates, castLiteral(t, fmt.Sprintf("%s[%d]", arr.name, int(r.upto(uint32(arr.len))))))
+		candidates = append(candidates, exprVarCandidate{
+			expr:       fmt.Sprintf("%s[%d]", arr.name, int(r.upto(uint32(arr.len)))),
+			ctype:      arr.ctype,
+			assignable: true,
+		})
+	}
+	return candidates
+}
+
+func selectExprVariable(t CType, r *rng, candidates []exprVarCandidate, forAssign bool) (exprVarCandidate, bool) {
+	filtered := make([]exprVarCandidate, 0, len(candidates))
+	for _, c := range candidates {
+		if forAssign && !c.assignable {
+			continue
+		}
+		filtered = append(filtered, c)
+	}
+	if len(filtered) == 0 {
+		return exprVarCandidate{}, false
 	}
 
-	if len(candidates) > 0 && r.upto(100) < 70 {
-		return candidates[int(r.upto(uint32(len(candidates))))]
+	exact := make([]exprVarCandidate, 0, len(filtered))
+	sameWidth := make([]exprVarCandidate, 0, len(filtered))
+	for _, c := range filtered {
+		if sameBaseType(c.ctype, t) {
+			exact = append(exact, c)
+			continue
+		}
+		if c.ctype.Bits == t.Bits {
+			sameWidth = append(sameWidth, c)
+		}
 	}
+	if len(exact) > 0 {
+		return exact[int(r.upto(uint32(len(exact))))], true
+	}
+	if len(sameWidth) > 0 {
+		return sameWidth[int(r.upto(uint32(len(sameWidth))))], true
+	}
+	return filtered[int(r.upto(uint32(len(filtered))))], true
+}
+
+func randomTypedExpr(t CType, r *rng, opts Options, env envInfo, scope scopeInfo) string {
+	candidates := buildExprCandidates(r, env, scope)
+	if len(candidates) > 0 && r.upto(100) < 80 {
+		c, ok := selectExprVariable(t, r, candidates, false)
+		if ok {
+			return castLiteral(t, c.expr)
+		}
+	}
+
 	return randomConstantExpr(t, r, opts)
 }
 
-func chooseLValue(r *rng, opts Options, env envInfo, scope scopeInfo) (lvalueInfo, bool) {
-	candidates := make([]lvalueInfo, 0, len(scope.locals)+len(env.globals)+len(env.arrays)+len(env.pointers))
-	for _, l := range scope.locals {
-		if l.name == "x" {
-			continue
-		}
-		candidates = append(candidates, lvalueInfo{expr: l.name, ctype: l.ctype})
-	}
-	for _, g := range env.globals {
-		if g.isConst {
-			continue
-		}
-		candidates = append(candidates, lvalueInfo{expr: g.name, ctype: g.ctype})
-	}
-	for _, a := range env.arrays {
-		if a.len <= 0 {
-			continue
-		}
-		idx := int(r.upto(uint32(a.len)))
-		candidates = append(candidates, lvalueInfo{expr: fmt.Sprintf("%s[%d]", a.name, idx), ctype: a.ctype})
-	}
-	for _, p := range env.pointers {
-		if p.constTarget {
-			continue
-		}
-		candidates = append(candidates, lvalueInfo{expr: "*" + p.name, ctype: p.targetTy})
-	}
-	if len(candidates) == 0 {
+func chooseLValue(r *rng, target CType, env envInfo, scope scopeInfo) (lvalueInfo, bool) {
+	c := buildExprCandidates(r, env, scope)
+	pick, ok := selectExprVariable(target, r, c, true)
+	if !ok {
 		return lvalueInfo{}, false
 	}
-	return candidates[int(r.upto(uint32(len(candidates))))], true
+	return lvalueInfo{expr: pick.expr, ctype: pick.ctype}, true
 }
 
 func emitLValueAssignment(b *strings.Builder, r *rng, opts Options, env envInfo, scope scopeInfo) bool {
-	lv, ok := chooseLValue(r, opts, env, scope)
+	targetType := CType{Name: "uint32_t", Signed: false, Bits: 32}
+	if len(scope.locals) > 0 && r.upto(100) < 70 {
+		targetType = scope.locals[int(r.upto(uint32(len(scope.locals))))].ctype
+	} else if len(env.globals) > 0 {
+		targetType = env.globals[int(r.upto(uint32(len(env.globals))))].ctype
+	}
+
+	lv, ok := chooseLValue(r, targetType, env, scope)
 	if !ok {
 		return false
 	}
@@ -556,6 +595,90 @@ func emitFunctionCallMutation(b *strings.Builder, r *rng, opts Options, env envI
 	return true
 }
 
+func emitStatement(
+	b *strings.Builder,
+	r *rng,
+	opts Options,
+	env envInfo,
+	scope scopeInfo,
+	funcs []funcInfo,
+	info compositeInfo,
+	from int,
+	maxChoice uint32,
+) {
+	choice := r.upto(maxChoice)
+	switch {
+	case choice == 0:
+		if !emitLValueAssignment(b, r, opts, env, scope) {
+			emitGlobalMutation(b, r, opts, env, scope)
+		}
+	case choice == 1:
+		emitArithmeticMutation(b, r, opts)
+	case choice == 2:
+		if !emitIncDecMutation(b, r, opts) {
+			writeLine(b, 1, fmt.Sprintf("if ((x & 1u) == 0u) { x += 0x%08Xu; } else { x ^= 0x%08Xu; }", r.next31(), r.next31()))
+		}
+	case choice == 3:
+		if opts.Jumps {
+			bound := 1 + int(r.upto(5))
+			writeLine(b, 1, fmt.Sprintf("for (uint32_t i = 0; i < %du; ++i) { x += (i ^ 0x%08Xu); }", bound, r.next31()))
+		} else {
+			writeLine(b, 1, fmt.Sprintf("x += 0x%08Xu;", r.next31()))
+		}
+	case choice == 4:
+		emitLocalMutation(b, r, opts, env, scope)
+	case choice == 5 && len(info.structs) > 0:
+		si := int(r.upto(uint32(len(info.structs))))
+		fields := info.structs[si].fields
+		fi := int(r.upto(uint32(len(fields))))
+		f := fields[fi]
+		writeLine(b, 1, fmt.Sprintf("gs_%d.%s ^= %s;", si, f.name, randomTypedExpr(f.ctype, r, opts, env, scope)))
+	case len(info.unions) > 0 && (choice == 6 || (len(info.structs) == 0 && choice == 5)):
+		ui := int(r.upto(uint32(len(info.unions))))
+		fields := info.unions[ui].fields
+		fi := int(r.upto(uint32(len(fields))))
+		f := fields[fi]
+		writeLine(b, 1, fmt.Sprintf("gu_%d.%s = %s;", ui, f.name, randomTypedExpr(f.ctype, r, opts, env, scope)))
+		writeLine(b, 1, fmt.Sprintf("x ^= (uint32_t)gu_%d.%s;", ui, f.name))
+	case len(funcs) > 1:
+		if !emitFunctionCallMutation(b, r, opts, env, scope, funcs, from) {
+			emitArithmeticMutation(b, r, opts)
+		}
+	case opts.Arrays && len(env.arrays) > 0:
+		emitArrayMutation(b, r, opts, env, scope)
+	default:
+		emitPointerMutation(b, r, opts, env, scope)
+	}
+}
+
+func emitStatements(
+	b *strings.Builder,
+	r *rng,
+	opts Options,
+	env envInfo,
+	scope scopeInfo,
+	funcs []funcInfo,
+	info compositeInfo,
+	from int,
+	maxChoice uint32,
+	depth int,
+) {
+	stmtCount := 2 + int(r.upto(uint32(max(1, opts.MaxBlockSize))))
+	for s := 0; s < stmtCount; s++ {
+		// Introduce nested blocks to better match Csmith statement shape.
+		if depth+1 < max(1, opts.MaxBlockDepth) && opts.Jumps && r.upto(100) < 25 {
+			mask := 1 + r.upto(7)
+			writeLine(b, 1, fmt.Sprintf("if ((x & %du) != 0u) {", mask))
+			emitStatements(b, r, opts, env, scope, funcs, info, from, maxChoice, depth+1)
+			writeLine(b, 1, "} else {")
+			emitStatement(b, r, opts, env, scope, funcs, info, from, maxChoice)
+			writeLine(b, 1, "}")
+			continue
+		}
+		emitStatement(b, r, opts, env, scope, funcs, info, from, maxChoice)
+	}
+}
+
 func emitFuncDefs(b *strings.Builder, r *rng, opts Options, funcs []funcInfo, maxBlock int, env envInfo, info compositeInfo) {
 	extraCases := 0
 	if len(info.structs) > 0 {
@@ -616,52 +739,8 @@ func emitFuncDefs(b *strings.Builder, r *rng, opts Options, funcs []funcInfo, ma
 		for _, p := range fn.params {
 			writeLine(b, 1, fmt.Sprintf("x ^= (uint32_t)%s;", p.name))
 		}
-		stmtCount := 2 + int(r.upto(uint32(maxBlock)))
-		for s := 0; s < stmtCount; s++ {
-			choice := r.upto(maxChoice)
-			switch {
-			case choice == 0:
-				if !emitLValueAssignment(b, r, opts, env, scope) {
-					emitGlobalMutation(b, r, opts, env, scope)
-				}
-			case choice == 1:
-				emitArithmeticMutation(b, r, opts)
-			case choice == 2:
-				if !emitIncDecMutation(b, r, opts) {
-					writeLine(b, 1, fmt.Sprintf("if ((x & 1u) == 0u) { x += 0x%08Xu; } else { x ^= 0x%08Xu; }", r.next31(), r.next31()))
-				}
-			case choice == 3:
-				if opts.Jumps {
-					bound := 1 + int(r.upto(5))
-					writeLine(b, 1, fmt.Sprintf("for (uint32_t i = 0; i < %du; ++i) { x += (i ^ 0x%08Xu); }", bound, r.next31()))
-				} else {
-					writeLine(b, 1, fmt.Sprintf("x += 0x%08Xu;", r.next31()))
-				}
-			case choice == 4:
-				emitLocalMutation(b, r, opts, env, scope)
-			case choice == 5 && len(info.structs) > 0:
-				si := int(r.upto(uint32(len(info.structs))))
-				fields := info.structs[si].fields
-				fi := int(r.upto(uint32(len(fields))))
-				f := fields[fi]
-				writeLine(b, 1, fmt.Sprintf("gs_%d.%s ^= %s;", si, f.name, randomTypedExpr(f.ctype, r, opts, env, scope)))
-			case len(info.unions) > 0 && (choice == 6 || (len(info.structs) == 0 && choice == 5)):
-				ui := int(r.upto(uint32(len(info.unions))))
-				fields := info.unions[ui].fields
-				fi := int(r.upto(uint32(len(fields))))
-				f := fields[fi]
-				writeLine(b, 1, fmt.Sprintf("gu_%d.%s = %s;", ui, f.name, randomTypedExpr(f.ctype, r, opts, env, scope)))
-				writeLine(b, 1, fmt.Sprintf("x ^= (uint32_t)gu_%d.%s;", ui, f.name))
-			case len(funcs) > 1:
-				if !emitFunctionCallMutation(b, r, opts, env, scope, funcs, i) {
-					emitArithmeticMutation(b, r, opts)
-				}
-			case opts.Arrays && len(env.arrays) > 0:
-				emitArrayMutation(b, r, opts, env, scope)
-			default:
-				emitPointerMutation(b, r, opts, env, scope)
-			}
-		}
+		_ = maxBlock
+		emitStatements(b, r, opts, env, scope, funcs, info, i, maxChoice, 0)
 		if i+1 < len(funcs) {
 			_ = emitFunctionCallMutation(b, r, opts, env, scope, funcs, i)
 		}
