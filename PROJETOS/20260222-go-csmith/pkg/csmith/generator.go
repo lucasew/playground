@@ -1146,6 +1146,20 @@ func emitGlobals(b *strings.Builder, r *rng, opts Options, info compositeInfo, p
 				writeLine(b, 0, fmt.Sprintf("static %s %s[%d] = {0};", ai.ctype.Name, ai.name, arrLen))
 				env.arrays = append(env.arrays, ai)
 			}
+
+			// Additional upstream-like global array pressure: emit extra multidim arrays.
+			extraArrays := 12 + int(r.upto(uint32(max(1, min(opts.MaxGlobals/5, 12)))))
+			for i := 0; i < extraArrays; i++ {
+				t := pickType(r, pool)
+				name := fmt.Sprintf("garr_%d", i)
+				dims := 1 + int(r.upto(uint32(max(1, min(opts.MaxArrayDim, 3)))))
+				sfx := strings.Builder{}
+				for d := 0; d < dims; d++ {
+					dlen := 2 + int(r.upto(uint32(max(2, min(opts.MaxArrayLenPerDim, 10)))))
+					sfx.WriteString(fmt.Sprintf("[%d]", dlen))
+				}
+				writeLine(b, 0, fmt.Sprintf("static %s %s%s = {0};", t.Name, name, sfx.String()))
+			}
 		}
 
 		if opts.Pointers {
@@ -1470,7 +1484,7 @@ func emitStatement(
 	chooseStmt := func() stmtKind {
 		// Upstream default statement probabilities from pStatementProb:
 		// ifelse 15, for 30, return 35, continue 40, break 45,
-		// goto 50 (if jumps), arrayop 60/55 (if arrays), assign 100.
+		// plus invocation-like expansion before falling back to assign.
 		tryPick := func() (stmtKind, bool) {
 			v := int(dec.pick(0, 100))
 			k := stmtAssign
@@ -1485,13 +1499,15 @@ func emitStatement(
 				k = stmtContinue
 			case v < 45:
 				k = stmtBreak
-			case opts.Jumps && opts.Arrays && v < 50:
+			case v < 47:
+				k = stmtInvoke
+			case opts.Jumps && opts.Arrays && v < 52:
 				k = stmtGoto
-			case opts.Jumps && opts.Arrays && v < 60:
+			case opts.Jumps && opts.Arrays && v < 62:
 				k = stmtArrayOp
-			case opts.Jumps && !opts.Arrays && v < 50:
+			case opts.Jumps && !opts.Arrays && v < 52:
 				k = stmtGoto
-			case !opts.Jumps && opts.Arrays && v < 55:
+			case !opts.Jumps && opts.Arrays && v < 57:
 				k = stmtArrayOp
 			default:
 				k = stmtAssign
@@ -1593,7 +1609,7 @@ func emitStatements(
 	if stmtBudget != nil && *stmtBudget == 0 {
 		return
 	}
-	stmtCount := 2 + int(r.upto(uint32(max(1, opts.MaxBlockSize))))
+	stmtCount := 2 + int(r.upto(uint32(max(3, opts.MaxBlockSize*2+1))))
 	for s := 0; s < stmtCount; s++ {
 		if stmtBudget != nil && *stmtBudget == 0 {
 			break
