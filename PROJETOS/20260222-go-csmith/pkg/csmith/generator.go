@@ -83,16 +83,26 @@ func Generate(opts Options) (string, error) {
 	emitFuncDecls(&b, funcs)
 	emitFuncDefs(&b, r, funcs, globals, opts.MaxBlockSize)
 
-	writeLine(&b, 0, "int main(void) {")
-	writeLine(&b, 1, "uint32_t checksum = 0u;")
-	writeLine(&b, 1, "uint32_t x = func_0(g_0, g_1);")
-	for i := 0; i < globals; i++ {
-		writeLine(&b, 1, fmt.Sprintf("checksum ^= g_%d + 0x9E3779B9u + (checksum << 6) + (checksum >> 2);", i))
+	if !opts.NoMain {
+		if opts.AcceptArgc {
+			writeLine(&b, 0, "int main(int argc, char *argv[]) {")
+			writeLine(&b, 1, "(void)argc;")
+			writeLine(&b, 1, "(void)argv;")
+		} else {
+			writeLine(&b, 0, "int main(void) {")
+		}
+		writeLine(&b, 1, "uint32_t checksum = 0u;")
+		writeLine(&b, 1, "uint32_t x = func_0(g_0, g_1);")
+		if opts.ComputeHash {
+			for i := 0; i < globals; i++ {
+				writeLine(&b, 1, fmt.Sprintf("checksum ^= g_%d + 0x9E3779B9u + (checksum << 6) + (checksum >> 2);", i))
+			}
+			writeLine(&b, 1, "checksum ^= x;")
+			writeLine(&b, 1, "printf(\"checksum = %u\\n\", checksum);")
+		}
+		writeLine(&b, 1, "return 0;")
+		writeLine(&b, 0, "}")
 	}
-	writeLine(&b, 1, "checksum ^= x;")
-	writeLine(&b, 1, "printf(\"checksum = %u\\n\", checksum);")
-	writeLine(&b, 1, "return 0;")
-	writeLine(&b, 0, "}")
 
 	return b.String(), nil
 }
