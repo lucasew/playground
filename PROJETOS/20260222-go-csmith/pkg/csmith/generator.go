@@ -57,6 +57,8 @@ type functionFlowState struct {
 	funcs        []funcInfo
 	maxFuncs     int
 	nextIdx      int
+	nextParamID  int
+	nextLocalID  int
 	pool         []CType
 	opts         Options
 	dynGlobals   []globalInfo
@@ -83,8 +85,9 @@ type localInfo struct {
 }
 
 type scopeInfo struct {
-	params []paramInfo
-	locals []localInfo
+	params    []paramInfo
+	locals    []localInfo
+	returnVar string
 }
 
 type lvalueInfo struct {
@@ -109,6 +112,8 @@ type genSnapshot struct {
 	dynLocLen      int
 	funcsLen       int
 	nextIdx        int
+	nextParamID    int
+	nextLocalID    int
 	dynGlobalsLen  int
 	nextGlobalID   int
 	lateGlobalsBuf string
@@ -124,6 +129,8 @@ func takeGenSnapshot(ctx *genContext) *genSnapshot {
 	if ctx.state != nil {
 		s.funcsLen = len(ctx.state.funcs)
 		s.nextIdx = ctx.state.nextIdx
+		s.nextParamID = ctx.state.nextParamID
+		s.nextLocalID = ctx.state.nextLocalID
 		s.dynGlobalsLen = len(ctx.state.dynGlobals)
 		s.nextGlobalID = ctx.state.nextGlobalID
 		s.lateGlobalsBuf = ctx.state.lateGlobals.String()
@@ -146,6 +153,8 @@ func restoreGenSnapshot(ctx *genContext, s *genSnapshot) {
 			ctx.state.dynGlobals = ctx.state.dynGlobals[:s.dynGlobalsLen]
 		}
 		ctx.state.nextIdx = s.nextIdx
+		ctx.state.nextParamID = s.nextParamID
+		ctx.state.nextLocalID = s.nextLocalID
 		ctx.state.nextGlobalID = s.nextGlobalID
 		ctx.state.lateGlobals.Reset()
 		ctx.state.lateGlobals.WriteString(s.lateGlobalsBuf)
@@ -443,7 +452,7 @@ func variableScopePickFromER(er *exprRand, opts Options) int {
 			return 0
 		case v < 65:
 			return 1
-		case v < 99:
+		case v < 95:
 			return 2
 		default:
 			return 3
@@ -452,7 +461,7 @@ func variableScopePickFromER(er *exprRand, opts Options) int {
 	switch {
 	case v < 50:
 		return 1
-	case v < 99:
+	case v < 95:
 		return 2
 	default:
 		return 3
@@ -497,8 +506,12 @@ func createOnDemandGlobalFromER(er *exprRand, opts Options, t CType, ctx *genCon
 	id := ctx.state.nextGlobalID
 	ctx.state.nextGlobalID = id + 1
 	name := fmt.Sprintf("g_%d", id)
-	isConst := opts.Consts && er.pick(100) < 20
-	isVolatile := opts.Volatiles && er.pick(100) < 20
+	// Upstream defaults: regular const 10%, regular volatile 50% (when enabled).
+	isConst := opts.Consts && er.pick(100) < 10
+	isVolatile := opts.Volatiles && er.pick(100) < 50
+	if isConst && isVolatile && er.pick(2) == 0 {
+		isConst = false
+	}
 	qual := ""
 	if isConst {
 		qual += "const "
@@ -988,16 +1001,11 @@ func emitLValueAssignment(b *strings.Builder, r *rng, opts Options, env envInfo,
 }
 
 func maybeDeclareOnDemandLocal(b *strings.Builder, r *rng, opts Options, ctx *genContext) {
-	if ctx == nil {
-		return
-	}
-	if variableScopePick(r, opts) != 3 {
-		return
-	}
-	t := pickType(r, typePool(opts))
-	name := fmt.Sprintf("ld_%d", r.next31()&0xFFFF)
-	writeLine(b, 1, fmt.Sprintf("%s %s = %s;", t.Name, name, randomConstantExpr(t, r, opts)))
-	ctx.dynLocs = append(ctx.dynLocs, localInfo{name: name, ctype: t})
+	// Disabled until parent-scope local placement mirrors upstream block scoping.
+	_ = b
+	_ = r
+	_ = opts
+	_ = ctx
 }
 
 func emitCompositeTypes(b *strings.Builder, r *rng, opts Options, pool []CType) compositeInfo {
@@ -1143,13 +1151,14 @@ func emitGlobals(b *strings.Builder, r *rng, opts Options, info compositeInfo, p
 		// Keep scalar globals as the primary pool used by expressions.
 		scalarTarget := min(globalCap, 26+int(r.upto(18)))
 		for i := 0; i < scalarTarget; i++ {
+			// Upstream regular qualifiers (Probabilities.cpp defaults).
 			isConst := false
 			if opts.Consts {
-				isConst = r.upto(100) < 22
+				isConst = r.upto(100) < 10
 			}
 			isVolatile := false
 			if opts.Volatiles {
-				isVolatile = r.upto(100) < 20
+				isVolatile = r.upto(100) < 50
 			}
 			// Avoid degenerate const+volatile saturation.
 			if isConst && isVolatile && r.upto(2) == 0 {
@@ -1330,12 +1339,18 @@ func emitGlobalMutation(b *strings.Builder, r *rng, opts Options, env envInfo, s
 		emitArithmeticMutation(b, r, opts)
 		return
 	}
-	start := 0
-	if opts.Consts && len(env.globals) > 1 {
-		start = 1
+	writable := make([]globalInfo, 0, len(env.globals))
+	for _, g := range env.globals {
+		if g.isConst {
+			continue
+		}
+		writable = append(writable, g)
 	}
-	gix := start + int(r.upto(uint32(max(len(env.globals)-start, 1))))
-	g := env.globals[gix]
+	if len(writable) == 0 {
+		emitArithmeticMutation(b, r, opts)
+		return
+	}
+	g := writable[int(r.upto(uint32(len(writable))))]
 	rhs := randomTypedExpr(g.ctype, r, opts, env, scope, ctx)
 	if opts.CompoundAssignment {
 		writeLine(b, 1, fmt.Sprintf("%s += %s;", g.name, rhs))
@@ -1417,7 +1432,7 @@ func (s *functionFlowState) appendNewFunction(r *rng) (funcInfo, bool) {
 	if len(s.funcs) >= s.maxFuncs {
 		return funcInfo{}, false
 	}
-	fn := makeFuncSignature(r, s.opts, s.pool, s.nextIdx)
+	fn := s.makeFuncSignature(r, s.nextIdx)
 	s.nextIdx++
 	s.funcs = append(s.funcs, fn)
 	return fn, true
@@ -1579,8 +1594,12 @@ func emitStatement(
 		emitStatements(b, r, opts, env, scope, state, info, from, depth+1, true, stmtBudget, ctx)
 		writeLine(b, 1, "}")
 	case stmtReturn:
-		writeLine(b, 1, "l_0 ^= (uint32_t)x;")
-		writeLine(b, 1, "return l_0;")
+		ret := scope.returnVar
+		if ret == "" {
+			ret = "l_0"
+		}
+		writeLine(b, 1, fmt.Sprintf("%s ^= (uint32_t)x;", ret))
+		writeLine(b, 1, fmt.Sprintf("return %s;", ret))
 	case stmtContinue:
 		writeLine(b, 1, "continue;")
 	case stmtBreak:
@@ -1692,7 +1711,11 @@ func emitSingleFuncDefOnce(
 		params = strings.Join(pp, ", ")
 	}
 	writeLine(&b, 0, fmt.Sprintf("static %s %s(%s) {", fn.ret.Name, fn.name, params))
-	writeLine(&b, 1, fmt.Sprintf("%s l_0 = %s;", fn.ret.Name, castLiteral(fn.ret, fmt.Sprintf("0x%08Xu", r.next31()))))
+	retName := "l_0"
+	if state != nil {
+		retName = state.allocLocalName()
+	}
+	writeLine(&b, 1, fmt.Sprintf("%s %s = %s;", fn.ret.Name, retName, castLiteral(fn.ret, fmt.Sprintf("0x%08Xu", r.next31()))))
 	if len(env.globals) >= 2 {
 		writeLine(
 			&b,
@@ -1713,11 +1736,14 @@ func emitSingleFuncDefOnce(
 	for l := 0; l < localCount; l++ {
 		lt := pickType(r, tpool)
 		name := fmt.Sprintf("l_%d", l+1)
+		if state != nil {
+			name = state.allocLocalName()
+		}
 		writeLine(&b, 1, fmt.Sprintf("%s %s = %s;", lt.Name, name, randomConstantExpr(lt, r, opts)))
 		locals = append(locals, localInfo{name: name, ctype: lt})
 	}
 	locals = append(locals, localInfo{name: "x", ctype: CType{Name: "uint32_t", Signed: false, Bits: 32}})
-	scope := scopeInfo{params: fn.params, locals: locals}
+	scope := scopeInfo{params: fn.params, locals: locals, returnVar: retName}
 	ctx := &genContext{
 		state: state,
 		from:  idx,
@@ -1728,31 +1754,47 @@ func emitSingleFuncDefOnce(
 	}
 	emitStatements(&b, r, opts, env, scope, state, info, idx, 0, false, stmtBudget, ctx)
 	if len(env.globals) > 0 {
-		start := 0
-		if opts.Consts && len(env.globals) > 1 {
-			start = 1
+		writable := make([]globalInfo, 0, len(env.globals))
+		for _, g := range env.globals {
+			if g.isConst {
+				continue
+			}
+			writable = append(writable, g)
 		}
-		gix := start + int(fdec.pick(2, uint32(max(len(env.globals)-start, 1))))
-		g := env.globals[gix]
-		writeLine(&b, 1, fmt.Sprintf("%s ^= %s;", g.name, randomTypedExpr(g.ctype, r, opts, env, scope, ctx)))
+		if len(writable) > 0 {
+			g := writable[int(fdec.pick(2, uint32(len(writable))))]
+			writeLine(&b, 1, fmt.Sprintf("%s ^= %s;", g.name, randomTypedExpr(g.ctype, r, opts, env, scope, ctx)))
+		}
 	}
-	writeLine(&b, 1, fmt.Sprintf("l_0 ^= %s;", castLiteral(fn.ret, "x")))
-	writeLine(&b, 1, "return l_0;")
+	writeLine(&b, 1, fmt.Sprintf("%s ^= %s;", retName, castLiteral(fn.ret, "x")))
+	writeLine(&b, 1, fmt.Sprintf("return %s;", retName))
 	writeLine(&b, 0, "}")
 	writeLine(&b, 0, "")
 	return b.String()
 }
 
-func makeFuncSignature(r *rng, opts Options, pool []CType, idx int) funcInfo {
+func (s *functionFlowState) allocParamName() string {
+	name := fmt.Sprintf("p_%d", s.nextParamID)
+	s.nextParamID++
+	return name
+}
+
+func (s *functionFlowState) allocLocalName() string {
+	name := fmt.Sprintf("l_%d", s.nextLocalID)
+	s.nextLocalID++
+	return name
+}
+
+func (s *functionFlowState) makeFuncSignature(r *rng, idx int) funcInfo {
 	fn := funcInfo{
 		name: fmt.Sprintf("func_%d", idx),
-		ret:  pickType(r, pool),
+		ret:  pickType(r, s.pool),
 	}
 	if idx == 1 {
 		// Upstream's entry function is func_1(void), returning a fixed integral type.
 		fn.ret = CType{Name: "uint32_t", Signed: false, Bits: 32}
 	}
-	maxParams := opts.MaxParams
+	maxParams := s.opts.MaxParams
 	if idx == 1 {
 		maxParams = 0
 	}
@@ -1766,8 +1808,8 @@ func makeFuncSignature(r *rng, opts Options, pool []CType, idx int) funcInfo {
 	fn.params = make([]paramInfo, 0, pcount)
 	for p := 0; p < pcount; p++ {
 		fn.params = append(fn.params, paramInfo{
-			name:  fmt.Sprintf("p_%d", p+1),
-			ctype: pickType(r, pool),
+			name:  s.allocParamName(),
+			ctype: pickType(r, s.pool),
 		})
 	}
 	return fn
@@ -1776,14 +1818,17 @@ func makeFuncSignature(r *rng, opts Options, pool []CType, idx int) funcInfo {
 func emitFunctionsUpstreamFlow(b *strings.Builder, r *rng, opts Options, pool []CType, maxBlock int, env envInfo, info compositeInfo) ([]funcInfo, []globalInfo) {
 	maxFuncs := max(opts.MaxFuncs, 1)
 	state := &functionFlowState{
-		funcs:        []funcInfo{makeFuncSignature(r, opts, pool, 1)},
+		funcs:        []funcInfo{},
 		maxFuncs:     maxFuncs,
 		nextIdx:      2,
+		nextParamID:  1,
+		nextLocalID:  0,
 		pool:         pool,
 		opts:         opts,
 		dynGlobals:   []globalInfo{},
 		nextGlobalID: env.nextID,
 	}
+	state.funcs = append(state.funcs, state.makeFuncSignature(r, 1))
 	built := []bool{false}
 	defs := []string{""}
 	stmtBudget := opts.StopByStmt
@@ -1817,7 +1862,7 @@ func emitFunctionsUpstreamFlow(b *strings.Builder, r *rng, opts Options, pool []
 }
 
 func emitComputeHashFunc(b *strings.Builder, env envInfo, info compositeInfo) {
-	writeLine(b, 0, "void csmith_compute_hash(void)")
+	writeLine(b, 0, "void csmith_compute_hash(int print_hash_value)")
 	writeLine(b, 0, "{")
 	for _, g := range env.globals {
 		writeLine(b, 1, fmt.Sprintf("transparent_crc((uint64_t)%s, \"%s\", print_hash_value);", g.name, g.name))
@@ -1866,7 +1911,7 @@ func emitMain(b *strings.Builder, opts Options, env envInfo, info compositeInfo,
 	}
 	writeLine(b, 1, fmt.Sprintf("(void)%s();", entry))
 	if opts.ComputeHash {
-		writeLine(b, 1, "csmith_compute_hash();")
+		writeLine(b, 1, "csmith_compute_hash(print_hash_value);")
 		if useRuntime {
 			writeLine(b, 1, "platform_main_end(crc32_context ^ 0xFFFFFFFFUL, print_hash_value);")
 		} else {
