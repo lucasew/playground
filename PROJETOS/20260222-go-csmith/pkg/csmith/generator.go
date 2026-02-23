@@ -60,6 +60,7 @@ type functionFlowState struct {
 	nextParamID  int
 	nextLocalID  int
 	pool         []CType
+	info         compositeInfo
 	opts         Options
 	dynGlobals   []globalInfo
 	lateGlobals  strings.Builder
@@ -1114,6 +1115,11 @@ func emitCompositeTypes(b *strings.Builder, r *rng, opts Options, pool []CType) 
 				writeLine(b, 1, fmt.Sprintf("%s%s %s;", fieldQual(), t.Name, name))
 				st.fields = append(st.fields, fieldInfo{name: name, ctype: t})
 			}
+			if opts.PackedStruct {
+				// Type::make_random_struct_type consumes rnd_flipcoin(50) when
+				// packed-struct is enabled (default upstream behavior).
+				_ = r.flipcoin(50)
+			}
 			writeLine(b, 0, "};")
 			writeLine(b, 0, "")
 			info.structs = append(info.structs, st)
@@ -1757,19 +1763,7 @@ func emitSingleFuncDefOnce(
 		writeLine(&b, 1, fmt.Sprintf("uint32_t x = 0x%08Xu;", r.next31()))
 	}
 
-	localCap := max(2, min(maxBlock*2, 12))
-	localCount := 1 + int(fdec.pick(0, uint32(localCap)))
-	locals := make([]localInfo, 0, localCount+1)
-	tpool := typePool(opts)
-	for l := 0; l < localCount; l++ {
-		lt := pickType(r, tpool)
-		name := fmt.Sprintf("l_%d", l+1)
-		if state != nil {
-			name = state.allocLocalName()
-		}
-		writeLine(&b, 1, fmt.Sprintf("%s %s = %s;", lt.Name, name, randomConstantExpr(lt, r, opts)))
-		locals = append(locals, localInfo{name: name, ctype: lt})
-	}
+	locals := make([]localInfo, 0, 1)
 	locals = append(locals, localInfo{name: "x", ctype: CType{Name: "uint32_t", Signed: false, Bits: 32}})
 	scope := scopeInfo{params: fn.params, locals: locals, returnVar: retName}
 	ctx := &genContext{
@@ -1816,11 +1810,41 @@ func (s *functionFlowState) allocLocalName() string {
 func (s *functionFlowState) makeFuncSignature(r *rng, idx int) funcInfo {
 	fn := funcInfo{
 		name: fmt.Sprintf("func_%d", idx),
-		ret:  pickType(r, s.pool),
+	}
+	// Function::make_first uses RandomReturnType() over AllTypes (simple + aggregates),
+	// while later signatures are chosen from random types as they are created.
+	if idx == 1 {
+		allCount := len(s.pool) + len(s.info.structs) + len(s.info.unions)
+		if allCount <= 0 {
+			fn.ret = CType{Name: "uint32_t", Signed: false, Bits: 32}
+		} else {
+			pick := int(r.upto(uint32(allCount)))
+			switch {
+			case pick < len(s.pool):
+				fn.ret = s.pool[pick]
+			case pick < len(s.pool)+len(s.info.structs):
+				fn.ret = CType{Name: fmt.Sprintf("struct S%d", pick-len(s.pool)), Bits: 32}
+			default:
+				fn.ret = CType{Name: fmt.Sprintf("union U%d", pick-len(s.pool)-len(s.info.structs)), Bits: 32}
+			}
+		}
+	} else {
+		fn.ret = pickType(r, s.pool)
 	}
 	if idx == 1 {
-		// Upstream's entry function is func_1(void), returning a fixed integral type.
-		fn.ret = CType{Name: "uint32_t", Signed: false, Bits: 32}
+		// make_first() creates return variable qualifiers via
+		// CVQualifiers::random_qualifiers(type) (no_volatile=true), which still
+		// consumes volatile/const draws on the object itself.
+		if s.opts.Volatiles {
+			_ = r.flipcoin(50)
+		} else {
+			_ = r.flipcoin(0)
+		}
+		if s.opts.Consts {
+			_ = r.flipcoin(10)
+		} else {
+			_ = r.flipcoin(0)
+		}
 	}
 	maxParams := s.opts.MaxParams
 	if idx == 1 {
@@ -1852,6 +1876,7 @@ func emitFunctionsUpstreamFlow(b *strings.Builder, r *rng, opts Options, pool []
 		nextParamID:  1,
 		nextLocalID:  0,
 		pool:         pool,
+		info:         info,
 		opts:         opts,
 		dynGlobals:   []globalInfo{},
 		nextGlobalID: env.nextID,

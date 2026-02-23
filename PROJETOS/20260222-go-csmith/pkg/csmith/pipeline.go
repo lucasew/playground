@@ -49,7 +49,9 @@ func (g *defaultProgramGenerator) generateAllTypes() {
 }
 
 func (g *defaultProgramGenerator) generateFunctions() {
-	g.env = emitGlobals(&g.b, g.r, g.opts, g.info, g.pool)
+	// Upstream does not pre-generate a random global pool before Function::make_first.
+	// Globals are introduced while function bodies are generated.
+	g.env = envInfo{}
 	g.funcs, g.dynGlobals = emitFunctionsUpstreamFlow(&g.b, g.r, g.opts, g.pool, g.opts.MaxBlockSize, g.env, g.info)
 	if len(g.dynGlobals) > 0 {
 		g.env.globals = append(g.env.globals, g.dynGlobals...)

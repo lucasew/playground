@@ -36,25 +36,27 @@ func unsignedOf(bits int) CType {
 }
 
 func typePool(opts Options) []CType {
-	pool := []CType{
-		hostIntType(opts),
-		unsignedOf(hostIntType(opts).Bits),
-		CType{Name: "int16_t", Signed: true, Bits: 16},
-		CType{Name: "uint32_t", Signed: false, Bits: 32},
+	// Mirrors Type::GenerateSimpleTypes order:
+	// eChar, eSChar, eUChar, eShort, eUShort, eInt, eUInt,
+	// eLong, eULong, eLongLong, eULongLong, eInt128, eUInt128.
+	// Keep entries even when aliases collapse to same C type to preserve
+	// upstream RNG selection cardinality.
+	pool := make([]CType, 0, 13)
+	pool = append(pool, CType{Name: "int8_t", Signed: true, Bits: 8})   // char
+	pool = append(pool, CType{Name: "int8_t", Signed: true, Bits: 8})   // signed char
+	pool = append(pool, CType{Name: "uint8_t", Signed: false, Bits: 8}) // unsigned char
+	pool = append(pool, CType{Name: "int16_t", Signed: true, Bits: 16})
+	pool = append(pool, CType{Name: "uint16_t", Signed: false, Bits: 16})
+	pool = append(pool, hostIntType(opts))
+	pool = append(pool, unsignedOf(hostIntType(opts).Bits))
+	pool = append(pool, CType{Name: "int64_t", Signed: true, Bits: 64})   // long
+	pool = append(pool, CType{Name: "uint64_t", Signed: false, Bits: 64}) // unsigned long
+	if opts.LongLong {
+		pool = append(pool, CType{Name: "int64_t", Signed: true, Bits: 64})
+		pool = append(pool, CType{Name: "uint64_t", Signed: false, Bits: 64})
 	}
-
-	if opts.Int8 {
-		pool = append(pool, CType{Name: "int8_t", Signed: true, Bits: 8})
-	}
-	if opts.UInt8 {
-		pool = append(pool, CType{Name: "uint8_t", Signed: false, Bits: 8})
-	}
-	if opts.LongLong && opts.Math64 {
-		pool = append(pool,
-			CType{Name: "int64_t", Signed: true, Bits: 64},
-			CType{Name: "uint64_t", Signed: false, Bits: 64},
-		)
-	}
+	pool = append(pool, CType{Name: "__int128", Signed: true, Bits: 128})
+	pool = append(pool, CType{Name: "unsigned __int128", Signed: false, Bits: 128})
 	return pool
 }
 
