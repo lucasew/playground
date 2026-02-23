@@ -2,6 +2,7 @@ package csmith
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -59,6 +60,9 @@ type functionFlowState struct {
 	nextIdx  int
 	pool     []CType
 	opts     Options
+	dynGlobals []globalInfo
+	lateGlobals strings.Builder
+	nextGlobalID int
 }
 
 type stmtKind int
@@ -321,9 +325,19 @@ func mergedLocals(scope scopeInfo, ctx *genContext) []localInfo {
 	return out
 }
 
+func mergedGlobals(env envInfo, ctx *genContext) []globalInfo {
+	if ctx == nil || ctx.state == nil || len(ctx.state.dynGlobals) == 0 {
+		return env.globals
+	}
+	out := make([]globalInfo, 0, len(env.globals)+len(ctx.state.dynGlobals))
+	out = append(out, env.globals...)
+	out = append(out, ctx.state.dynGlobals...)
+	return out
+}
+
 func buildExprCandidates(r *rng, env envInfo, scope scopeInfo, ctx *genContext) []exprVarCandidate {
 	candidates := make([]exprVarCandidate, 0, len(env.globals)+len(scope.params)+len(scope.locals)+len(env.pointers)+len(env.arrays))
-	for _, g := range env.globals {
+	for _, g := range mergedGlobals(env, ctx) {
 		candidates = append(candidates, exprVarCandidate{expr: g.name, ctype: g.ctype, assignable: !g.isConst})
 	}
 	for _, p := range scope.params {
@@ -351,7 +365,7 @@ func buildExprCandidates(r *rng, env envInfo, scope scopeInfo, ctx *genContext) 
 
 func buildExprCandidatesFromER(er *exprRand, env envInfo, scope scopeInfo, ctx *genContext) []exprVarCandidate {
 	candidates := make([]exprVarCandidate, 0, len(env.globals)+len(scope.params)+len(scope.locals)+len(env.pointers)+len(env.arrays))
-	for _, g := range env.globals {
+	for _, g := range mergedGlobals(env, ctx) {
 		candidates = append(candidates, exprVarCandidate{expr: g.name, ctype: g.ctype, assignable: !g.isConst})
 	}
 	for _, p := range scope.params {
@@ -403,7 +417,7 @@ func buildScopedCandidatesFromER(er *exprRand, env envInfo, scope scopeInfo, sco
 	out := make([]exprVarCandidate, 0, 16)
 	switch scopePick {
 	case 0:
-		for _, g := range env.globals {
+		for _, g := range mergedGlobals(env, ctx) {
 			out = append(out, exprVarCandidate{expr: g.name, ctype: g.ctype, assignable: !g.isConst})
 		}
 	case 1:
@@ -428,6 +442,29 @@ func buildScopedCandidatesFromER(er *exprRand, env envInfo, scope scopeInfo, sco
 		}
 	}
 	return out
+}
+
+func createOnDemandGlobalFromER(er *exprRand, opts Options, t CType, ctx *genContext) (exprVarCandidate, bool) {
+	if ctx == nil || ctx.state == nil {
+		return exprVarCandidate{}, false
+	}
+	id := ctx.state.nextGlobalID
+	ctx.state.nextGlobalID = id + 1
+	name := fmt.Sprintf("g_%d", id)
+	isConst := opts.Consts && er.pick(100) < 20
+	isVolatile := opts.Volatiles && er.pick(100) < 20
+	qual := ""
+	if isConst {
+		qual += "const "
+	}
+	if isVolatile {
+		qual += "volatile "
+	}
+	lit := randomConstantExprFromER(t, er, opts)
+	writeLine(&ctx.state.lateGlobals, 0, fmt.Sprintf("static %s%s %s = %s;", qual, t.Name, name, lit))
+	g := globalInfo{name: name, ctype: t, isConst: isConst, isVolatile: isVolatile}
+	ctx.state.dynGlobals = append(ctx.state.dynGlobals, g)
+	return exprVarCandidate{expr: name, ctype: t, assignable: !isConst}, true
 }
 
 func selectExprVariable(t CType, r *rng, candidates []exprVarCandidate, forAssign bool) (exprVarCandidate, bool) {
@@ -589,12 +626,20 @@ func randomLeafExpr(t CType, er *exprRand, opts Options, env envInfo, scope scop
 		case termVariable:
 			scopePick := variableScopePickFromER(er, opts)
 			if scopePick == 3 {
+				if g, ok := createOnDemandGlobalFromER(er, opts, t, ctx); ok {
+					return castLiteral(t, g.expr)
+				}
 				return randomConstantExprFromER(t, er, opts)
 			}
-				candidates := buildScopedCandidatesFromER(er, env, scope, scopePick, ctx)
-				if len(candidates) == 0 {
-					candidates = buildExprCandidatesFromER(er, env, scope, ctx)
+			candidates := buildScopedCandidatesFromER(er, env, scope, scopePick, ctx)
+			if len(candidates) == 0 {
+				if scopePick == 0 {
+					if g, ok := createOnDemandGlobalFromER(er, opts, t, ctx); ok {
+						return castLiteral(t, g.expr)
+					}
 				}
+				candidates = buildExprCandidatesFromER(er, env, scope, ctx)
+			}
 			if len(candidates) > 0 {
 				if c, ok := selectExprVariableFromER(t, er, candidates, false); ok {
 					return castLiteral(t, c.expr)
@@ -606,6 +651,12 @@ func randomLeafExpr(t CType, er *exprRand, opts Options, env envInfo, scope scop
 			scopePick := variableScopePickFromER(er, opts)
 			candidates := buildScopedCandidatesFromER(er, env, scope, scopePick, ctx)
 			if len(candidates) == 0 {
+				if scopePick == 0 || scopePick == 3 {
+					if g, ok := createOnDemandGlobalFromER(er, opts, t, ctx); ok {
+						rhs := randomConstantExprFromER(g.ctype, er, opts)
+						return castLiteral(t, fmt.Sprintf("(%s = %s)", g.expr, rhs))
+					}
+				}
 				candidates = buildExprCandidatesFromER(er, env, scope, ctx)
 			}
 			if len(candidates) > 0 {
@@ -708,7 +759,7 @@ func buildScopedCandidates(r *rng, env envInfo, scope scopeInfo, scopePick int, 
 	out := make([]exprVarCandidate, 0, 16)
 	switch scopePick {
 	case 0:
-		for _, g := range env.globals {
+		for _, g := range mergedGlobals(env, ctx) {
 			out = append(out, exprVarCandidate{expr: g.name, ctype: g.ctype, assignable: !g.isConst})
 		}
 	case 1:
@@ -1247,9 +1298,9 @@ func emitStatement(
 	stmtBudget *int,
 	ctx *genContext,
 	dec stmtDecision,
-) {
+) bool {
 	if stmtBudget != nil && *stmtBudget == 0 {
-		return
+		return true
 	}
 	maybeDeclareOnDemandLocal(b, r, opts, ctx)
 	if stmtBudget != nil && *stmtBudget > 0 {
@@ -1310,7 +1361,7 @@ func emitStatement(
 	switch chooseStmt() {
 	case stmtAssign:
 		if !emitLValueAssignment(b, r, opts, env, scope, ctx) {
-			emitGlobalMutation(b, r, opts, env, scope, ctx)
+			return false
 		}
 	case stmtIfElse:
 		cond := fmt.Sprintf("((x & %du) != 0u)", 1+dec.pick(1, 7))
@@ -1320,13 +1371,17 @@ func emitStatement(
 		writeLine(b, 1, fmt.Sprintf("if %s {", cond))
 		emitStatements(b, r, opts, env, scope, state, info, from, depth+1, false, stmtBudget, ctx)
 		writeLine(b, 1, "} else {")
-		emitStatement(b, r, opts, env, scope, state, info, from, depth+1, false, stmtBudget, ctx, nextStmtDecision(r))
+		if !emitStatement(b, r, opts, env, scope, state, info, from, depth+1, false, stmtBudget, ctx, nextStmtDecision(r)) {
+			return false
+		}
 		writeLine(b, 1, "}")
 	case stmtFor:
 		bound := 1 + int(dec.pick(3, 5))
 		writeLine(b, 1, fmt.Sprintf("for (uint32_t i = 0; i < %du; ++i) {", bound))
 		writeLine(b, 2, fmt.Sprintf("x += (i ^ 0x%08Xu);", dec.vals[4]))
-		emitStatement(b, r, opts, env, scope, state, info, from, depth+1, true, stmtBudget, ctx, nextStmtDecision(r))
+		if !emitStatement(b, r, opts, env, scope, state, info, from, depth+1, true, stmtBudget, ctx, nextStmtDecision(r)) {
+			return false
+		}
 		writeLine(b, 1, "}")
 	case stmtReturn:
 		writeLine(b, 1, "l_0 ^= (uint32_t)x;")
@@ -1339,16 +1394,20 @@ func emitStatement(
 	case stmtBreak:
 		writeLine(b, 1, "break;")
 	case stmtGoto:
-		emitArithmeticMutation(b, r, opts)
+		return false
 	case stmtArrayOp:
+		if !opts.Arrays || len(env.arrays) == 0 {
+			return false
+		}
 		emitArrayMutation(b, r, opts, env, scope, ctx)
 	case stmtInvoke:
 		if !emitFunctionCallMutation(b, r, opts, env, scope, state, from, ctx) {
-			emitArithmeticMutation(b, r, opts)
+			return false
 		}
 	default:
-		emitArithmeticMutation(b, r, opts)
+		return false
 	}
+	return true
 }
 
 func emitStatements(
@@ -1370,15 +1429,103 @@ func emitStatements(
 	}
 	stmtCount := 2 + int(r.upto(uint32(max(1, opts.MaxBlockSize))))
 	for s := 0; s < stmtCount; s++ {
-		dec := nextStmtDecision(r)
 		if stmtBudget != nil && *stmtBudget == 0 {
 			break
 		}
-		emitStatement(b, r, opts, env, scope, state, info, from, depth, inLoop, stmtBudget, ctx, dec)
+		const maxStmtAttempts = 8
+		ok := false
+		for attempt := 0; attempt < maxStmtAttempts; attempt++ {
+			dec := nextStmtDecision(r)
+			snapStmtBudget := -1
+			if stmtBudget != nil {
+				snapStmtBudget = *stmtBudget
+			}
+			snapDynLocLen := 0
+			if ctx != nil {
+				snapDynLocLen = len(ctx.dynLocs)
+			}
+			snapFuncsLen := len(state.funcs)
+			snapNextIdx := state.nextIdx
+			snapDynGlobalsLen := len(state.dynGlobals)
+			snapNextGlobalID := state.nextGlobalID
+			snapLateGlobals := state.lateGlobals.String()
+
+			var tmp strings.Builder
+			if emitStatement(&tmp, r, opts, env, scope, state, info, from, depth, inLoop, stmtBudget, ctx, dec) {
+				b.WriteString(tmp.String())
+				ok = true
+				break
+			}
+
+			// Reject path: rollback to keep statement-local retries side-effect free.
+			if stmtBudget != nil && snapStmtBudget >= 0 {
+				*stmtBudget = snapStmtBudget
+			}
+			if ctx != nil {
+				ctx.dynLocs = ctx.dynLocs[:snapDynLocLen]
+			}
+			state.funcs = state.funcs[:snapFuncsLen]
+			state.nextIdx = snapNextIdx
+			state.dynGlobals = state.dynGlobals[:snapDynGlobalsLen]
+			state.nextGlobalID = snapNextGlobalID
+			state.lateGlobals.Reset()
+			state.lateGlobals.WriteString(snapLateGlobals)
+		}
+		if !ok {
+			// Last-resort deterministic no-op-like mutation when all attempts fail.
+			writeLine(b, 1, "x ^= 0u;")
+		}
 	}
 }
 
 func emitSingleFuncDef(
+	r *rng,
+	opts Options,
+	fn funcInfo,
+	state *functionFlowState,
+	idx int,
+	maxBlock int,
+	env envInfo,
+	info compositeInfo,
+	stmtBudget *int,
+) string {
+	const maxBuildAttempts = 6
+	last := ""
+	for i := 0; i < maxBuildAttempts; i++ {
+		snapFuncsLen := len(state.funcs)
+		snapNextIdx := state.nextIdx
+		snapDynGlobalsLen := len(state.dynGlobals)
+		snapNextGlobalID := state.nextGlobalID
+		snapLateGlobals := state.lateGlobals.String()
+		snapStmtBudget := -1
+		if stmtBudget != nil {
+			snapStmtBudget = *stmtBudget
+		}
+
+		candidate := emitSingleFuncDefOnce(r, opts, fn, state, idx, maxBlock, env, info, stmtBudget)
+		last = candidate
+		allGlobals := make([]globalInfo, 0, len(env.globals)+len(state.dynGlobals))
+		allGlobals = append(allGlobals, env.globals...)
+		allGlobals = append(allGlobals, state.dynGlobals...)
+		if validateFunctionBody(candidate, allGlobals) {
+			return candidate
+		}
+
+		// Reject path: discard side effects introduced during this attempt.
+		state.funcs = state.funcs[:snapFuncsLen]
+		state.nextIdx = snapNextIdx
+		state.dynGlobals = state.dynGlobals[:snapDynGlobalsLen]
+		state.nextGlobalID = snapNextGlobalID
+		state.lateGlobals.Reset()
+		state.lateGlobals.WriteString(snapLateGlobals)
+		if stmtBudget != nil && snapStmtBudget >= 0 {
+			*stmtBudget = snapStmtBudget
+		}
+	}
+	return last
+}
+
+func emitSingleFuncDefOnce(
 	r *rng,
 	opts Options,
 	fn funcInfo,
@@ -1427,7 +1574,10 @@ func emitSingleFuncDef(
 	}
 	locals = append(locals, localInfo{name: "x", ctype: CType{Name: "uint32_t", Signed: false, Bits: 32}})
 	scope := scopeInfo{params: fn.params, locals: locals}
-	ctx := &genContext{state: state, from: idx}
+	ctx := &genContext{
+		state: state,
+		from: idx,
+	}
 
 	for _, p := range fn.params {
 		writeLine(&b, 1, fmt.Sprintf("x ^= (uint32_t)%s;", p.name))
@@ -1447,6 +1597,38 @@ func emitSingleFuncDef(
 	writeLine(&b, 0, "}")
 	writeLine(&b, 0, "")
 	return b.String()
+}
+
+var (
+	reUnsafeDivZero  = regexp.MustCompile(`/\s*\(\s*0[uUlL]*\s*\)`)
+	reUnsafeModZero  = regexp.MustCompile(`%\s*\(\s*0[uUlL]*\s*\)`)
+	reUnsafeShiftNeg = regexp.MustCompile(`(<<|>>)\s*\(\s*-\d+`)
+)
+
+func validateFunctionBody(def string, globals []globalInfo) bool {
+	if strings.Count(def, "{") != strings.Count(def, "}") {
+		return false
+	}
+	if !strings.Contains(def, "return") {
+		return false
+	}
+	if (strings.Contains(def, "continue;") || strings.Contains(def, "break;")) && !strings.Contains(def, "for (") {
+		return false
+	}
+	if reUnsafeDivZero.MatchString(def) || reUnsafeModZero.MatchString(def) || reUnsafeShiftNeg.MatchString(def) {
+		return false
+	}
+	for _, g := range globals {
+		if !g.isConst {
+			continue
+		}
+		id := regexp.QuoteMeta(g.name)
+		writePat := `\b(` + id + `\s*(=|\+=|-=|\*=|/=|%=|<<=|>>=|&=|\|=|\^=)|(\+\+|--)\s*` + id + `|` + id + `\s*(\+\+|--))\b`
+		if regexp.MustCompile(writePat).FindString(def) != "" {
+			return false
+		}
+	}
+	return true
 }
 
 func makeFuncSignature(r *rng, opts Options, pool []CType, idx int) funcInfo {
@@ -1479,7 +1661,7 @@ func makeFuncSignature(r *rng, opts Options, pool []CType, idx int) funcInfo {
 	return fn
 }
 
-func emitFunctionsUpstreamFlow(b *strings.Builder, r *rng, opts Options, pool []CType, maxBlock int, env envInfo, info compositeInfo) []funcInfo {
+func emitFunctionsUpstreamFlow(b *strings.Builder, r *rng, opts Options, pool []CType, maxBlock int, env envInfo, info compositeInfo) ([]funcInfo, []globalInfo) {
 	maxFuncs := max(opts.MaxFuncs, 1)
 	state := &functionFlowState{
 		funcs:    []funcInfo{makeFuncSignature(r, opts, pool, 1)},
@@ -1487,6 +1669,8 @@ func emitFunctionsUpstreamFlow(b *strings.Builder, r *rng, opts Options, pool []
 		nextIdx:  2,
 		pool:     pool,
 		opts:     opts,
+		dynGlobals: []globalInfo{},
+		nextGlobalID: len(env.globals),
 	}
 	built := []bool{false}
 	defs := []string{""}
@@ -1507,11 +1691,15 @@ func emitFunctionsUpstreamFlow(b *strings.Builder, r *rng, opts Options, pool []
 		}
 	}
 
+	if state.lateGlobals.Len() > 0 {
+		b.WriteString(state.lateGlobals.String())
+		writeLine(b, 0, "")
+	}
 	emitFuncDecls(b, state.funcs)
 	for i := 0; i < len(defs); i++ {
 		b.WriteString(defs[i])
 	}
-	return state.funcs
+	return state.funcs, state.dynGlobals
 }
 
 func emitMain(b *strings.Builder, opts Options, env envInfo, info compositeInfo, entry string) {
@@ -1622,7 +1810,10 @@ func Generate(opts Options) (string, error) {
 	env := emitGlobals(&b, r, opts, info, pool)
 
 	// Phase 4 (upstream-like GenerateFunctions): first function + FuncList walk.
-	funcs := emitFunctionsUpstreamFlow(&b, r, opts, pool, opts.MaxBlockSize, env, info)
+	funcs, dynGlobals := emitFunctionsUpstreamFlow(&b, r, opts, pool, opts.MaxBlockSize, env, info)
+	if len(dynGlobals) > 0 {
+		env.globals = append(env.globals, dynGlobals...)
+	}
 
 	// Phase 5 (upstream Output): main / checksums.
 	if !opts.NoMain {
