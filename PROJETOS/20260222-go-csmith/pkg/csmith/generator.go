@@ -53,6 +53,14 @@ type funcInfo struct {
 	params []paramInfo
 }
 
+type functionFlowState struct {
+	funcs    []funcInfo
+	maxFuncs int
+	nextIdx  int
+	pool     []CType
+	opts     Options
+}
+
 type localInfo struct {
 	name  string
 	ctype CType
@@ -840,12 +848,58 @@ func emitLocalMutation(b *strings.Builder, r *rng, opts Options, env envInfo, sc
 	}
 }
 
-func emitFunctionCallMutation(b *strings.Builder, r *rng, opts Options, env envInfo, scope scopeInfo, funcs []funcInfo, from int, ctx *genContext) bool {
-	if from+1 >= len(funcs) {
+func (s *functionFlowState) appendNewFunction(r *rng) (funcInfo, bool) {
+	if len(s.funcs) >= s.maxFuncs {
+		return funcInfo{}, false
+	}
+	fn := makeFuncSignature(r, s.opts, s.pool, s.nextIdx)
+	s.nextIdx++
+	s.funcs = append(s.funcs, fn)
+	return fn, true
+}
+
+func emitFunctionCallMutation(
+	b *strings.Builder,
+	r *rng,
+	opts Options,
+	env envInfo,
+	scope scopeInfo,
+	state *functionFlowState,
+	from int,
+	ctx *genContext,
+) bool {
+	if state == nil {
 		return false
 	}
-	calleeIdx := from + 1 + int(r.upto(uint32(len(funcs)-from-1)))
-	callee := funcs[calleeIdx]
+
+	candidates := make([]int, 0, len(state.funcs))
+	for i := 0; i < len(state.funcs); i++ {
+		// Keep acyclic call graph in generated order to avoid runaway recursion.
+		if i <= from {
+			continue
+		}
+		candidates = append(candidates, i)
+	}
+
+	// Upstream-like function invocation strategy:
+	// 1) with a coin flip, try existing function first;
+	// 2) if none available (or the coin says no), create one if limit allows.
+	useExisting := len(candidates) > 0 && r.upto(2) == 0
+	var callee funcInfo
+	if useExisting {
+		calleeIdx := candidates[int(r.upto(uint32(len(candidates))))]
+		callee = state.funcs[calleeIdx]
+	} else {
+		created, ok := state.appendNewFunction(r)
+		if ok {
+			callee = created
+		} else if len(candidates) > 0 {
+			calleeIdx := candidates[int(r.upto(uint32(len(candidates))))]
+			callee = state.funcs[calleeIdx]
+		} else {
+			return false
+		}
+	}
 	args := "void"
 	if len(callee.params) > 0 {
 		argExprs := make([]string, 0, len(callee.params))
@@ -868,7 +922,7 @@ func emitStatement(
 	opts Options,
 	env envInfo,
 	scope scopeInfo,
-	funcs []funcInfo,
+	state *functionFlowState,
 	info compositeInfo,
 	from int,
 	maxChoice uint32,
@@ -932,8 +986,8 @@ func emitStatement(
 			c := exprVarCandidate{expr: fmt.Sprintf("gu_%d.%s", ui, f.name), ctype: f.ctype, assignable: true}
 			ctx.mustUse = &c
 		}
-	case len(funcs) > 1:
-		if !emitFunctionCallMutation(b, r, opts, env, scope, funcs, from, ctx) {
+	case state != nil && len(state.funcs) > 1:
+		if !emitFunctionCallMutation(b, r, opts, env, scope, state, from, ctx) {
 			emitArithmeticMutation(b, r, opts)
 		}
 	case opts.Arrays && len(env.arrays) > 0:
@@ -949,7 +1003,7 @@ func emitStatements(
 	opts Options,
 	env envInfo,
 	scope scopeInfo,
-	funcs []funcInfo,
+	state *functionFlowState,
 	info compositeInfo,
 	from int,
 	maxChoice uint32,
@@ -976,13 +1030,13 @@ func emitStatements(
 				cond = fmt.Sprintf("((uint32_t)%s != 0u)", randomTypedExpr(CType{Name: "uint32_t", Signed: false, Bits: 32}, r, opts, env, scope, ctx))
 			}
 			writeLine(b, 1, fmt.Sprintf("if %s {", cond))
-			emitStatements(b, r, opts, env, scope, funcs, info, from, maxChoice, depth+1, stmtBudget, ctx)
+			emitStatements(b, r, opts, env, scope, state, info, from, maxChoice, depth+1, stmtBudget, ctx)
 			writeLine(b, 1, "} else {")
-			emitStatement(b, r, opts, env, scope, funcs, info, from, maxChoice, stmtBudget, ctx, dec)
+			emitStatement(b, r, opts, env, scope, state, info, from, maxChoice, stmtBudget, ctx, dec)
 			writeLine(b, 1, "}")
 			continue
 		}
-		emitStatement(b, r, opts, env, scope, funcs, info, from, maxChoice, stmtBudget, ctx, dec)
+		emitStatement(b, r, opts, env, scope, state, info, from, maxChoice, stmtBudget, ctx, dec)
 	}
 }
 
@@ -1011,7 +1065,7 @@ func emitSingleFuncDef(
 	r *rng,
 	opts Options,
 	fn funcInfo,
-	funcs []funcInfo,
+	state *functionFlowState,
 	idx int,
 	maxBlock int,
 	env envInfo,
@@ -1019,7 +1073,7 @@ func emitSingleFuncDef(
 	stmtBudget *int,
 ) string {
 	fdec := nextFuncDecision(r)
-	maxChoice := statementChoiceCount(opts, env, info, funcs)
+	maxChoice := statementChoiceCount(opts, env, info, state.funcs)
 	var b strings.Builder
 
 	params := "void"
@@ -1061,10 +1115,8 @@ func emitSingleFuncDef(
 	for _, p := range fn.params {
 		writeLine(&b, 1, fmt.Sprintf("x ^= (uint32_t)%s;", p.name))
 	}
-	emitStatements(&b, r, opts, env, scope, funcs, info, idx, maxChoice, 0, stmtBudget, ctx)
-	if idx+1 < len(funcs) && fdec.pick(1, 100) < 90 {
-		_ = emitFunctionCallMutation(&b, r, opts, env, scope, funcs, idx, ctx)
-	}
+	emitStatements(&b, r, opts, env, scope, state, info, idx, maxChoice, 0, stmtBudget, ctx)
+	_ = emitFunctionCallMutation(&b, r, opts, env, scope, state, idx, ctx)
 	if len(env.globals) > 0 {
 		start := 0
 		if opts.Consts && len(env.globals) > 1 {
@@ -1113,44 +1165,37 @@ func makeFuncSignature(r *rng, opts Options, pool []CType, idx int) funcInfo {
 
 func emitFunctionsUpstreamFlow(b *strings.Builder, r *rng, opts Options, pool []CType, maxBlock int, env envInfo, info compositeInfo) []funcInfo {
 	maxFuncs := min(max(opts.MaxFuncs, 1), 8)
-	funcs := []funcInfo{makeFuncSignature(r, opts, pool, 1)}
+	state := &functionFlowState{
+		funcs:    []funcInfo{makeFuncSignature(r, opts, pool, 1)},
+		maxFuncs: maxFuncs,
+		nextIdx:  2,
+		pool:     pool,
+		opts:     opts,
+	}
 	built := []bool{false}
 	defs := []string{""}
-	nextIdx := 2
 	stmtBudget := opts.StopByStmt
 	if stmtBudget < 0 {
 		stmtBudget = -1
 	}
 
-	for cur := 0; cur < len(funcs); cur++ {
+	for cur := 0; cur < len(state.funcs); cur++ {
 		if built[cur] {
 			continue
 		}
-		// Upstream-like behavior: function discovery can expand FuncList as bodies are generated.
-		if len(funcs) < maxFuncs && r.upto(100) < 45 {
-			add := 1 + int(r.upto(2))
-			for i := 0; i < add && len(funcs) < maxFuncs; i++ {
-				funcs = append(funcs, makeFuncSignature(r, opts, pool, nextIdx))
-				built = append(built, false)
-				defs = append(defs, "")
-				nextIdx++
-			}
-		}
-		defs[cur] = emitSingleFuncDef(r, opts, funcs[cur], funcs, cur, maxBlock, env, info, &stmtBudget)
+		defs[cur] = emitSingleFuncDef(r, opts, state.funcs[cur], state, cur, maxBlock, env, info, &stmtBudget)
 		built[cur] = true
-		if len(funcs) < maxFuncs && r.upto(100) < 30 {
-			funcs = append(funcs, makeFuncSignature(r, opts, pool, nextIdx))
+		for len(built) < len(state.funcs) {
 			built = append(built, false)
 			defs = append(defs, "")
-			nextIdx++
 		}
 	}
 
-	emitFuncDecls(b, funcs)
+	emitFuncDecls(b, state.funcs)
 	for i := 0; i < len(defs); i++ {
 		b.WriteString(defs[i])
 	}
-	return funcs
+	return state.funcs
 }
 
 func emitMain(b *strings.Builder, opts Options, env envInfo, info compositeInfo, entry string) {
