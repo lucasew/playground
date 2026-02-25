@@ -1,0 +1,58 @@
+ffmpeg = ffmpeg
+yt-dlp = yt-dlp
+mediakit_project = python -m mediakit_project
+
+target-width = 1366
+target-height = 768
+
+yt-dlp-extra-args = --ffmpeg-location $ffmpeg
+
+ffmpeg_video_extension = mp4
+ffmpeg_audio_extension = mp4
+ffmpeg_vcodec = h264_nvenc
+# ffmpeg_vcodec = h264
+ffmpeg_acodec = aac
+
+# from https://github.com/lucasew/randomtube/blob/master/cmd/randomtube/video.go
+ffmpeg_resize_filter = '[0:v]scale=$target-width*2:-1,crop=$target-width:$target-height,boxblur=luma_radius=min(h\,w)/20:luma_power=1:chroma_radius=min(cw\,ch)/20:chroma_power=1[bg]; [0:v]scale=w=$target-width:h=$target-height:force_original_aspect_ratio=decrease[ov]; [bg][ov]overlay=(W-w)/2,crop=$target-width:$target-height[composed]'
+
+pool download
+    depth = 4
+
+pool ffmpeg
+    depth = 2
+
+pool mediakit
+    depth = 1
+
+rule yt-dlp-audio
+    pool = download
+    # pool = console
+    command = $yt-dlp -a $in -o "$out.%(ext)s" -x $yt-dlp-extra-args
+
+rule yt-dlp-video
+    pool = download
+    # pool = console
+    command = $yt-dlp -a $in -o "$out.%(ext)s" $yt-dlp-extra-args
+
+rule normalize-audio
+    # pool = console
+    pool = ffmpeg
+    command = $ffmpeg -i $in* -acodec $ffmpeg_acodec $out -y -profile high
+
+rule normalize-video
+    # pool = convertvideo
+    pool = ffmpeg
+    command = $ffmpeg -i $in* -acodec $ffmpeg_acodec -vcodec $ffmpeg_vcodec -filter_complex $ffmpeg_resize_filter -map 0:a -map [composed] $out -y -profile high
+
+rule mediakit-extract-links
+    pool = mediakit
+    command = $mediakit_project _ytdlp-extract-links-audio
+
+
+# build feeds/5e0ee2789a7f66857cc6bcfd485a83156061f590afa97fc7c64d9b5250715874/1691593237/yt-dlp/__cache/bestvideo : yt-dlp-video feeds/5e0ee2789a7f66857cc6bcfd485a83156061f590afa97fc7c64d9b5250715874/1691593237/__video_url
+#   format = bestvideo
+
+# build feeds/5e0ee2789a7f66857cc6bcfd485a83156061f590afa97fc7c64d9b5250715874/1691593237/yt-dlp/bestvideo.$ffmpeg_video_extension : normalize-video feeds/5e0ee2789a7f66857cc6bcfd485a83156061f590afa97fc7c64d9b5250715874/1691593237/yt-dlp/__cache/bestvideo
+
+

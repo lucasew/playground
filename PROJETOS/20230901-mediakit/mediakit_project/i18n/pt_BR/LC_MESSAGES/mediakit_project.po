@@ -1,0 +1,194 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2023-09-01 11:19-0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: mediakit_project/cli/__init__.py:36
+msgid "Give more details about what is happening"
+msgstr "Dá mais detalhes sobre o que está acontecendo"
+
+#: mediakit_project/cli/__init__.py:43
+msgid "Print version and exit"
+msgstr "Mostra versão e sai"
+
+#: mediakit_project/i18n/__init__.py:16
+#, python-brace-format
+msgid "Loading locale data from \"{locale_dir}\""
+msgstr "Carregando dados de internacionalização de \"{locale_dir}\""
+
+#: mediakit_project/utils.py:8
+#, python-brace-format
+msgid "Loading module '{module_path}'..."
+msgstr "Carregando módulo '{module_path'}..."
+
+#: mediakit_project/utils.py:12
+#, python-brace-format
+msgid "Can't import module at '{module_path}'"
+msgstr "Não é possível importar módulo em '{module_path}'"
+
+#: /nix/store/pkj7cgmz66assy7l18zc7j992npb41nx-python3-3.10.12/lib/python3.10/argparse.py:296
+msgid "usage: "
+msgstr "uso: "
+
+#: /nix/store/pkj7cgmz66assy7l18zc7j992npb41nx-python3-3.10.12/lib/python3.10/argparse.py:868
+msgid ".__call__() not defined"
+msgstr ".__call__() não está definido"
+
+#: /nix/store/pkj7cgmz66assy7l18zc7j992npb41nx-python3-3.10.12/lib/python3.10/argparse.py:1211
+#, python-format
+msgid "unknown parser %(parser_name)r (choices: %(choices)s)"
+msgstr ""
+
+#: /nix/store/pkj7cgmz66assy7l18zc7j992npb41nx-python3-3.10.12/lib/python3.10/argparse.py:1271
+#, python-format
+msgid "argument \"-\" with mode %r"
+msgstr ""
+
+#: /nix/store/pkj7cgmz66assy7l18zc7j992npb41nx-python3-3.10.12/lib/python3.10/argparse.py:1280
+#, python-format
+msgid "can't open '%(filename)s': %(error)s"
+msgstr ""
+
+#: /nix/store/pkj7cgmz66assy7l18zc7j992npb41nx-python3-3.10.12/lib/python3.10/argparse.py:1489
+#, python-format
+msgid "cannot merge actions - two groups are named %r"
+msgstr ""
+
+#: /nix/store/pkj7cgmz66assy7l18zc7j992npb41nx-python3-3.10.12/lib/python3.10/argparse.py:1527
+msgid "'required' is an invalid argument for positionals"
+msgstr ""
+
+#: /nix/store/pkj7cgmz66assy7l18zc7j992npb41nx-python3-3.10.12/lib/python3.10/argparse.py:1549
+#, python-format
+msgid ""
+"invalid option string %(option)r: must start with a character "
+"%(prefix_chars)r"
+msgstr ""
+
+#: /nix/store/pkj7cgmz66assy7l18zc7j992npb41nx-python3-3.10.12/lib/python3.10/argparse.py:1567
+#, python-format
+msgid "dest= is required for options like %r"
+msgstr ""
+
+#: /nix/store/pkj7cgmz66assy7l18zc7j992npb41nx-python3-3.10.12/lib/python3.10/argparse.py:1584
+#, python-format
+msgid "invalid conflict_resolution value: %r"
+msgstr ""
+
+#: /nix/store/pkj7cgmz66assy7l18zc7j992npb41nx-python3-3.10.12/lib/python3.10/argparse.py:1602
+#, python-format
+msgid "conflicting option string: %s"
+msgid_plural "conflicting option strings: %s"
+msgstr[0] ""
+msgstr[1] ""
+
+#: /nix/store/pkj7cgmz66assy7l18zc7j992npb41nx-python3-3.10.12/lib/python3.10/argparse.py:1668
+msgid "mutually exclusive arguments must be optional"
+msgstr ""
+
+#: /nix/store/pkj7cgmz66assy7l18zc7j992npb41nx-python3-3.10.12/lib/python3.10/argparse.py:1736
+msgid "positional arguments"
+msgstr "argumentos posicionais"
+
+#: /nix/store/pkj7cgmz66assy7l18zc7j992npb41nx-python3-3.10.12/lib/python3.10/argparse.py:1737
+msgid "options"
+msgstr "opções"
+
+#: /nix/store/pkj7cgmz66assy7l18zc7j992npb41nx-python3-3.10.12/lib/python3.10/argparse.py:1752
+msgid "show this help message and exit"
+msgstr "Mostra essa mensagem de ajuda e sai"
+
+#: /nix/store/pkj7cgmz66assy7l18zc7j992npb41nx-python3-3.10.12/lib/python3.10/argparse.py:1783
+msgid "cannot have multiple subparser arguments"
+msgstr ""
+
+#: /nix/store/pkj7cgmz66assy7l18zc7j992npb41nx-python3-3.10.12/lib/python3.10/argparse.py:1835
+#: /nix/store/pkj7cgmz66assy7l18zc7j992npb41nx-python3-3.10.12/lib/python3.10/argparse.py:2350
+#, python-format
+msgid "unrecognized arguments: %s"
+msgstr "argumentos não reconhecidos: %s"
+
+#: /nix/store/pkj7cgmz66assy7l18zc7j992npb41nx-python3-3.10.12/lib/python3.10/argparse.py:1936
+#, python-format
+msgid "not allowed with argument %s"
+msgstr "não permitido com argumento %s"
+
+#: /nix/store/pkj7cgmz66assy7l18zc7j992npb41nx-python3-3.10.12/lib/python3.10/argparse.py:1986
+#: /nix/store/pkj7cgmz66assy7l18zc7j992npb41nx-python3-3.10.12/lib/python3.10/argparse.py:2000
+#, python-format
+msgid "ignored explicit argument %r"
+msgstr "argumento explícitio ignorado %r"
+
+#: /nix/store/pkj7cgmz66assy7l18zc7j992npb41nx-python3-3.10.12/lib/python3.10/argparse.py:2107
+#, python-format
+msgid "the following arguments are required: %s"
+msgstr "os seguintes argumentos são obrigatórios: %s"
+
+#: /nix/store/pkj7cgmz66assy7l18zc7j992npb41nx-python3-3.10.12/lib/python3.10/argparse.py:2122
+#, python-format
+msgid "one of the arguments %s is required"
+msgstr "um dos argumentos %s são obrigatórios"
+
+#: /nix/store/pkj7cgmz66assy7l18zc7j992npb41nx-python3-3.10.12/lib/python3.10/argparse.py:2165
+msgid "expected one argument"
+msgstr "esperado um argumento"
+
+#: /nix/store/pkj7cgmz66assy7l18zc7j992npb41nx-python3-3.10.12/lib/python3.10/argparse.py:2166
+msgid "expected at most one argument"
+msgstr "esperado no máximo um argumento"
+
+#: /nix/store/pkj7cgmz66assy7l18zc7j992npb41nx-python3-3.10.12/lib/python3.10/argparse.py:2167
+msgid "expected at least one argument"
+msgstr "esperado no mínimo um argumento"
+
+#: /nix/store/pkj7cgmz66assy7l18zc7j992npb41nx-python3-3.10.12/lib/python3.10/argparse.py:2171
+#, python-format
+msgid "expected %s argument"
+msgid_plural "expected %s arguments"
+msgstr[0] "esperado %s argumento"
+msgstr[1] "esperados %s argumentos"
+
+#: /nix/store/pkj7cgmz66assy7l18zc7j992npb41nx-python3-3.10.12/lib/python3.10/argparse.py:2229
+#, python-format
+msgid "ambiguous option: %(option)s could match %(matches)s"
+msgstr ""
+
+#: /nix/store/pkj7cgmz66assy7l18zc7j992npb41nx-python3-3.10.12/lib/python3.10/argparse.py:2293
+#, python-format
+msgid "unexpected option string: %s"
+msgstr ""
+
+#: /nix/store/pkj7cgmz66assy7l18zc7j992npb41nx-python3-3.10.12/lib/python3.10/argparse.py:2490
+#, python-format
+msgid "%r is not callable"
+msgstr ""
+
+#: /nix/store/pkj7cgmz66assy7l18zc7j992npb41nx-python3-3.10.12/lib/python3.10/argparse.py:2507
+#, python-format
+msgid "invalid %(type)s value: %(value)r"
+msgstr ""
+
+#: /nix/store/pkj7cgmz66assy7l18zc7j992npb41nx-python3-3.10.12/lib/python3.10/argparse.py:2518
+#, python-format
+msgid "invalid choice: %(value)r (choose from %(choices)s)"
+msgstr ""
+
+#: /nix/store/pkj7cgmz66assy7l18zc7j992npb41nx-python3-3.10.12/lib/python3.10/argparse.py:2594
+#, python-format
+msgid "%(prog)s: error: %(message)s\n"
+msgstr ""
