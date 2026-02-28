@@ -1,0 +1,42 @@
+[tools]
+go = "1.22.5"
+node = "20.15.0"
+task = "3.38.0"
+"github:lucasew/workspaced" = "0.1.3"
+
+[tasks]
+lint = "workspaced codebase lint"
+fmt = "workspaced codebase format"
+
+[tasks.test]
+depends = ["test:*"]
+
+[tasks.codegen]
+depends = ["codegen:*"]
+
+[tasks.install]
+depends = ["install:*"]
+
+[tasks.ci]
+depends = ["lint", "test"]
+
+[tasks."install:go"]
+run = "find . -name go.mod -execdir go mod tidy \\;"
+
+[tasks."install:npm"]
+run = "find . -name package.json -not -path '*/node_modules/*' -execdir npm install \\;"
+
+[tasks."install:rust"]
+run = "find . -name Cargo.toml -execdir cargo build \\;"
+
+[tasks."test:go"]
+run = "find . -name go.mod -execdir go test ./... \\;"
+
+[tasks."test:npm"]
+run = "find . -name package.json -not -path '*/node_modules/*' -execdir npm test --if-present \\;"
+
+[tasks."test:rust"]
+run = "find . -name Cargo.toml -execdir cargo test \\;"
+
+[tasks."codegen:make"]
+run = "find . -name Makefile -execdir make \\;"
