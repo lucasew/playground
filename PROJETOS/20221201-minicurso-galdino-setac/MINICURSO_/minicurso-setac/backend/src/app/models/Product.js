@@ -1,5 +1,11 @@
 const mongoose = require("mongoose");
 
+/**
+ * Mongoose schema representing a product available for order in the system.
+ * It tracks core product details like name, description, price, and categorizes them into snacks or drinks.
+ *
+ * @type {mongoose.Schema}
+ */
 const ProductSchema = new mongoose.Schema({
   name: {
     type: String,
