@@ -7,6 +7,7 @@ package biglucas.chat.server;
 import biglucas.chat.rmi.IChatCallback;
 import biglucas.chat.rmi.exceptions.WhatsUTForbiddenActionException;
 import biglucas.chat.utils.OnMessage;
+import biglucas.utils.ErrorReporter;
 import java.util.ArrayList;
 import java.util.Arrays;
 
@@ -39,7 +40,7 @@ public class Chat {
         try {
         if (this.onMessage != null) this.onMessage.handleMessage(msg);
         System.out.printf("<%s> %s\n", from, message);
-        } catch (Exception e) {}
+        } catch (Exception e) { ErrorReporter.reportError(e); }
         
         
     }

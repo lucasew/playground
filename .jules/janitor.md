@@ -1,0 +1,1 @@
+- 2026-03-25: Never use empty catch blocks, report the error or print stack trace at least.
