@@ -25,6 +25,7 @@ package workspaced
 
 #Module: {
 	files: [string]: #Artifact
+	args: _
 }
 
 {
