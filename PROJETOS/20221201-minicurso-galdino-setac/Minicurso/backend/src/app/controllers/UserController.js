@@ -1,6 +1,21 @@
 const { User } = require("../models/User");
 
+/**
+ * Controller responsible for managing user accounts.
+ * Handles the registration flow, including automatic permission assignment
+ * for the very first user created in the system.
+ */
 class UserController {
+  /**
+   * Registers a new user.
+   * Checks for email uniqueness to avoid duplicate accounts.
+   * If the database has no registered users yet, the new user will be granted
+   * "ADMIN" privileges automatically. Otherwise, defaults to "ATTENDANT".
+   *
+   * @param {import("express").Request} req - The Express request object containing `email`, `name`, and `password` in the body.
+   * @param {import("express").Response} res - The Express response object.
+   * @returns {Promise<import("express").Response>} Returns the created user object along with a newly generated JWT token, or a 400 error if the email is already in use.
+   */
   async store(req, res) {
     // 1. Obtem o e-mail do corpo da requisição POST
     const { email } = req.body;
