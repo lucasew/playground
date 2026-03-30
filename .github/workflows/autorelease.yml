@@ -1,0 +1,62 @@
+name: Auto Release
+on:
+  push:
+    branches:
+      - master
+      - main
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup mise
+        uses: jdx/mise-action@v2
+
+      - name: Install dependencies
+        run: mise run install
+
+      - name: Run code generation
+        run: mise run codegen
+
+      - name: Create PR if codegen changed files
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            git config --global user.name "github-actions[bot]"
+            git config --global user.email "github-actions[bot]@users.noreply.github.com"
+            git checkout -b auto-codegen-${GITHUB_SHA}
+            git add .
+            git commit -m "chore: auto update generated code"
+            git push origin auto-codegen-${GITHUB_SHA}
+            gh pr create --title "chore: auto update generated code" --body "Automated PR from codegen step." --head auto-codegen-${GITHUB_SHA}
+          else
+            echo "No changes detected."
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run CI (Lint & Test)
+        run: mise run ci
+
+      - name: Create Release
+        if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
+        run: |
+          VERSION="v0.1.0-${GITHUB_SHA::7}"
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/}"
+          fi
+          gh release create "$VERSION" --title "Release $VERSION" --notes "Automated release"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Artifacts
+        if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
+        run: |
+          # If there are release artifacts to upload, do so here using gh release upload
+          echo "Placeholder for artifact upload"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
