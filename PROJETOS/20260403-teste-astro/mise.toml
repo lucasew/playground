@@ -1,0 +1,5 @@
+[env]
+_.path = "node_modules/.bin"
+
+[tools]
+node = "25.8.2"
