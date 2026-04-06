@@ -22,7 +22,7 @@ class RemoteBrowser {
                 this.showLogin();
             }
         } catch (error) {
-            console.error('Session check failed:', error);
+            window.captureAppError('Session check failed:', error);
             this.showLogin();
         }
     }
@@ -60,7 +60,7 @@ class RemoteBrowser {
                 errorDisplay.textContent = `Login failed: ${errorText}`;
             }
         } catch (error) {
-            console.error('Login error:', error);
+            window.captureAppError('Login error:', error);
             errorDisplay.textContent = 'An error occurred during login.';
         }
     }
@@ -101,7 +101,7 @@ class RemoteBrowser {
         });
 
         this.tabsStream.onerror = (e) => {
-            console.error('Tabs stream error:', e);
+            window.captureAppError('Tabs stream error:', e);
             this.setStatus('Connection error - retrying...');
             // EventSource will auto-reconnect
         };
@@ -137,7 +137,7 @@ class RemoteBrowser {
         });
 
         this.htmlStream.onerror = (e) => {
-            console.error('HTML stream error:', e);
+            window.captureAppError('HTML stream error:', e);
         };
 
         this.setStatus('Connected');
@@ -256,7 +256,7 @@ class RemoteBrowser {
             const result = await this.sendAction({ action: 'newTab', url });
             this.setStatus('New tab created');
         } catch (err) {
-            console.error('Failed to create tab:', err);
+            window.captureAppError('Failed to create tab:', err);
             this.setStatus('Failed to create tab');
         }
     }
@@ -265,7 +265,7 @@ class RemoteBrowser {
         try {
             await this.sendAction({ action: 'closeTab', tabId: tabID });
         } catch (err) {
-            console.error('Failed to close tab:', err);
+            window.captureAppError('Failed to close tab:', err);
         }
     }
 
@@ -288,7 +288,7 @@ class RemoteBrowser {
             await this.sendTabAction({ action: 'navigate', url });
             this.setStatus('Navigating...');
         } catch (err) {
-            console.error('Navigation failed:', err);
+            window.captureAppError('Navigation failed:', err);
             this.setStatus('Navigation failed');
         }
     }

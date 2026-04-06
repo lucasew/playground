@@ -1,0 +1,1 @@
+- 2025-04-06: Replace raw console.error calls with a centralized error reporting function to unify error handling.
