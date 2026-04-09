@@ -1,0 +1,1 @@
+- 2026-04-09: Medium severity swallowed exceptions should be caught and routed through a centralized error-reporting function, never ignored or just logged with e.printStackTrace().
