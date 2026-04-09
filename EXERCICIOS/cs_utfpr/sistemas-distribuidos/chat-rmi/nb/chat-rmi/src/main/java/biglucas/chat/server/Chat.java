@@ -39,7 +39,9 @@ public class Chat {
         try {
         if (this.onMessage != null) this.onMessage.handleMessage(msg);
         System.out.printf("<%s> %s\n", from, message);
-        } catch (Exception e) {}
+        } catch (Exception e) {
+            biglucas.chat.utils.ErrorReporter.reportError(e);
+        }
         
         
     }

@@ -16,7 +16,9 @@ public class InternalClassLoader extends URLClassLoader {
     super(name, new URL[0], parent);
     try {
       System.out.println(getScriptPath());
-    } catch (Exception e) {}
+    } catch (Exception e) {
+      ErrorReporter.reportError(e);
+    }
   }
 
   private boolean isJarsLoaded = false;
@@ -26,7 +28,9 @@ public class InternalClassLoader extends URLClassLoader {
     if (!isJarsLoaded) {
       try {
         add(new URL("https://repo1.maven.org/maven2/log4j/log4j/1.2.17/log4j-1.2.17.jar"));
-      } catch (Exception e) {e.printStackTrace();}
+      } catch (Exception e) {
+        ErrorReporter.reportError(e);
+      }
       isJarsLoaded = true;
     }
     return super.loadClass(name);
@@ -37,7 +41,7 @@ public class InternalClassLoader extends URLClassLoader {
   	try {
       return new File(InternalClassLoader.class.getProtectionDomain().getCodeSource().getLocation().getPath()).getCanonicalPath();
   	} catch (IOException e) {
-  		e.printStackTrace();
+		ErrorReporter.reportError(e);
   		throw new RuntimeException("Can't find source file");
   	}
 	}
@@ -103,8 +107,12 @@ public class InternalClassLoader extends URLClassLoader {
       addURL(url);
       
     }
-    catch (URISyntaxException e) {e.printStackTrace();}
-    catch (IOException e) {e.printStackTrace();}
+    catch (URISyntaxException e) {
+        ErrorReporter.reportError(e);
+    }
+    catch (IOException e) {
+        ErrorReporter.reportError(e);
+    }
     for (URL u : this.getURLs()) {
       System.out.println(u);
     }
