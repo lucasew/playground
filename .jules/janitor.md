@@ -1,0 +1,1 @@
+- 2026-06-14: Use window.captureAppError instead of window.reportError for centralized error reporting in vanilla JS to avoid collision with native Web API.

@@ -1,6 +1,13 @@
 // Took inspiration from https://dev.to/devalnor/running-jsx-in-your-browser-without-babel-1agc
 
 (function () {
+    window.captureAppError = window.captureAppError || function(err, context) {
+        console.warn("[App Error]", err, context || '');
+        if (typeof Sentry !== 'undefined') {
+            Sentry.captureException(err, { extra: context });
+        }
+    };
+
     const elements = document.getElementsByTagName("JSXComponent")
     if (elements.length == 0) {
         console.warn("No JSXComponent found")
@@ -8,15 +15,15 @@
     }
     console.log(elements)
     if (!window.React) {
-        console.error("React is not defined. Suggested import: https://unpkg.com/react@16/umd/react.production.min.js")
+        window.captureAppError(new Error("React is not defined. Suggested import: https://unpkg.com/react@16/umd/react.production.min.js"))
         return
     }
     if (!window.render) {
-        console.error("htm is not defined. Suggested import: https://unpkg.com/htm@2.2.1")
+        window.captureAppError(new Error("htm is not defined. Suggested import: https://unpkg.com/htm@2.2.1"))
         return
     }
     if (!window.ReactDOM) {
-        console.error("ReactDOM is not defined. Suggested import: https://unpkg.com/react-dom@16/umd/react-dom.production.min.js")
+        window.captureAppError(new Error("ReactDOM is not defined. Suggested import: https://unpkg.com/react-dom@16/umd/react-dom.production.min.js"))
     }
     const { render } = ReactDOM
     const { createElement, useState, useEffect } = React
