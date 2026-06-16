@@ -1,6 +1,6 @@
 // -*- mode: C++ -*-
 //
-// Copyright (c) 2007, 2008, 2009, 2010, 2011 The University of Utah
+// Copyright (c) 2017 The University of Utah
 // All rights reserved.
 //
 // This file is part of `csmith', a random generator of C programs.
@@ -27,9 +27,19 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-#ifndef FINALIZATION_H
-#define FINALIZATION_H
+#include <config.h>
 
-void Finalization_doFinalization(void);
+#include "git_version.h"
 
-#endif // FINALIZATION_H
+///////////////////////////////////////////////////////////////////////////////
+
+const char git_version[] = "30dccd7";
+
+///////////////////////////////////////////////////////////////////////////////
+
+// Local Variables:
+// c-basic-offset: 4
+// tab-width: 4
+// End:
+
+// End of file.

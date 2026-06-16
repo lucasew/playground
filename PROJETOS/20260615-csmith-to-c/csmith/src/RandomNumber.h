@@ -33,69 +33,29 @@
 ///////////////////////////////////////////////////////////////////////////////
 
 #include "AbsRndNumGenerator.h"
-#include <map>
-#include <string>
 
-class Filter;
+#include <stdbool.h>
+
+struct Filter;
 
 /*
  * Common interface of all random number generators.
- * Works like a bridge to those generators.
+ * Works like a bridge to those generators. (C port)
  */
-class RandomNumber {
-public:
-  // Make it singleton for now.
-  static void CreateInstance(RNDNUM_GENERATOR rImpl, const unsigned long seed);
+typedef struct RandomNumber {
+  struct AbsRndNumGenerator *curr_generator_;
+} RandomNumber;
 
-  static RandomNumber *GetInstance();
+void RandomNumber_CreateInstance(RNDNUM_GENERATOR rImpl, unsigned long seed);
+RandomNumber *RandomNumber_GetInstance(void);
+struct AbsRndNumGenerator *RandomNumber_GetRndNumGenerator(void);
+RNDNUM_GENERATOR RandomNumber_SwitchRndNumGenerator(RNDNUM_GENERATOR rImpl);
+void RandomNumber_doFinalization(void);
 
-  static AbsRndNumGenerator *GetRndNumGenerator(void);
+unsigned int RandomNumber_rnd_upto(RandomNumber *r, unsigned int n, const struct Filter *f, const char *where);
+bool RandomNumber_rnd_flipcoin(RandomNumber *r, unsigned int p, const struct Filter *f, const char *where);
 
-  // Return the previous impl
-  static RNDNUM_GENERATOR SwitchRndNumGenerator(RNDNUM_GENERATOR rImpl);
-
-  static void doFinalization();
-
-  std::string get_prefixed_name(const std::string &name);
-
-  std::string &trace_depth();
-
-  void get_sequence(std::string &sequence);
-
-  // Probably it's not a good idea to define those functions with default
-  // arguments. It would have potential problem to be misused. I defined them in
-  // this way only for compatible to the previous code. Use it carefully.
-  virtual unsigned int rnd_upto(const unsigned int n, const Filter *f = nullptr,
-                                const std::string *where = nullptr);
-
-  virtual bool rnd_flipcoin(const unsigned int p, const Filter *f = nullptr,
-                            const std::string *where = nullptr);
-
-  virtual ~RandomNumber(void);
-
-  virtual std::string RandomHexDigits(int num);
-
-  virtual std::string RandomDigits(int num);
-
-protected:
-  void make_all_rndnum_generators(const unsigned long seed);
-
-  AbsRndNumGenerator *curr_generator_;
-
-  static RandomNumber *instance_;
-
-  std::map<RNDNUM_GENERATOR, AbsRndNumGenerator *> generators_;
-
-private:
-  const unsigned long seed_;
-
-  explicit RandomNumber(const unsigned long seed);
-
-  explicit RandomNumber(AbsRndNumGenerator *rndnum_generator);
-
-  // Don't implement them
-  RandomNumber(const RandomNumber &) = delete;
-  RandomNumber &operator=(const RandomNumber &) = delete;
-};
+char *RandomNumber_RandomHexDigits(RandomNumber *r, int num);
+char *RandomNumber_RandomDigits(RandomNumber *r, int num);
 
 #endif // RANDOM_NUMBER_H

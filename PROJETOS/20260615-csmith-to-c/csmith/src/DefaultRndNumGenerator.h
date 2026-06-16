@@ -1,4 +1,4 @@
-// -*- mode: C++ -*-
+// -*- mode: C -*-
 //
 // Copyright (c) 2007, 2008, 2009, 2010, 2011 The University of Utah
 // All rights reserved.
@@ -32,60 +32,21 @@
 
 #include "AbsRndNumGenerator.h"
 #include "Common.h"
-#include <string>
-#include <vector>
 
-class Sequence;
-class Filter;
+struct Sequence;
+struct Filter;
 
-// Singleton class for the implementation of default based random generator
-class DefaultRndNumGenerator : public AbsRndNumGenerator {
-public:
-  static DefaultRndNumGenerator *
-  make_rndnum_generator(const unsigned long seed);
-
-  virtual std::string get_prefixed_name(const std::string &name) override;
-
-  virtual std::string &trace_depth() override;
-
-  virtual void get_sequence(std::string &sequence) override;
-
-  virtual unsigned int rnd_upto(const unsigned int n, const Filter *f = nullptr,
-                                const std::string *where = nullptr) override;
-
-  virtual bool rnd_flipcoin(const unsigned int p, const Filter *f = nullptr,
-                            const std::string *where = nullptr) override;
-
-  virtual std::string RandomHexDigits(int num) override;
-
-  virtual std::string RandomDigits(int num) override;
-
-  virtual RNDNUM_GENERATOR kind() override { return RNDNUM_GENERATOR::rDefaultRndNumGenerator; }
-
-  void set_rand_depth(unsigned INT64 depth) { rand_depth_ = depth; }
-
-  virtual ~DefaultRndNumGenerator() override;
-
-private:
-  DefaultRndNumGenerator(const unsigned long seed, Sequence *concrete_seq);
-
-  void add_number(int v, int bound, int k);
-
-  static DefaultRndNumGenerator *impl_;
-
+// C port: struct holding the state for default rnd generator.
+typedef struct DefaultRndNumGeneratorData {
   unsigned INT64 rand_depth_;
+  char *trace_string_;   // owned dynamic
+  struct Sequence *seq_;
+} DefaultRndNumGeneratorData;
 
-  std::string trace_string_;
+AbsRndNumGenerator *DefaultRndNumGenerator_make_rndnum_generator(const unsigned long seed);
 
-  Sequence *seq_;
+void DefaultRndNumGenerator_set_rand_depth(AbsRndNumGenerator *g, unsigned INT64 depth);
 
-  virtual unsigned long genrand(void) override;
-
-  // void seedrand(unsigned long seed);
-
-  // Don't implement them
-  DefaultRndNumGenerator(const DefaultRndNumGenerator &) = delete;
-  DefaultRndNumGenerator &operator=(const DefaultRndNumGenerator &) = delete;
-};
+void DefaultRndNumGenerator_destroy(AbsRndNumGenerator *g);
 
 #endif // DEFAULT_RNDNUM_GENERATOR_H

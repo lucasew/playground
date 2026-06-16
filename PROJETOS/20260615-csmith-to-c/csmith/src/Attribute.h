@@ -2,65 +2,47 @@
 #define ATTRIBUTE_H
 
 #include "StdLibAliases.h"
-#include <sstream>
-#include <string>
-#include <vector>
-class AttributeGenerator;
 
-// Base class with pure virtual methods which will be derived as per different
-// types of attribute generation
-class Attribute {
-public:
-  // Name of attribute
-  string name;
-  // Attribute generation probability
+struct AttributeGenerator;
+
+/* C port: flattened attribute types using kind tag + union-ish fields.
+   No inheritance, use char* for names, manual vector for choices. */
+typedef enum {
+  eAttrBoolean = 0,
+  eAttrMultiChoice,
+  eAttrAligned,
+  eAttrSection,
+} eAttributeKind;
+
+typedef struct Attribute {
+  eAttributeKind kind;
+  char *name;   /* owned */
   int prob;
-  Attribute(const string &, int);
-  // Checks attribute probability and generate is accordingly
-  virtual string make_random() = 0;
-};
+  /* extra per kind */
+  int alignment; /* for aligned */
+  char **choices; /* for multichoice, null term */
+  int num_choices;
+} Attribute;
 
-// Generates Boolean attributes such as hot, cold, used, unused, deprecated, etc
-class BooleanAttribute : public Attribute {
-public:
-  BooleanAttribute(const string &, int);
-  string make_random();
-};
+Attribute *Attribute_new(const char *name, int prob, eAttributeKind kind);
+char *Attribute_make_random(Attribute *a); /* returns new string, caller free */
+void Attribute_delete(Attribute *a);
 
-// Generates Multi Choice attributes such as visibility("option"),
-// no_sanitize("option"), etc
-class MultiChoiceAttribute : public Attribute {
-public:
-  // stores various options of attributes e.g. visibility options - default,
-  // hidden, internal and protected
-  vector<string> choices;
-  MultiChoiceAttribute(const string &, int, const vector<string> &);
-  string make_random();
-};
+/* specific ctors helpers */
+Attribute *BooleanAttribute_new(const char *name, int prob);
+Attribute *MultiChoiceAttribute_new(const char *name, int prob, const char **choices, int nchoices);
+Attribute *AlignedAttribute_new(const char *name, int prob, int alignment);
+Attribute *SectionAttribute_new(const char *name, int prob);
 
-// Generates alignment attribute
-class AlignedAttribute : public Attribute {
-public:
-  // alignment factor - [functions] = 16 and [types] = 8 i.e. functions can take
-  // alignment upto 2^16 where as type can take upto 2^8
-  int alignment;
-  AlignedAttribute(const string &, int, int);
-  string make_random();
-};
+typedef struct AttributeGenerator {
+  Attribute **attributes;
+  int count;
+  int capacity;
+} AttributeGenerator;
 
-// Generates usersections to put functions in different sections
-class SectionAttribute : public Attribute {
-public:
-  SectionAttribute(const string &, int);
-  string make_random();
-};
-
-// Generates function and types attributes
-class AttributeGenerator {
-public:
-  // stores instances of Attribute
-  vector<Attribute *> attributes;
-  void Output(std::ostream &);
-};
+void AttributeGenerator_init(AttributeGenerator *g);
+void AttributeGenerator_Output(AttributeGenerator *g, FILE *out);
+void AttributeGenerator_add(AttributeGenerator *g, Attribute *a);
+void AttributeGenerator_clear(AttributeGenerator *g);
 
 #endif

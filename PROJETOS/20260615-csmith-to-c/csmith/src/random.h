@@ -32,31 +32,31 @@
 
 ///////////////////////////////////////////////////////////////////////////////
 
-#include <string>
 
-class Filter;
+
+struct Filter;
 
 // Old stuff.
-std::string RandomHexDigits(int num);
-std::string RandomDigits(int num);
+char *RandomHexDigits(int num);
+char *RandomDigits(int num);
 
 // New stuff.
-unsigned int rnd_upto(const unsigned int n, const Filter *f = nullptr,
-                      const std::string *where = nullptr);
-bool rnd_flipcoin(const unsigned int p, const Filter *f = nullptr,
-                  const std::string *where = nullptr);
+unsigned int rnd_upto(const unsigned int n, const struct Filter *f,
+                      const char *where);
+int rnd_flipcoin(const unsigned int p, const struct Filter *f,
+                  const char *where);
 // return pure random numbers even if csmith is in other mode, e.g., exhaustive
 // mode
-std::string PureRandomHexDigits(int num);
-std::string PureRandomDigits(int num);
-unsigned int pure_rnd_upto(const unsigned int n, const Filter *f = nullptr,
-                           const std::string *where = nullptr);
-bool pure_rnd_flipcoin(const unsigned int p, const Filter *f = nullptr,
-                       const std::string *where = nullptr);
+char *PureRandomHexDigits(int num);
+char *PureRandomDigits(int num);
+unsigned int pure_rnd_upto(const unsigned int n, const struct Filter *f,
+                           const char *where);
+int pure_rnd_flipcoin(const unsigned int p, const struct Filter *f,
+                       const char *where);
 
-std::string get_prefixed_name(const std::string &name);
-std::string &trace_depth();
-void get_sequence(std::string &sequence);
+char *get_prefixed_name(const char *name);
+char *trace_depth(void);
+void get_sequence(char **sequence);
 #if 0
 // Deprecated
 unsigned int*   rnd_shuffle(unsigned int n);

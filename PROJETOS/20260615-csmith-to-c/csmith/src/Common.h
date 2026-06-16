@@ -1,4 +1,4 @@
-// -*- mode: C++ -*-
+// -*- mode: C -*-
 //
 // Copyright (c) 2007, 2008, 2010, 2011 The University of Utah
 // All rights reserved.
@@ -40,15 +40,13 @@
 #define COMMON_H
 ///////////////////////////////////////////////////////////////////////////////
 
-#include <algorithm>
-#include <functional>
-#include <iostream>
-#include <string>
-#include <vector>
+#include <stddef.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
 
-using std::string;
-using std::vector;
-#include "StdLibAliases.h"
 #ifdef WIN32
 #define INT64 __int64
 #else
@@ -56,14 +54,14 @@ using std::vector;
 #endif
 
 // ----------------------------------------------------------------
-// Forward class declarations
-class Block;
-class Expression;
-class Function;
-class FunctionInvocation;
-class Statement;
-class Type;
-class Variable;
+// Forward struct declarations (C port: structs + functions, no classes)
+struct Block;
+struct Expression;
+struct Function;
+struct FunctionInvocation;
+struct Statement;
+struct Type;
+struct Variable;
 
 ///////////////////////////////////////////////////////////////////////////////
 

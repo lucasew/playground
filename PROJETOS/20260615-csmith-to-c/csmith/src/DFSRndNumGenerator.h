@@ -30,104 +30,23 @@
 #ifndef DFS_RNDNUM_GENERATOR_H
 #define DFS_RNDNUM_GENERATOR_H
 
-#include <string>
-#include <vector>
-
 #include "AbsRndNumGenerator.h"
 #include "Common.h"
 
-class Sequence;
-class Filter;
+struct Sequence;
+struct Filter;
 
-class DFSRndNumGenerator : public AbsRndNumGenerator {
-public:
-  virtual ~DFSRndNumGenerator() override;
-
-  static DFSRndNumGenerator *make_rndnum_generator();
-
-  virtual std::string get_prefixed_name(const std::string &name) override;
-
-  virtual std::string &trace_depth() override;
-
-  virtual void get_sequence(std::string &sequence) override;
-
-  virtual unsigned int rnd_upto(const unsigned int n, const Filter *f = nullptr,
-                                const std::string *where = nullptr) override;
-
-  virtual bool rnd_flipcoin(const unsigned int p, const Filter *f = nullptr,
-                            const std::string *where = nullptr) override;
-
-  virtual std::string RandomHexDigits(int num) override;
-
-  virtual std::string RandomDigits(int num) override;
-
-  virtual RNDNUM_GENERATOR kind() override { return RNDNUM_GENERATOR::rDFSRndNumGenerator; }
-
-  bool eager_backtracking(int depth_needed);
-
-  int get_decision_depth() { return decision_depth_; }
-
-  void reset_state(void);
-
-  int get_current_pos(void) { return current_pos_; }
-
-  void set_current_pos(int pos) { current_pos_ = pos; }
-
-  bool get_all_done(void) { return all_done_; }
-
-private:
-  // Forward declaration of nested class SearchState;
-  class SearchState;
-
-  // ------------------------------------------------------------------------------------------
-  DFSRndNumGenerator(Sequence *concrete_seq);
-
-  int revisit_node(SearchState *state, int local_current_pos, int bound,
-                   const Filter *f, const string *where);
-
-  void initialize_sequence(const std::vector<int> &v);
-
-  void dumpCurrentState(int bound, const std::string &where);
-
-  virtual unsigned long genrand(void) override;
-
-  bool filter_invalid_nums(vector<int> *invalid_nums, int v);
-
-  int random_choice(int bound, const Filter *f = nullptr,
-                    const std::string *where = nullptr,
-                    std::vector<int> *invalid_nums = nullptr);
-
-  void init_states(int size);
-
-  void log_depth(int d, const std::string *where = nullptr,
-                 const char *log = nullptr);
-
-  // ----------------------------------------------------------------------------------------
-  static DFSRndNumGenerator *impl_;
-
-  // static std::string name_prefix;
-
-  std::string trace_string_;
-
-  // The current decision depth which should be less than SEARCH_STATE_SIZE
-  // It represents the current depth where we are making random choices
+/* C port of DFSRnd: embed base, flatten, no inheritance/strings */
+typedef struct DFSRndNumGenerator {
+  AbsRndNumGenerator base;
   int decision_depth_;
-
-  // The current position at states.
   int current_pos_;
-
   bool all_done_;
-
-  Sequence *seq_;
-
+  struct Sequence *seq_;
   bool use_debug_sequence_;
+  void *states_; /* vector<SearchState*> stub */
+} DFSRndNumGenerator;
 
-  // Holds the vector representation of all DFS nodes.
-  std::vector<SearchState *> states_;
-
-  // disallow copy and assignment constructors
-  DFSRndNumGenerator(const DFSRndNumGenerator &) = delete;
-  DFSRndNumGenerator &operator=(const DFSRndNumGenerator &) = delete;
-};
+AbsRndNumGenerator *DFSRndNumGenerator_make_rndnum_generator(void);
 
 #endif // DFS_RNDNUM_GENERATOR_H

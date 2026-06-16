@@ -1,4 +1,4 @@
-// -*- mode: C++ -*-
+// -*- mode: C -*-
 //
 // Copyright (c) 2007, 2008, 2009, 2010, 2011, 2015 The University of Utah
 // All rights reserved.
@@ -30,71 +30,59 @@
 #ifndef ABS_RNDNUM_GENERATOR
 #define ABS_RNDNUM_GENERATOR
 
-#include <string>
+#include <stdbool.h>
 
-class Filter;
+struct Filter;
 
-enum class RNDNUM_GENERATOR {
+typedef enum {
   rDefaultRndNumGenerator = 0,
   rDFSRndNumGenerator,
-};
+} RNDNUM_GENERATOR;
 
-inline constexpr unsigned int MAX_RNDNUM_GENERATOR =
-    static_cast<unsigned int>(RNDNUM_GENERATOR::rDFSRndNumGenerator) + 1;
+#define MAX_RNDNUM_GENERATOR (rDFSRndNumGenerator + 1)
 
-// I could make AbsRndNumGenerator not pure, but want to force each subclass
-// implement it's own member functions, in case of forgetting something.
-class AbsRndNumGenerator {
-public:
-  static AbsRndNumGenerator *make_rndnum_generator(RNDNUM_GENERATOR impl,
-                                                   const unsigned long seed);
+// C port: use tagged structs + dispatch funcs instead of base class.
+typedef struct AbsRndNumGenerator {
+  RNDNUM_GENERATOR kind_tag;
+  // data per impl filled in concrete
+  void *impl_data; // e.g. points to DefaultRndNumGeneratorData or similar
+} AbsRndNumGenerator;
 
-  static void seedrand(const unsigned long seed);
+AbsRndNumGenerator *AbsRndNumGenerator_make_rndnum_generator(RNDNUM_GENERATOR impl,
+                                                             const unsigned long seed);
 
-  static const char *get_hex1();
+void AbsRndNumGenerator_seedrand(const unsigned long seed);
 
-  static const char *get_dec1();
+const char *AbsRndNumGenerator_get_hex1(void);
 
-  static unsigned int count(void) { return MAX_RNDNUM_GENERATOR; }
+const char *AbsRndNumGenerator_get_dec1(void);
 
-  virtual std::string get_prefixed_name(const std::string &name) = 0;
+unsigned int AbsRndNumGenerator_count(void);
 
-  virtual std::string &trace_depth(void) = 0;
+char *AbsRndNumGenerator_get_prefixed_name(AbsRndNumGenerator *g, const char *name); // caller frees? or use static buf for simplicity
 
-  virtual void get_sequence(std::string &sequence) = 0;
+char *AbsRndNumGenerator_trace_depth(AbsRndNumGenerator *g);
 
-  virtual unsigned int rnd_upto(const unsigned int n, const Filter *f = nullptr,
-                                const std::string *where = nullptr) = 0;
+void AbsRndNumGenerator_get_sequence(AbsRndNumGenerator *g, char **sequence /* out, caller manages */);
 
-  virtual bool rnd_flipcoin(const unsigned int p, const Filter *f = nullptr,
-                            const std::string *where = nullptr) = 0;
+unsigned int AbsRndNumGenerator_rnd_upto(AbsRndNumGenerator *g, const unsigned int n, const struct Filter *f,
+                                         const char *where);
 
-  virtual std::string RandomHexDigits(int num) = 0;
+bool AbsRndNumGenerator_rnd_flipcoin(AbsRndNumGenerator *g, const unsigned int p, const struct Filter *f,
+                                     const char *where);
 
-  virtual std::string RandomDigits(int num) = 0;
+char *AbsRndNumGenerator_RandomHexDigits(AbsRndNumGenerator *g, int num);
 
-  // Although it's not a good idea to return the kind of different
-  // implementation, it's useful for error_handler. Basically we don't want to
-  // make the code depend on the kind, use polymorphism instead.
-  virtual RNDNUM_GENERATOR kind() = 0;
+char *AbsRndNumGenerator_RandomDigits(AbsRndNumGenerator *g, int num);
 
-  virtual ~AbsRndNumGenerator(void);
+RNDNUM_GENERATOR AbsRndNumGenerator_kind(AbsRndNumGenerator *g);
 
-protected:
-  virtual unsigned long genrand(void) = 0;
+void AbsRndNumGenerator_destroy(AbsRndNumGenerator *g);
 
-  AbsRndNumGenerator();
+unsigned long AbsRndNumGenerator_genrand(void); // the protected one, exposed for impls
 
-private:
-  // ------------------------------------------------------------------------------------------
-  // "hex" and "dec" are reserved keywords in MSVC, we have to rename them
-  static const char *hex1;
-
-  static const char *dec1;
-
-  // Don't implement them
-  AbsRndNumGenerator(const AbsRndNumGenerator &) = delete;
-  AbsRndNumGenerator &operator=(const AbsRndNumGenerator &) = delete;
-};
+// internal hex/dec digits
+extern const char *abs_rnd_hex1;
+extern const char *abs_rnd_dec1;
 
 #endif // ABS_RNDNUM_GENERATOR

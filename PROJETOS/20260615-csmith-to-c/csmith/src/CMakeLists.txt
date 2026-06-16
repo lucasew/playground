@@ -36,162 +36,71 @@ set(BIN_DIR "${CMAKE_INSTALL_PREFIX}/bin")
 
 ###############################################################################
 
-# Generate file "git_version.cpp".
+# Generate file "git_version.c".
 #
-configure_file("git_version.cpp.in" "git_version.cpp" @ONLY)
+configure_file("git_version.c.in" "git_version.c" @ONLY)
 
 include_directories(${CMAKE_BINARY_DIR})
-include_directories(${PROJECT_SOURCE_DIR}) # needed for gen'ed .cpp files
+include_directories(${PROJECT_SOURCE_DIR}) # needed for gen'ed .c files
 
 set(csmith_SOURCES
   ${CMAKE_BINARY_DIR}/config.h
-  AbsExtension.cpp
-  AbsExtension.h
-  AbsProgramGenerator.cpp
+  AbsProgramGenerator.c
   AbsProgramGenerator.h
-  AbsRndNumGenerator.cpp
+  AbsRndNumGenerator.c
   AbsRndNumGenerator.h
-  ArrayVariable.cpp
-  ArrayVariable.h
-  Attribute.cpp
+  Attribute.c
   Attribute.h
-  Block.cpp
-  Block.h
-  Bookkeeper.cpp
-  Bookkeeper.h
-  CFGEdge.cpp
-  CFGEdge.h
-  CGContext.cpp
-  CGContext.h
-  CGOptions.cpp
+  CGOptions.c
   CGOptions.h
-  CVQualifiers.cpp
-  CVQualifiers.h
   Common.h
-  CompatibleChecker.cpp
-  CompatibleChecker.h
-  Constant.cpp
-  Constant.h
-  CoverageTestExtension.cpp
-  CoverageTestExtension.h
-  CrestExtension.cpp
-  CrestExtension.h
-  DFSOutputMgr.cpp
-  DFSOutputMgr.h
-  DFSProgramGenerator.cpp
-  DFSProgramGenerator.h
-  DFSRndNumGenerator.cpp
-  DFSRndNumGenerator.h
-  DefaultOutputMgr.cpp
+  DefaultOutputMgr.c
   DefaultOutputMgr.h
-  DefaultProgramGenerator.cpp
+  DefaultProgramGenerator.c
   DefaultProgramGenerator.h
-  DefaultRndNumGenerator.cpp
+  DefaultRndNumGenerator.c
   DefaultRndNumGenerator.h
-  DepthSpec.cpp
-  DepthSpec.h
-  Effect.cpp
-  Effect.h
-  Enumerator.h
-  Error.cpp
+  Error.c
   Error.h
-  Expression.cpp
-  Expression.h
-  ExpressionAssign.cpp
-  ExpressionAssign.h
-  ExpressionComma.cpp
-  ExpressionComma.h
-  ExpressionFuncall.cpp
-  ExpressionFuncall.h
-  ExpressionVariable.cpp
-  ExpressionVariable.h
-  ExtensionMgr.cpp
-  ExtensionMgr.h
-  ExtensionValue.cpp
-  ExtensionValue.h
-  Fact.cpp
-  Fact.h
-  FactMgr.cpp
-  FactMgr.h
-  FactPointTo.cpp
-  FactPointTo.h
-  FactUnion.cpp
-  FactUnion.h
-  Filter.cpp
-  Filter.h
-  Finalization.cpp
+  Finalization.c
   Finalization.h
-  Function.cpp
+  Function.c
   Function.h
-  FunctionInvocation.cpp
-  FunctionInvocation.h
-  FunctionInvocationBinary.cpp
-  FunctionInvocationBinary.h
-  FunctionInvocationUnary.cpp
-  FunctionInvocationUnary.h
-  FunctionInvocationUser.cpp
-  FunctionInvocationUser.h
-  KleeExtension.cpp
-  KleeExtension.h
-  Lhs.cpp
-  Lhs.h
-  LinearSequence.cpp
-  LinearSequence.h
-  OutputMgr.cpp
+  OutputMgr.c
   OutputMgr.h
-  PartialExpander.cpp
-  PartialExpander.h
-  Probabilities.cpp
+  Probabilities.c
   Probabilities.h
-  ProbabilityTable.h
-  RandomNumber.cpp
+  RandomNumber.c
   RandomNumber.h
-  RandomProgramGenerator.cpp
-  SafeOpFlags.cpp
-  SafeOpFlags.h
-  Sequence.cpp
-  Sequence.h
-  SequenceFactory.cpp
-  SequenceFactory.h
-  SequenceLineParser.h
-  Statement.cpp
-  Statement.h
-  StatementArrayOp.cpp
-  StatementArrayOp.h
-  StatementAssign.cpp
-  StatementAssign.h
-  StatementBreak.cpp
-  StatementBreak.h
-  StatementContinue.cpp
-  StatementContinue.h
-  StatementExpr.cpp
-  StatementExpr.h
-  StatementFor.cpp
-  StatementFor.h
-  StatementGoto.cpp
-  StatementGoto.h
-  StatementIf.cpp
-  StatementIf.h
-  StatementReturn.cpp
-  StatementReturn.h
-  StringUtils.cpp
-  StringUtils.h
-  Type.cpp
+  RandomProgramGenerator.c
+  Type.c
   Type.h
-  Variable.cpp
-  Variable.h
-  VariableSelector.cpp
+  Statement.c
+  Statement.h
+  Expression.c
+  Expression.h
+  Block.c
+  Block.h
+  CGContext.c
+  CGContext.h
+  VariableSelector.c
   VariableSelector.h
-  VectorFilter.cpp
-  VectorFilter.h
+  FactMgr.c
+  FactMgr.h
+  Fact.c
+  Fact.h
+  FactPointTo.c
+  FactPointTo.h
+  FactUnion.c
+  FactUnion.h
   git_version.h
-  platform.cpp
+  platform.c
   platform.h
-  random.cpp
+  random.c
   random.h
-  util.cpp
+  util.c
   util.h
-  ${PROJECT_BINARY_DIR}/git_version.cpp
+  ${PROJECT_BINARY_DIR}/git_version.c
   )
 if(NOT HAVE_LRAND48)
   include_directories(${PROJECT_SOURCE_DIR}/rand48)
@@ -207,12 +116,11 @@ add_executable(csmith
   ${csmith_SOURCES}
   )
 
-# Use C++20.
+# Use C11 (port from C++ to pure C).
 set_target_properties(csmith PROPERTIES
-  CXX_STANDARD 20
-  CXX_EXTENSIONS NO
+  C_STANDARD 11
+  C_EXTENSIONS NO
   )
-# CXX_STANDARD_REQUIRED YES
 
 if(BSD_LIBRARY)
   target_link_libraries(csmith "${BSD_LIBRARY}")

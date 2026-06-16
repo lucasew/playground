@@ -32,30 +32,15 @@
 
 #include "AbsProgramGenerator.h"
 
-class OutputMgr;
+struct OutputMgr;
 
-class DefaultProgramGenerator : public AbsProgramGenerator {
-public:
-  DefaultProgramGenerator(int argc, char *argv[], unsigned long seed);
+typedef struct DefaultProgramGenerator {
+  AbsProgramGenerator base;
+  struct OutputMgr *output_mgr_;
+} DefaultProgramGenerator;
 
-  virtual ~DefaultProgramGenerator() override;
-
-  virtual OutputMgr *getOutputMgr() override { return output_mgr_; }
-
-  virtual void goGenerator() override;
-
-  virtual void initialize() override;
-
-  virtual std::string get_count_prefix(const std::string &name) override;
-
-private:
-  int argc_;
-
-  char **argv_;
-
-  unsigned long seed_;
-
-  OutputMgr *output_mgr_;
-};
+DefaultProgramGenerator *DefaultProgramGenerator_Create(int argc, char *argv[], unsigned long seed);
+void DefaultProgramGenerator_goGenerator(DefaultProgramGenerator *gen);
+void DefaultProgramGenerator_initialize(DefaultProgramGenerator *gen);
 
 #endif

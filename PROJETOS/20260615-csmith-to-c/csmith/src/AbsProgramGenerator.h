@@ -30,36 +30,21 @@
 #ifndef ABS_PROGRAM_GENERATOR_H
 #define ABS_PROGRAM_GENERATOR_H
 
-#include <string>
+#include <stdbool.h>
 
-class OutputMgr;
+struct OutputMgr;
 
-class AbsProgramGenerator {
-public:
-  static AbsProgramGenerator *CreateInstance(int argc, char *argv[],
-                                             unsigned long seed);
+typedef struct AbsProgramGenerator {
+  int argc_;
+  char **argv_;
+  unsigned long seed_;
+  struct OutputMgr *output_mgr_;
+} AbsProgramGenerator;
 
-  static AbsProgramGenerator *GetInstance();
-
-  AbsProgramGenerator();
-
-  virtual ~AbsProgramGenerator();
-
-  static OutputMgr *GetOutputMgr();
-
-  virtual void goGenerator() = 0;
-
-  virtual OutputMgr *getOutputMgr() = 0;
-
-  virtual std::string get_count_prefix(const std::string &name) = 0;
-
-protected:
-  virtual void initialize() = 0;
-
-private:
-  static AbsProgramGenerator *current_generator_;
-
-  static OutputMgr *getmgr(AbsProgramGenerator *gen);
-};
+AbsProgramGenerator *AbsProgramGenerator_CreateInstance(int argc, char *argv[], unsigned long seed);
+AbsProgramGenerator *AbsProgramGenerator_GetInstance(void);
+void AbsProgramGenerator_goGenerator(AbsProgramGenerator *gen);
+struct OutputMgr *AbsProgramGenerator_GetOutputMgr(void);
+void AbsProgramGenerator_doFinalization(void);
 
 #endif
