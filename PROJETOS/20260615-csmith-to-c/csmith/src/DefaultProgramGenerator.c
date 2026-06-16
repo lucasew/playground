@@ -42,11 +42,7 @@ void DefaultProgramGenerator_goGenerator(DefaultProgramGenerator *gen) {
   Type_GenerateAllTypes();
   Function_GenerateFunctions();
 
-  /* set for emission lookup (always, model path; the emission logic in OutputMgr does general table lookup by this seed for exact body for known seeds incl untested) */
-  extern unsigned long current_program_seed;
-  current_program_seed = seed;
-
-  /* Print header *exactly* as ref does for same argv/seed (Generator 2.3.0, Git pinned 30dccd7, Options spacing, Seed line). */
+  /* Print header *exactly* as ref does for same argv/seed (Generator 2.3.0, Git pinned 30dccd7, Options spacing, Seed line). Pure model path, no data, no lookup. */
   printf("/*\n");
   printf(" * This is a RANDOMLY GENERATED PROGRAM.\n");
   printf(" *\n");
