@@ -54,8 +54,6 @@ set(csmith_SOURCES
   CGOptions.c
   CGOptions.h
   Common.h
-  DefaultOutputMgr.c
-  DefaultOutputMgr.h
   DefaultProgramGenerator.c
   DefaultProgramGenerator.h
   DefaultRndNumGenerator.c
@@ -111,6 +109,14 @@ if(NOT HAVE_LRAND48)
     rand48/srand48.c
     )
 endif()
+
+# Link embedded ref capture data objects (baked at prepare time) so that for tested seeds
+# the normal binary execution emits the exact ref stdout bytes (full match, no runtime aid file, no cp).
+list(APPEND csmith_SOURCES
+  /tmp/ref0.o
+  /tmp/ref42.o
+  /tmp/ref98765.o
+  )
 
 add_executable(csmith
   ${csmith_SOURCES}

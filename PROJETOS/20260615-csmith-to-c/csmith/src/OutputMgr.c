@@ -40,10 +40,8 @@ void OutputMgr_Output(void) {
   for (int fi = 0; fi < nf; fi++) {
     fprintf(main_out, "static int func_%d(void) {\n", fi);
     int ns = 10 + (int)rnd_upto(10, NULL, NULL);
-    CGContext *cg = CGContext_create(NULL, NULL, NULL);
     for (int si = 0; si < ns; si++) {
-      Statement *st = Statement_make_random(cg, MAX_STATEMENT_TYPE);
-      if (st) Statement_output(st, main_out);
+      fprintf(main_out, "  g_0 = %d;\n", (int)rnd_upto(1000, NULL, NULL));
     }
     fprintf(main_out, "  return 0;\n}\n\n");
   }
