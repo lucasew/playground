@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 BACKUP=/media/dados/Lucas/BACKUP/phone
 INTERNAL=/storage/emulated/0
 EXTERNAL=/storage/5C08-1215

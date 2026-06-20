@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 case $1 in
 getpkg)
     echo "Obtendo pacotes instalados..."

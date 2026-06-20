@@ -1,0 +1,2 @@
+- 2024-05-18: Initialize janitor log
+- 2024-06-20: Missing shebang in shell scripts causes linting errors.

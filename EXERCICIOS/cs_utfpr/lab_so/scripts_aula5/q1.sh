@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # Parte de rede
 
 IFACES=$(ip link show | awk '/^[0-9]/ {print (substr($2, 0, length($2) - 1))}')

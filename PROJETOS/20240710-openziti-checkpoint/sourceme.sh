@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 export ZITI_HOME=$(pwd)/state
 export ZITI_NETWORK=up-and-running
 
