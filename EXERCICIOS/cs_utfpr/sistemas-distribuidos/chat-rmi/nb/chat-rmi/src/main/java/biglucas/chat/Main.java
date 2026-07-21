@@ -4,6 +4,8 @@
  */
 package biglucas.chat;
 
+import java.util.Arrays;
+
 /**
  *
  * @author lucasew
@@ -15,10 +17,13 @@ public class Main {
             System.out.println("Falta parâmetro: server ou client?");
             return;
         }
+
+        String[] subArgs = Arrays.copyOfRange(args, 1, args.length);
+
         if (args[0].equals("server")) {
-            Server.main(new String[0]); // TODO: fatiar parametros
+            Server.main(subArgs);
         } else if (args[0].equals("client")) {
-            Client.main(new String[0]); // TODO: fatiar parâmetros
+            Client.main(subArgs);
         }
 
     }
