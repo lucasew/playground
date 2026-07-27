@@ -16,7 +16,7 @@ public class InternalClassLoader extends URLClassLoader {
     super(name, new URL[0], parent);
     try {
       System.out.println(getScriptPath());
-    } catch (Exception e) {}
+    } catch (Exception e) { e.printStackTrace(); }
   }
 
   private boolean isJarsLoaded = false;
