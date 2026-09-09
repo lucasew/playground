@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>V U L K A N</title>
+    <style>
+      html, body {
+        margin: 0;
+        background: #111;
+        color: #ddd;
+        font: 14px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      }
+      header {
+        padding: 12px 16px 0;
+      }
+      #status { color: #888; }
+      #canvas {
+        display: block;
+        margin: 12px auto;
+        width: 800px;
+        height: 600px;
+        background: #000;
+      }
+      #output {
+        display: block;
+        box-sizing: border-box;
+        width: calc(100% - 32px);
+        margin: 0 16px 16px;
+        height: 10em;
+        background: #1a1a1a;
+        color: #9c9;
+        border: 1px solid #333;
+        padding: 8px;
+        resize: vertical;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div>V U L K A N</div>
+      <div id="status">Downloading...</div>
+    </header>
+    <canvas id="canvas" width="800" height="600" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
+    <textarea id="output" readonly></textarea>
+    <script>
+      var statusElement = document.getElementById('status');
+      var canvasElement = document.getElementById('canvas');
+      var outputElement = document.getElementById('output');
+      outputElement.value = '';
+
+      function appendLine(text) {
+        outputElement.value += text + '\n';
+        outputElement.scrollTop = outputElement.scrollHeight;
+      }
+
+      var Module = {
+        print(...args) {
+          console.log(...args);
+          appendLine(args.join(' '));
+        },
+        printErr(...args) {
+          console.error(...args);
+          appendLine(args.join(' '));
+        },
+        canvas: canvasElement,
+        setStatus(text) {
+          if (statusElement) statusElement.textContent = text;
+        },
+        totalDependencies: 0,
+        monitorRunDependencies(left) {
+          this.totalDependencies = Math.max(this.totalDependencies, left);
+          Module.setStatus(left
+            ? 'Preparing... (' + (this.totalDependencies - left) + '/' + this.totalDependencies + ')'
+            : '');
+        }
+      };
+      Module.setStatus('Downloading...');
+      window.onerror = () => {
+        Module.setStatus('Exception thrown, see JavaScript console');
+      };
+    </script>
+    {{{ SCRIPT }}}
+  </body>
+</html>

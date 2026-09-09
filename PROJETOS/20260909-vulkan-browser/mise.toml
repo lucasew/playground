@@ -1,0 +1,12 @@
+[tools]
+"conda:emscripten" = "4.0.9"
+
+# conda-emscripten 4.0.9 ships wasm-opt 117; ASYNCIFY needs 123
+[tools."http:binaryen"]
+version = "123"
+
+[tools."http:binaryen".platforms]
+macos-arm64 = { url = "https://github.com/WebAssembly/binaryen/releases/download/version_{{version}}/binaryen-version_{{version}}-arm64-macos.tar.gz", checksum_url = "https://github.com/WebAssembly/binaryen/releases/download/version_{{version}}/binaryen-version_{{version}}-arm64-macos.tar.gz.sha256" }
+macos-x64 = { url = "https://github.com/WebAssembly/binaryen/releases/download/version_{{version}}/binaryen-version_{{version}}-x86_64-macos.tar.gz", checksum_url = "https://github.com/WebAssembly/binaryen/releases/download/version_{{version}}/binaryen-version_{{version}}-x86_64-macos.tar.gz.sha256" }
+linux-x64 = { url = "https://github.com/WebAssembly/binaryen/releases/download/version_{{version}}/binaryen-version_{{version}}-x86_64-linux.tar.gz", checksum_url = "https://github.com/WebAssembly/binaryen/releases/download/version_{{version}}/binaryen-version_{{version}}-x86_64-linux.tar.gz.sha256" }
+linux-arm64 = { url = "https://github.com/WebAssembly/binaryen/releases/download/version_{{version}}/binaryen-version_{{version}}-aarch64-linux.tar.gz", checksum_url = "https://github.com/WebAssembly/binaryen/releases/download/version_{{version}}/binaryen-version_{{version}}-aarch64-linux.tar.gz.sha256" }
