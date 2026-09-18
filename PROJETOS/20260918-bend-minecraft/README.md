@@ -1,6 +1,6 @@
 # Mine
 
-A first-person voxel world in [Bend](https://bend-lang.com). You fly a 32 x 16 x 32 land of grass, dirt, stone, water and trees, break blocks, and place new ones.
+A first-person voxel world in [Bend](https://bend-lang.com). You fly a 32 x 16 x 32 land of grass, dirt, stone, water and trees, break blocks, and place new ones. A frame is 256 x 256 rays in a 1024 x 1024 window on the CPU: a GPU bang on this walk dies with `frontier drained`.
 
 ## Play
 
