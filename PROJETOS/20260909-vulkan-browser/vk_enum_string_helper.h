@@ -1,1 +1,0 @@
-../20231030-c-vulkan-triangle/vk_enum_string_helper.h

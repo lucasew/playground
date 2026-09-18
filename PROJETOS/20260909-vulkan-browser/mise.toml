@@ -1,5 +1,6 @@
 [tools]
 "conda:emscripten" = "4.0.9"
+"github:lewtec/goftpd" = "0.0.3"
 
 # conda-emscripten 4.0.9 ships wasm-opt 117; ASYNCIFY needs 123
 [tools."http:binaryen"]
@@ -10,3 +11,40 @@ macos-arm64 = { url = "https://github.com/WebAssembly/binaryen/releases/download
 macos-x64 = { url = "https://github.com/WebAssembly/binaryen/releases/download/version_{{version}}/binaryen-version_{{version}}-x86_64-macos.tar.gz", checksum_url = "https://github.com/WebAssembly/binaryen/releases/download/version_{{version}}/binaryen-version_{{version}}-x86_64-macos.tar.gz.sha256" }
 linux-x64 = { url = "https://github.com/WebAssembly/binaryen/releases/download/version_{{version}}/binaryen-version_{{version}}-x86_64-linux.tar.gz", checksum_url = "https://github.com/WebAssembly/binaryen/releases/download/version_{{version}}/binaryen-version_{{version}}-x86_64-linux.tar.gz.sha256" }
 linux-arm64 = { url = "https://github.com/WebAssembly/binaryen/releases/download/version_{{version}}/binaryen-version_{{version}}-aarch64-linux.tar.gz", checksum_url = "https://github.com/WebAssembly/binaryen/releases/download/version_{{version}}/binaryen-version_{{version}}-aarch64-linux.tar.gz.sha256" }
+
+[tasks.build]
+description = "Compile the wasm triangle"
+alias = "b"
+run = """
+set -euo pipefail
+python3 tools/write_spv.py vert vert.spv
+python3 tools/write_spv.py frag frag.spv
+mkdir -p dist
+root="$(git rev-parse --show-toplevel)"
+export EM_BINARYEN_ROOT="$(mise where http:binaryen)"
+emcc main.c vulkan_webgpu.c glfw_shim.c -o dist/index.html \
+	-I"$root/third-party/vulkan-headers/include" \
+	-I"$root/third-party/vulkan-utility-libraries/include/vulkan" \
+	-sUSE_WEBGPU=1 \
+	-sASYNCIFY=1 \
+	-sASYNCIFY_STACK_SIZE=65536 \
+	-sALLOW_MEMORY_GROWTH=1 \
+	-sASSERTIONS=1 \
+	-sNO_EXIT_RUNTIME=1 \
+	--shell-file shell.html \
+	--embed-file vert.spv \
+	--embed-file frag.spv \
+	-O0 -g
+"""
+
+[tasks.serve]
+description = "Serve dist/ with goftpd"
+depends = ["build"]
+run = "goftpd --addr :8080 --dir dist --spa"
+
+[tasks.clean]
+description = "Remove build outputs"
+run = "rm -rf dist vert.spv frag.spv"
+
+[tasks.default]
+depends = ["build"]

@@ -1,0 +1,6 @@
+[submodule "third-party/vulkan-headers"]
+	path = third-party/vulkan-headers
+	url = https://github.com/KhronosGroup/Vulkan-Headers.git
+[submodule "third-party/vulkan-utility-libraries"]
+	path = third-party/vulkan-utility-libraries
+	url = https://github.com/KhronosGroup/Vulkan-Utility-Libraries.git

@@ -3,7 +3,6 @@
 pkgs.mkShell {
   buildInputs = with pkgs; [
     gnumake
-    vulkan-headers
     vulkan-loader
     mesa.debug
     vulkan-validation-layers
