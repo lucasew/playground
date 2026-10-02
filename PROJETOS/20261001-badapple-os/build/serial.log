@@ -1,0 +1,32 @@
+B2V........................................................................................DLK
+chimia os
+frames 3286 fps 15 notes 672
+t0 72188 lead 43069
+play
+t=43069 frame=646 hz=311 elapsed=0 edges=2
+t=43569 frame=653 hz=370 elapsed=500 edges=4
+t=44069 frame=661 hz=0 elapsed=1000 edges=7
+t=44569 frame=668 hz=622 elapsed=1500 edges=9
+t=45069 frame=676 hz=0 elapsed=2000 edges=12
+t=45569 frame=683 hz=311 elapsed=2500 edges=16
+t=46069 frame=691 hz=415 elapsed=3000 edges=18
+t=46569 frame=698 hz=311 elapsed=3500 edges=21
+t=47069 frame=706 hz=370 elapsed=4000 edges=23
+t=47569 frame=713 hz=0 elapsed=4500 edges=26
+t=48069 frame=721 hz=370 elapsed=5000 edges=29
+t=48569 frame=728 hz=311 elapsed=5500 edges=31
+t=49069 frame=736 hz=370 elapsed=6000 edges=33
+t=49569 frame=743 hz=311 elapsed=6500 edges=35
+t=50069 frame=751 hz=311 elapsed=7000 edges=38
+t=50569 frame=758 hz=370 elapsed=7500 edges=40
+t=51069 frame=766 hz=0 elapsed=8000 edges=43
+t=51569 frame=773 hz=554 elapsed=8500 edges=46
+t=52069 frame=781 hz=0 elapsed=9000 edges=48
+t=52569 frame=788 hz=311 elapsed=9500 edges=52
+t=53069 frame=796 hz=370 elapsed=10000 edges=55
+t=53569 frame=803 hz=311 elapsed=10500 edges=57
+t=54069 frame=811 hz=370 elapsed=11000 edges=59
+t=54569 frame=818 hz=0 elapsed=11500 edges=62
+t=55069 frame=826 hz=370 elapsed=12000 edges=65
+t=55569 frame=833 hz=349 elapsed=12500 edges=68
+t=56069 frame=841 hz=370 elapsed=13000 edges=71
