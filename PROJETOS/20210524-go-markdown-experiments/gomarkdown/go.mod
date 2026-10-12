@@ -1,5 +1,5 @@
 module playground/markdown/gomarkdown
 
-go 1.16
+go 1.22
 
-require github.com/gomarkdown/markdown v0.0.0-20210514010506-3b9f47219fe7
+require github.com/gomarkdown/markdown v0.0.0-20261011113952-f83953680332
