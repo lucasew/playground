@@ -28,4 +28,4 @@ tqdm==4.66.5
 tzlocal==5.2
 urllib3==2.2.3
 wallabag-client==1.8.5
-wcwidth==0.2.13
+wcwidth==0.9.2
