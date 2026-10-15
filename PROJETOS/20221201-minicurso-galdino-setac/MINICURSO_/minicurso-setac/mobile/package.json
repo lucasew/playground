@@ -19,8 +19,8 @@
     "react-navigation-stack": "^1.9.4"
   },
   "devDependencies": {
-    "@babel/core": "^7.6.4",
-    "@babel/runtime": "^7.6.3",
+    "@babel/core": "^8.0.0",
+    "@babel/runtime": "^8.0.0",
     "babel-jest": "^24.9.0",
     "jest": "^24.9.0",
     "metro-react-native-babel-preset": "^0.56.0",
