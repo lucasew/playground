@@ -1,6 +1,6 @@
 [tools]
 "conda:emscripten" = "4.0.9"
-"github:lewtec/goftpd" = "0.0.3"
+"github:lewtec/goftpd" = "0.1.0"
 
 # conda-emscripten 4.0.9 ships wasm-opt 117; ASYNCIFY needs 123
 [tools."http:binaryen"]
