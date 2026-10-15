@@ -13,7 +13,7 @@ x-service-templates:
 
 services:
   redis:
-    image: redis:8-alpine
+    image: redis:8-alpine@sha256:3811787313eba226a2ef38658c6ccb91cd5e110edc89c37767de373120a0e5a0
     networks:
       - backend
   api1:
@@ -21,7 +21,7 @@ services:
   api2:
     <<: *api
   nginx:
-    image: nginx:alpine
+    image: nginx:alpine@sha256:72aeb3308ef6cb3118242fb16389518923916dfa206e32d1a8377acc328b9870
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
     ports:
