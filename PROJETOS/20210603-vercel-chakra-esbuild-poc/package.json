@@ -3,7 +3,7 @@
     "@chakra-ui/react": "^1.6.1",
     "@emotion/react": "^11",
     "@emotion/styled": "^11",
-    "@koa/router": "^10.0.0",
+    "@koa/router": "^12.0.0",
     "esbuild": "^0.11.19",
     "framer-motion": "^4",
     "koa": "^2.13.1",
