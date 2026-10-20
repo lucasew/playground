@@ -1,3 +1,5 @@
 .ccls-cache
 /facul/sistemas-distribuidos/chat-rmi/nb/chat-rmi/target/
 *.class
+*.a
+*.o
