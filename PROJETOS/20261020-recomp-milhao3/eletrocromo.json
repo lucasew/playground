@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "package_id": "br.tec.lew.milhao3",
+  "app_name": "Show do Milhão",
+  "version_name": "0.1.0",
+  "go_main": "cmd/milhao3",
+  "abis": ["arm64-v8a"]
+}

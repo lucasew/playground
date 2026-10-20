@@ -1,0 +1,11 @@
+# Warning: Do not unify this file with others. Keep tool definitions localized.
+[tools]
+go = "1.27.0"
+
+[tasks.test]
+description = "Test the zip SPA handler"
+run = "go test ./..."
+
+[tasks.desktop]
+description = "Stamp the binary and open the desktop web view"
+run = "go run github.com/lewtec/lewkit/cmd/lewkit release run --config eletrocromo.json"
