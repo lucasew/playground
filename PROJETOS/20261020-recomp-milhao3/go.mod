@@ -2,7 +2,7 @@ module github.com/lucasew/milhao3
 
 go 1.27.0
 
-require github.com/lewtec/lewkit v0.0.0-20261018164858-d12f10429850
+require github.com/lewtec/lewkit v0.0.0-20261024211417-bbc129bd335d
 
 require (
 	charm.land/bubbletea/v2 v2.0.7 // indirect
