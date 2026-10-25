@@ -1,6 +1,6 @@
 # Warning: Do not unify this file with others. Keep tool definitions localized.
 [tools]
-go = "1.27.0"
+go = "1.27.3"
 
 [tasks.test]
 description = "Test the zip SPA handler"
