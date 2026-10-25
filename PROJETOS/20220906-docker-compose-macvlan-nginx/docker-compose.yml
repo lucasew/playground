@@ -1,7 +1,7 @@
 version: "3.9"
 services:
   httpd:
-    image: nginx
+    image: nginx@sha256:4c41e2d0a3a55b325ed572cd0200bdb72af1433c3daa2bca6ef8eea68ce504a2
     ports:
       - "80:80"
     networks:
