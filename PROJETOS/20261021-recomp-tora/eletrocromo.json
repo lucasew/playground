@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "package_id": "br.tec.lew.tora",
+  "app_name": "TORA",
+  "version_name": "0.1.0",
+  "go_main": "cmd/tora",
+  "abis": ["arm64-v8a"]
+}
