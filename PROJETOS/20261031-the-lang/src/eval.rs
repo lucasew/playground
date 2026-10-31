@@ -1,137 +1,9 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::HashMap;
 
 use crate::ast::*;
+use crate::runtime::*;
 
-#[derive(Clone, Debug)]
-pub enum Value {
-    Unit,
-    Int(IntVal),
-    Float(f64),
-    Bool(bool),
-    Str(String),
-    Pid(u64),
-    Result(Result<Box<Value>, Box<Value>>),
-    Option(Option<Box<Value>>),
-    Enum {
-        type_name: String,
-        variant: String,
-        fields: Vec<(String, Value)>,
-    },
-    Error(ErrorObj),
-    Module(HashMap<String, Value>),
-    Type(String),
-    Native(Native),
-    Func(Box<FuncObj>),
-}
 
-#[derive(Clone, Debug)]
-pub(crate) struct FuncObj {
-    params: Vec<String>,
-    body: Vec<Stmt>,
-    env: HashMap<String, Value>,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum IntKind {
-    I8,
-    I16,
-    I32,
-    I64,
-    I128,
-    U8,
-    U16,
-    U32,
-    U64,
-    U128,
-    Int,
-    Usize,
-    Isize,
-}
-
-impl IntKind {
-    fn from_name(name: &str) -> Option<Self> {
-        Some(match name {
-            "i8" => Self::I8,
-            "i16" => Self::I16,
-            "i32" => Self::I32,
-            "i64" => Self::I64,
-            "i128" => Self::I128,
-            "u8" => Self::U8,
-            "u16" => Self::U16,
-            "u32" => Self::U32,
-            "u64" => Self::U64,
-            "u128" => Self::U128,
-            "int" => Self::Int,
-            "usize" => Self::Usize,
-            "isize" => Self::Isize,
-            _ => return None,
-        })
-    }
-
-    fn bits(self) -> u32 {
-        match self {
-            Self::I8 | Self::U8 => 8,
-            Self::I16 | Self::U16 => 16,
-            Self::I32 | Self::U32 | Self::Int => 32,
-            Self::I64 | Self::U64 | Self::Usize | Self::Isize => 64,
-            Self::I128 | Self::U128 => 128,
-        }
-    }
-
-    fn signed(self) -> bool {
-        !matches!(self, Self::U8 | Self::U16 | Self::U32 | Self::U64 | Self::U128 | Self::Usize)
-    }
-}
-
-#[derive(Clone, Copy, Debug)]
-pub struct IntVal {
-    pub kind: IntKind,
-    pub bits: i128,
-}
-
-impl IntVal {
-    fn new(kind: IntKind, raw: i128) -> Self {
-        Self { kind, bits: wrap(kind, raw) }
-    }
-
-    fn as_i64(self) -> i64 {
-        self.bits as i64
-    }
-}
-
-fn wrap(kind: IntKind, raw: i128) -> i128 {
-    let bits = kind.bits();
-    if bits >= 128 {
-        return raw;
-    }
-    let mask = (1i128 << bits) - 1;
-    let masked = raw & mask;
-    if kind.signed() {
-        let sign = 1i128 << (bits - 1);
-        if masked & sign != 0 { masked - (1i128 << bits) } else { masked }
-    } else {
-        masked
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct ErrorObj {
-    pub tag: String,
-    pub text: String,
-    pub cause: Option<Box<Value>>,
-}
-
-#[derive(Clone, Copy, Debug)]
-pub enum Native {
-    Fprintf,
-    Is,
-    TestOnly,
-    FailCheck,
-    Ok,
-    Err,
-    Some,
-    None,
-}
 
 #[derive(Clone, Debug)]
 struct Method {
@@ -150,27 +22,6 @@ struct ActorDef {
 #[derive(Clone, Debug)]
 struct EnumDef {
     variants: Vec<Variant>,
-}
-
-struct Actor {
-    id: u64,
-    type_name: String,
-    type_args: Vec<String>,
-    fields: HashMap<String, Value>,
-    alive: bool,
-    mailbox: VecDeque<Message>,
-    waiting: bool,
-    check_failed: bool,
-}
-
-struct Message {
-    method: String,
-    args: Vec<Value>,
-    promise: u64,
-}
-
-struct Promise {
-    resolved: Option<Value>,
 }
 
 enum Flow {
@@ -240,19 +91,7 @@ impl<'a> Vm<'a> {
     fn spawn_bare(&mut self, type_name: &str) -> u64 {
         let id = self.next_id;
         self.next_id += 1;
-        self.actors.insert(
-            id,
-            Actor {
-                id,
-                type_name: type_name.into(),
-                type_args: Vec::new(),
-                fields: HashMap::new(),
-                alive: true,
-                mailbox: VecDeque::new(),
-                waiting: false,
-                check_failed: false,
-            },
-        );
+        self.actors.insert(id, Actor::bare(id, type_name.into()));
         self.current = id;
         id
     }
@@ -320,15 +159,13 @@ impl<'a> Vm<'a> {
         match target {
             Expr::Name(name) => {
                 let actor = self.actors.get_mut(&self.current).ok_or_else(|| Flow::Error("no actor".into()))?;
-                actor.fields.insert(name.clone(), value);
+                actor.set_local(name, value);
                 Ok(())
             }
             Expr::Field { base, name } => {
                 if let Expr::Name(b) = base.as_ref() {
                     if b == "self" {
-                        let actor = self.actors.get_mut(&self.current).ok_or_else(|| Flow::Error("no actor".into()))?;
-                        actor.fields.insert(name.clone(), value);
-                        return Ok(());
+                        return self.store_self_field(name, value);
                     }
                 }
                 Err(Flow::Error("assignment target is not a place".into()))
@@ -410,13 +247,7 @@ impl<'a> Vm<'a> {
             Expr::Await(inner) => {
                 let v = self.eval(inner)?;
                 match v {
-                    Value::Enum { type_name, variant, fields } if type_name == "$promise" && variant == "pending" => {
-                        let id = match fields.first().map(|(_, v)| v) {
-                            Some(Value::Int(i)) => i.as_i64() as u64,
-                            _ => return Err(Flow::Error("bad promise".into())),
-                        };
-                        self.await_promise(id)
-                    }
+                    Value::Promise(id) => self.await_promise(id),
                     other => Ok(other),
                 }
             }
@@ -426,7 +257,7 @@ impl<'a> Vm<'a> {
                 for arm in arms {
                     if let Some(binds) = self.match_pat(&arm.pattern, &v) {
                         for (k, val) in binds {
-                            self.actors.get_mut(&self.current).unwrap().fields.insert(k, val);
+                            self.actors.get_mut(&self.current).unwrap().set_local(&k, val);
                         }
                         return self.eval(&arm.body);
                     }
@@ -438,9 +269,12 @@ impl<'a> Vm<'a> {
 
     fn lookup(&self, name: &str) -> Result<Value, Flow> {
         if let Some(actor) = self.actors.get(&self.current) {
-            if let Some(v) = actor.fields.get(name) {
-                return Ok(v.clone());
+            if let Some(v) = actor.local(name) {
+                return Ok(v);
             }
+        }
+        if name == "self" {
+            return Ok(Value::Pid(self.current));
         }
         if name == "error" {
             return Ok(self.error_module());
@@ -476,41 +310,34 @@ impl<'a> Vm<'a> {
     fn field(&self, base: Value, name: &str) -> Result<Value, Flow> {
         match base {
             Value::Module(map) => map.get(name).cloned().ok_or_else(|| Flow::Error(format!("no field {name}"))),
-            Value::Type(type_name) => Ok(Value::Enum {
-                type_name,
-                variant: name.into(),
-                fields: Vec::new(),
-            }),
+            Value::Type(type_name) => Ok(Value::Ctor { type_name, variant: name.into() }),
             Value::Pid(pid) => {
-                if let Some(v) = self.actors.get(&pid).and_then(|a| a.fields.get(name)).cloned() {
+                if let Some(v) = self.actors.get(&pid).and_then(|a| a.field(name)) {
                     return Ok(v);
                 }
-                Ok(Value::Enum {
-                    type_name: "$method".into(),
-                    variant: name.into(),
-                    fields: vec![("recv".into(), Value::Pid(pid))],
-                })
+                let type_name = self.actors.get(&pid).map(|a| a.type_name.clone()).unwrap_or_default();
+                Ok(Value::Method { recv: Box::new(Value::Pid(pid)), type_name, name: name.into() })
             }
             Value::Enum { type_name, variant, fields } => {
                 if let Some((_, v)) = fields.iter().find(|(n, _)| n == name) {
                     return Ok(v.clone());
                 }
-                Ok(Value::Enum {
-                    type_name: "$method".into(),
-                    variant: name.into(),
-                    fields: vec![(
-                        "recv".into(),
-                        Value::Enum { type_name, variant, fields },
-                    )],
+                Ok(Value::Method {
+                    recv: Box::new(Value::Enum { type_name: type_name.clone(), variant, fields }),
+                    type_name,
+                    name: name.into(),
                 })
             }
-            Value::Result(_) | Value::Option(_) => {
-                Ok(Value::Enum {
-                    type_name: "$method".into(),
-                    variant: name.into(),
-                    fields: vec![("recv".into(), base)],
-                })
-            }
+            Value::Result(_) => Ok(Value::Method {
+                recv: Box::new(base),
+                type_name: "Result".into(),
+                name: name.into(),
+            }),
+            Value::Option(_) => Ok(Value::Method {
+                recv: Box::new(base),
+                type_name: "Option".into(),
+                name: name.into(),
+            }),
             Value::Int(_) if name == "unwrap" => Err(Flow::Error("unwrap is not a method of int".into())),
             _ => Err(Flow::Error(format!("no field {name}"))),
         }
@@ -525,13 +352,8 @@ impl<'a> Vm<'a> {
         match fun {
             Value::Native(n) => self.native(n, values),
             Value::Func(f) => self.call_func(*f, values),
-            Value::Enum { type_name, variant, fields } if type_name == "$method" => {
-                let recv = fields.into_iter().next().map(|(_, v)| v).unwrap_or(Value::Unit);
-                self.invoke(recv, &variant, values)
-            }
-            Value::Enum { type_name, variant, fields } if fields.is_empty() && self.enums.contains_key(&type_name) => {
-                self.make_enum(&type_name, &variant, values)
-            }
+            Value::Method { recv, type_name, name } => self.invoke(*recv, &type_name, &name, values),
+            Value::Ctor { type_name, variant } => self.make_enum(&type_name, &variant, values),
             Value::Type(type_name) if self.enums.contains_key(&type_name) && args.is_empty() => {
                 Err(Flow::Error("enum needs a variant".into()))
             }
@@ -557,21 +379,20 @@ impl<'a> Vm<'a> {
         Ok(Value::Enum { type_name: type_name.into(), variant: variant.into(), fields })
     }
 
-    fn invoke(&mut self, recv: Value, method: &str, args: Vec<Value>) -> Result<Value, Flow> {
+    fn invoke(&mut self, recv: Value, type_name: &str, method: &str, args: Vec<Value>) -> Result<Value, Flow> {
         if method == "unwrap" {
             return self.unwrap_value(recv);
         }
         match recv {
             Value::Pid(pid) => self.rpc(pid, method, args),
-            Value::Enum { ref type_name, .. } => {
-                let type_name = type_name.clone();
-                let key = (type_name.clone(), method.to_string());
+            Value::Enum { .. } => {
+                let key = (type_name.to_string(), method.to_string());
                 if self.methods.contains_key(&key) {
-                    return self.run_method(&type_name, method, Some(recv), args);
+                    return self.run_method(type_name, method, Some(recv), args);
                 }
-                Err(Flow::Error(format!("no method {method}")))
+                Err(Flow::Error(format!("no method {type_name}.{method}")))
             }
-            _ => Err(Flow::Error(format!("no method {method}"))),
+            _ => Err(Flow::Error(format!("no method {type_name}.{method}"))),
         }
     }
 
@@ -579,12 +400,12 @@ impl<'a> Vm<'a> {
         match recv {
             Value::Result(Ok(v)) => Ok(*v),
             Value::Result(Err(_)) => {
-                self.actors.get_mut(&self.current).map(|a| a.alive = false);
+                self.actors.get_mut(&self.current).map(|a| a.state = ActorState::Dead);
                 Err(Flow::Dead)
             }
             Value::Option(Some(v)) => Ok(*v),
             Value::Option(None) => {
-                self.actors.get_mut(&self.current).map(|a| a.alive = false);
+                self.actors.get_mut(&self.current).map(|a| a.state = ActorState::Dead);
                 Err(Flow::Dead)
             }
             _ => Err(Flow::Error("unwrap needs Result or Option".into())),
@@ -592,7 +413,7 @@ impl<'a> Vm<'a> {
     }
 
     fn rpc(&mut self, pid: u64, method: &str, args: Vec<Value>) -> Result<Value, Flow> {
-        let alive = self.actors.get(&pid).map(|a| a.alive).unwrap_or(false);
+        let alive = self.actors.get(&pid).is_some_and(|a| a.state != ActorState::Dead);
         let promise = self.next_promise;
         self.next_promise += 1;
         if !alive {
@@ -605,22 +426,18 @@ impl<'a> Vm<'a> {
                 promise,
             });
         }
-        Ok(Value::Enum {
-            type_name: "$promise".into(),
-            variant: "pending".into(),
-            fields: vec![("id".into(), Value::Int(IntVal::new(IntKind::U64, promise as i128)))],
-        })
+        Ok(Value::Promise(promise))
     }
 
     fn await_promise(&mut self, promise: u64) -> Result<Value, Flow> {
         let me = self.current;
-        self.actors.get_mut(&me).map(|a| a.waiting = true);
+        self.actors.get_mut(&me).map(|a| a.state = ActorState::Waiting);
         loop {
             if let Some(v) = self.promises.get(&promise).and_then(|p| p.resolved.clone()) {
-                self.actors.get_mut(&me).map(|a| a.waiting = false);
+                self.actors.get_mut(&me).map(|a| a.state = ActorState::Ready);
                 return Ok(v);
             }
-            let next = self.actors.values().find(|a| a.alive && !a.waiting && !a.mailbox.is_empty()).map(|a| a.id);
+            let next = self.actors.values().find(|a| a.state == ActorState::Ready && !a.mailbox.is_empty()).map(|a| a.id);
             let Some(id) = next else {
                 return Err(Flow::Error("deadlock: await never resolves".into()));
             };
@@ -644,7 +461,7 @@ impl<'a> Vm<'a> {
             }
             Err(Flow::Dead) => {
                 if let Some(actor) = self.actors.get_mut(&id) {
-                    actor.alive = false;
+                    actor.state = ActorState::Dead;
                     actor.mailbox.clear();
                 }
                 self.promises.get_mut(&msg.promise).map(|p| p.resolved = Some(err_dead()));
@@ -657,32 +474,23 @@ impl<'a> Vm<'a> {
     fn run_method(&mut self, type_name: &str, method: &str, recv_enum: Option<Value>, args: Vec<Value>) -> Result<Value, Flow> {
         let key = (type_name.to_string(), method.to_string());
         let m = self.methods.get(&key).cloned().ok_or_else(|| Flow::Error(format!("no method {type_name}.{method}")))?;
-        let saved = if recv_enum.is_some() {
-            self.actors.get(&self.current).map(|a| a.fields.clone())
-        } else {
-            None
-        };
+        let me = self.current;
+        self.actors.get_mut(&me).unwrap().push_frame();
         {
-            let actor = self.actors.get_mut(&self.current).ok_or_else(|| Flow::Error("no actor".into()))?;
+            let actor = self.actors.get_mut(&me).unwrap();
             for (i, p) in m.params.iter().enumerate() {
                 if let Some(arg) = args.get(i) {
-                    actor.fields.insert(p.clone(), arg.clone());
+                    actor.set_local(p, arg.clone());
                 }
             }
-            if let Some(v) = recv_enum {
-                if m.has_self {
-                    actor.fields.insert("self".into(), v);
+            if m.has_self {
+                if let Some(v) = recv_enum {
+                    actor.set_local("self", v);
                 }
-            } else if m.has_self || !actor.fields.contains_key("self") {
-                actor.fields.insert("self".into(), Value::Pid(actor.id));
             }
         }
-        let value = self.exec_block(self.current, &m.body);
-        if let Some(saved) = saved {
-            if let Some(actor) = self.actors.get_mut(&self.current) {
-                actor.fields = saved;
-            }
-        }
+        let value = self.exec_block(me, &m.body);
+        self.actors.get_mut(&me).unwrap().pop_frame();
         value
     }
 
@@ -696,7 +504,8 @@ impl<'a> Vm<'a> {
                     subst.insert(p.clone(), a.name.clone());
                 }
             }
-            let mut fields = HashMap::new();
+            let mut field_names = Vec::new();
+            let mut fields = Vec::new();
             for field in &def.fields {
                 let kind_name = subst.get(&field.ty.name).cloned().unwrap_or_else(|| field.ty.name.clone());
                 let value = if let Some(expr) = &field.default {
@@ -705,25 +514,22 @@ impl<'a> Vm<'a> {
                 } else {
                     Value::Unit
                 };
-                fields.insert(field.name.clone(), value);
+                field_names.push(field.name.clone());
+                fields.push(value);
             }
             for (fname, expr) in inits {
-                fields.insert(fname.clone(), self.eval(expr)?);
+                let value = self.eval(expr)?;
+                if let Some(i) = field_names.iter().position(|n| n == fname) {
+                    fields[i] = value;
+                } else {
+                    field_names.push(fname.clone());
+                    fields.push(value);
+                }
             }
-            fields.insert("self".into(), Value::Pid(id));
-            self.actors.insert(
-                id,
-                Actor {
-                    id,
-                    type_name: name.into(),
-                    type_args: args.iter().map(|a| a.name.clone()).collect(),
-                    fields,
-                    alive: true,
-                    mailbox: VecDeque::new(),
-                    waiting: false,
-                    check_failed: false,
-                },
-            );
+            let mut actor = Actor::bare(id, name.into());
+            actor.field_names = field_names;
+            actor.fields = fields;
+            self.actors.insert(id, actor);
             return Ok(Value::Pid(id));
         }
         Err(Flow::Error(format!("cannot construct {name}")))
@@ -766,24 +572,21 @@ impl<'a> Vm<'a> {
     }
 
     fn call_func(&mut self, func: FuncObj, args: Vec<Value>) -> Result<Value, Flow> {
-        let saved = self.actors.get(&self.current).map(|a| a.fields.clone());
+        let me = self.current;
+        self.actors.get_mut(&me).unwrap().push_frame();
         {
-            let actor = self.actors.get_mut(&self.current).ok_or_else(|| Flow::Error("no actor".into()))?;
+            let actor = self.actors.get_mut(&me).unwrap();
             for (k, v) in &func.env {
-                actor.fields.insert(k.clone(), v.clone());
+                actor.set_local(k, v.clone());
             }
             for (i, p) in func.params.iter().enumerate() {
                 if let Some(arg) = args.get(i) {
-                    actor.fields.insert(p.clone(), arg.clone());
+                    actor.set_local(p, arg.clone());
                 }
             }
         }
-        let value = self.exec_block(self.current, &func.body);
-        if let Some(saved) = saved {
-            if let Some(actor) = self.actors.get_mut(&self.current) {
-                actor.fields = saved;
-            }
-        }
+        let value = self.exec_block(me, &func.body);
+        self.actors.get_mut(&me).unwrap().pop_frame();
         value
     }
 
@@ -901,12 +704,12 @@ impl<'a> Vm<'a> {
                     let module = std_module(from).ok_or_else(|| Flow::Error(format!("unknown module {from}")))?;
                     for name in names {
                         let v = module_get(&module, name).ok_or_else(|| Flow::Error(format!("no export {name}")))?;
-                        self.actors.get_mut(&actor).unwrap().fields.insert(name.clone(), v);
+                        self.actors.get_mut(&actor).unwrap().set_local(name, v);
                     }
                 }
                 Item::ImportModule { name, from } => {
                     let module = std_module(from).ok_or_else(|| Flow::Error(format!("unknown module {from}")))?;
-                    self.actors.get_mut(&actor).unwrap().fields.insert(name.clone(), module);
+                    self.actors.get_mut(&actor).unwrap().set_local(name, module);
                 }
                 _ => {}
             }
@@ -1043,7 +846,30 @@ fn module_get(module: &Value, name: &str) -> Option<Value> {
 
 impl<'a> Vm<'a> {
     fn boot(&mut self, id: u64) -> Result<(), Flow> {
+        self.actors.get_mut(&id).unwrap().push_frame();
         self.install_imports(id)
+    }
+
+    fn store_self_field(&mut self, name: &str, value: Value) -> Result<(), Flow> {
+        let me = self.current;
+        let actor = self.actors.get_mut(&me).ok_or_else(|| Flow::Error("no actor".into()))?;
+        if let Some(Value::Enum { fields, .. }) = actor.local("self") {
+            if fields.iter().any(|(n, _)| n == name) {
+                let Value::Enum { type_name, variant, mut fields } = actor.local("self").unwrap() else {
+                    unreachable!();
+                };
+                if let Some(slot) = fields.iter_mut().find(|(n, _)| n == name) {
+                    slot.1 = value;
+                }
+                actor.set_local("self", Value::Enum { type_name, variant, fields });
+                return Ok(());
+            }
+        }
+        if actor.set_field(name, value) {
+            Ok(())
+        } else {
+            Err(Flow::Error(format!("no field {name}")))
+        }
     }
 }
 

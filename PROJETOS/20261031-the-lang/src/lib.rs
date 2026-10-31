@@ -1,6 +1,7 @@
 mod ast;
 mod eval;
 mod parse;
+mod runtime;
 
 pub use eval::{run_source, Outcome};
 
