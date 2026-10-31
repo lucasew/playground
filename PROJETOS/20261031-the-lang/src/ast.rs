@@ -84,6 +84,11 @@ pub enum Expr {
         callee: Box<Expr>,
         args: Vec<Expr>,
     },
+    NamedConstruct {
+        base: Box<Expr>,
+        variant: String,
+        fields: Vec<(String, Expr)>,
+    },
     Field {
         base: Box<Expr>,
         name: String,

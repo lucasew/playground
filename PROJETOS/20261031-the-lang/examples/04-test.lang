@@ -12,6 +12,10 @@ Counter.incr() N {
   self.n
 }
 
+Counter.value() {
+  self.n
+}
+
 test {
   c = Counter[int]{}
   require.ok(await c.incr())

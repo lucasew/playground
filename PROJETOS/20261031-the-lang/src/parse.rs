@@ -23,6 +23,7 @@ enum Tok {
     Star,
     Slash,
     FatArrow,
+    Semi,
     Eof,
 }
 
@@ -30,11 +31,13 @@ struct Lexer<'a> {
     src: &'a [u8],
     i: usize,
     line: usize,
+    /// Previous token can end a statement. A newline then yields `Semi`.
+    can_semi: bool,
 }
 
 impl<'a> Lexer<'a> {
     fn new(src: &'a str) -> Self {
-        Self { src: src.as_bytes(), i: 0, line: 1 }
+        Self { src: src.as_bytes(), i: 0, line: 1, can_semi: false }
     }
 
     fn peek(&self) -> Option<u8> {
@@ -66,7 +69,12 @@ impl<'a> Lexer<'a> {
     }
 
     fn next(&mut self) -> Result<(Tok, usize), String> {
+        let line_before = self.line;
         self.skip();
+        if self.line > line_before && self.can_semi {
+            self.can_semi = false;
+            return Ok((Tok::Semi, line_before));
+        }
         let line = self.line;
         let Some(c) = self.bump() else {
             return Ok((Tok::Eof, line));
@@ -108,6 +116,16 @@ impl<'a> Lexer<'a> {
             b'a'..=b'z' | b'A'..=b'Z' | b'_' => Tok::Ident(self.ident(c)),
             _ => return Err(format!("line {line}: unexpected character")),
         };
+        self.can_semi = matches!(
+            tok,
+            Tok::Ident(_)
+                | Tok::Int(_)
+                | Tok::Float(_)
+                | Tok::Str(_)
+                | Tok::RParen
+                | Tok::RBrack
+                | Tok::RBrace
+        );
         Ok((tok, line))
     }
 
@@ -169,6 +187,8 @@ impl<'a> Lexer<'a> {
 struct Parser {
     toks: Vec<(Tok, usize)>,
     i: usize,
+    /// When set, `{` ends the expression. `match` uses this so the brace is the arm list.
+    brace_ends: bool,
 }
 
 impl Parser {
@@ -208,9 +228,19 @@ impl Parser {
         }
     }
 
+    fn skip_semi(&mut self) {
+        while matches!(self.peek(), Tok::Semi) {
+            self.bump();
+        }
+    }
+
     fn parse(mut self) -> Result<Program, String> {
         let mut items = Vec::new();
         while !matches!(self.peek(), Tok::Eof) {
+            self.skip_semi();
+            if matches!(self.peek(), Tok::Eof) {
+                break;
+            }
             items.push(self.item()?);
         }
         Ok(Program { items })
@@ -283,6 +313,10 @@ impl Parser {
         self.want(&Tok::LBrace)?;
         let mut fields = Vec::new();
         while !matches!(self.peek(), Tok::RBrace | Tok::Eof) {
+            self.skip_semi();
+            if matches!(self.peek(), Tok::RBrace | Tok::Eof) {
+                break;
+            }
             fields.push(self.field()?);
         }
         self.want(&Tok::RBrace)?;
@@ -342,6 +376,10 @@ impl Parser {
                 self.want(&Tok::LBrace)?;
                 let mut fields = Vec::new();
                 while !matches!(self.peek(), Tok::RBrace | Tok::Eof) {
+                    self.skip_semi();
+                    if matches!(self.peek(), Tok::RBrace | Tok::Eof) {
+                        break;
+                    }
                     fields.push(self.field()?);
                 }
                 self.want(&Tok::RBrace)?;
@@ -351,6 +389,10 @@ impl Parser {
                 self.want(&Tok::LBrace)?;
                 let mut variants = Vec::new();
                 while !matches!(self.peek(), Tok::RBrace | Tok::Eof) {
+                    self.skip_semi();
+                    if matches!(self.peek(), Tok::RBrace | Tok::Eof) {
+                        break;
+                    }
                     variants.push(self.variant()?);
                 }
                 self.want(&Tok::RBrace)?;
@@ -365,23 +407,32 @@ impl Parser {
         if matches!(self.peek(), Tok::LParen) {
             self.bump();
             let mut fields = Vec::new();
-            if !matches!(self.peek(), Tok::RParen) {
-                fields.push(self.variant_field()?);
-                while matches!(self.peek(), Tok::Comma) {
+            while !matches!(self.peek(), Tok::RParen | Tok::Eof) {
+                self.skip_semi();
+                if matches!(self.peek(), Tok::Comma) {
                     self.bump();
-                    if matches!(self.peek(), Tok::RParen) {
-                        break;
-                    }
-                    fields.push(self.variant_field()?);
+                    continue;
                 }
+                if matches!(self.peek(), Tok::RParen | Tok::Eof) {
+                    break;
+                }
+                fields.push(self.variant_field()?);
             }
             self.want(&Tok::RParen)?;
-            return Ok(Variant { name, fields, named: true });
+            return Ok(Variant { name, fields, named: false });
         }
         if matches!(self.peek(), Tok::LBrace) {
             self.bump();
             let mut fields = Vec::new();
             while !matches!(self.peek(), Tok::RBrace | Tok::Eof) {
+                self.skip_semi();
+                if matches!(self.peek(), Tok::Comma) {
+                    self.bump();
+                    continue;
+                }
+                if matches!(self.peek(), Tok::RBrace | Tok::Eof) {
+                    break;
+                }
                 let fname = self.eat_ident()?;
                 self.want(&Tok::Colon)?;
                 let ty = self.type_name()?;
@@ -429,6 +480,10 @@ impl Parser {
         self.want(&Tok::LBrace)?;
         let mut stmts = Vec::new();
         while !matches!(self.peek(), Tok::RBrace | Tok::Eof) {
+            self.skip_semi();
+            if matches!(self.peek(), Tok::RBrace | Tok::Eof) {
+                break;
+            }
             stmts.push(self.stmt()?);
         }
         self.want(&Tok::RBrace)?;
@@ -506,10 +561,17 @@ impl Parser {
 
     fn match_expr(&mut self) -> Result<Expr, String> {
         self.bump();
+        let saved = self.brace_ends;
+        self.brace_ends = true;
         let expr = self.expr()?;
+        self.brace_ends = saved;
         self.want(&Tok::LBrace)?;
         let mut arms = Vec::new();
         while !matches!(self.peek(), Tok::RBrace | Tok::Eof) {
+            self.skip_semi();
+            if matches!(self.peek(), Tok::RBrace | Tok::Eof) {
+                break;
+            }
             let pattern = self.pattern()?;
             self.want(&Tok::FatArrow)?;
             let body = self.expr()?;
@@ -544,22 +606,23 @@ impl Parser {
             if matches!(self.peek(), Tok::LBrace) {
                 self.bump();
                 let mut fields = Vec::new();
-                if !matches!(self.peek(), Tok::RBrace) {
-                    loop {
-                        let fname = self.eat_ident()?;
-                        let pat = if matches!(self.peek(), Tok::Colon) {
-                            self.bump();
-                            self.pattern()?
-                        } else {
-                            Pattern::Bind(fname.clone())
-                        };
-                        fields.push(PatternField { name: fname, pat });
-                        if matches!(self.peek(), Tok::Comma) {
-                            self.bump();
-                            continue;
-                        }
+                while !matches!(self.peek(), Tok::RBrace | Tok::Eof) {
+                    self.skip_semi();
+                    if matches!(self.peek(), Tok::Comma) {
+                        self.bump();
+                        continue;
+                    }
+                    if matches!(self.peek(), Tok::RBrace | Tok::Eof) {
                         break;
                     }
+                    let fname = self.eat_ident()?;
+                    let pat = if matches!(self.peek(), Tok::Colon) {
+                        self.bump();
+                        self.pattern()?
+                    } else {
+                        Pattern::Bind(fname.clone())
+                    };
+                    fields.push(PatternField { name: fname, pat });
                 }
                 self.want(&Tok::RBrace)?;
                 return Ok(Pattern::Variant { name, fields, named: true });
@@ -590,7 +653,7 @@ impl Parser {
                     args.push(self.type_name()?);
                 }
                 self.want(&Tok::RBrack)?;
-                if matches!(self.peek(), Tok::LBrace) {
+                if matches!(self.peek(), Tok::LBrace) && !self.brace_ends {
                     let Expr::Name(name) = expr else {
                         return Err(self.err("construct needs a type name"));
                     };
@@ -603,26 +666,35 @@ impl Parser {
             }
             if matches!(self.peek(), Tok::LParen) {
                 self.bump();
+                let saved = self.brace_ends;
+                self.brace_ends = false;
                 let mut args = Vec::new();
-                if !matches!(self.peek(), Tok::RParen) {
-                    args.push(self.expr()?);
-                    while matches!(self.peek(), Tok::Comma) {
-                        self.bump();
-                        if matches!(self.peek(), Tok::RParen) {
-                            break;
-                        }
-                        args.push(self.expr()?);
+                loop {
+                    self.skip_semi();
+                    if matches!(self.peek(), Tok::RParen | Tok::Eof) {
+                        break;
                     }
+                    if matches!(self.peek(), Tok::Comma) {
+                        self.bump();
+                        continue;
+                    }
+                    args.push(self.expr()?);
                 }
+                self.brace_ends = saved;
                 self.want(&Tok::RParen)?;
                 expr = Expr::Call { callee: Box::new(expr), args };
                 continue;
             }
-            if matches!(self.peek(), Tok::LBrace) {
+            if matches!(self.peek(), Tok::LBrace) && !self.brace_ends {
                 if let Expr::Name(name) = &expr {
                     let name = name.clone();
                     let fields = self.field_inits()?;
                     expr = Expr::Construct { name, args: Vec::new(), fields };
+                    continue;
+                }
+                if let Expr::Field { base, name } = expr {
+                    let fields = self.field_inits()?;
+                    expr = Expr::NamedConstruct { base, variant: name, fields };
                     continue;
                 }
             }
@@ -641,13 +713,18 @@ impl Parser {
         self.want(&Tok::LBrace)?;
         let mut fields = Vec::new();
         while !matches!(self.peek(), Tok::RBrace | Tok::Eof) {
+            self.skip_semi();
+            if matches!(self.peek(), Tok::Comma) {
+                self.bump();
+                continue;
+            }
+            if matches!(self.peek(), Tok::RBrace | Tok::Eof) {
+                break;
+            }
             let name = self.eat_ident()?;
             self.want(&Tok::Colon)?;
             let value = self.expr()?;
             fields.push((name, value));
-            if matches!(self.peek(), Tok::Comma) {
-                self.bump();
-            }
         }
         self.want(&Tok::RBrace)?;
         Ok(fields)
@@ -662,7 +739,10 @@ impl Parser {
             Tok::Float(n) => Ok(Expr::Float(n)),
             Tok::Str(s) => Ok(Expr::Str(s)),
             Tok::LParen => {
+                let saved = self.brace_ends;
+                self.brace_ends = false;
                 let e = self.expr()?;
+                self.brace_ends = saved;
                 self.want(&Tok::RParen)?;
                 Ok(e)
             }
@@ -682,5 +762,5 @@ pub fn parse(src: &str) -> Result<Program, String> {
             break;
         }
     }
-    Parser { toks, i: 0 }.parse()
+    Parser { toks, i: 0, brace_ends: false }.parse()
 }

@@ -1,2 +1,5 @@
 [tools]
 rust = "1.93.0"
+# Host `cc` is a shim (`x clang`) that rustc cannot invoke. conda-gcc provides cc.
+"conda:gcc" = "16.2.0"
+"conda:binutils" = "2.46.1"
