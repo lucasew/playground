@@ -124,13 +124,21 @@ fn build_cmd(build: &Build) -> Result<(), String> {
             .unwrap_or("a.out")
             .to_string()
     });
-    match (os, arch, build.artifact) {
-        (TargetOs::Linux, TargetArch::Amd64, Artifact::Binary) => {
+    let target_os = match os {
+        TargetOs::Linux => the_lang::Os::Linux,
+        TargetOs::Darwin => the_lang::Os::Darwin,
+        TargetOs::Windows => the_lang::Os::Windows,
+    };
+    let cpu = match arch {
+        TargetArch::Amd64 => the_lang::Cpu::Amd64,
+        TargetArch::Arm64 => the_lang::Cpu::Arm64,
+    };
+    match build.artifact {
+        Artifact::CShared => Err("build: c-shared is not in this port".into()),
+        Artifact::Binary => {
             let src = std::fs::read_to_string(&build.path).map_err(|e| format!("{}: {e}", build.path))?;
-            the_lang::build_linux_amd64(&src, std::path::Path::new(&output))
+            the_lang::build(&src, target_os, cpu, std::path::Path::new(&output))
         }
-        (_, _, Artifact::CShared) => Err("build: c-shared is not in this port".into()),
-        (os, arch, _) => Err(format!("build: no port for {os}/{arch}")),
     }
 }
 

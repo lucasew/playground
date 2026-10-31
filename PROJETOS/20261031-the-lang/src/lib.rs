@@ -1,10 +1,15 @@
+mod amd64;
+mod arm64;
+mod asm;
 mod ast;
 mod compile;
+mod link;
 mod eval;
 mod parse;
 mod runtime;
 
-pub use compile::build_linux_amd64;
+pub use compile::{build, build_linux_amd64};
+pub use link::{Cpu, Os};
 
 pub use eval::{run_source, Outcome};
 
