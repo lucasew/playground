@@ -188,7 +188,7 @@ Residual risk: `run` and `test` execute the user program with the rights of the 
 3. A remote call protocol. It MUST NOT change a pid or `as`. Clusters stay out.
 4. The `generate` marker. The command exists. This draft does not name the marker.
 5. A composed integer type whose operations do not wrap. Builtin integers keep TEC-13.
-6. Native code generation. It implements `build` in TEC-14 and the runtime in TEC-17. Until then, `run` interprets `main` and `test` interprets test blocks. `build` exits 1 and reports that codegen is later. The interpreter is not the runtime.
+6. The other build ports. `linux/amd64` `binary` lowers actors and `fprintf` to calls on `hal_write` and `hal_exit`. `run` still interprets. `c-shared`, `darwin`, `windows`, and `arm64` have no port yet.
 
 ## Assumptions
 

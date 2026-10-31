@@ -98,10 +98,12 @@ fn main() -> ExitCode {
     let app = App::parse();
     let _ = app.version;
     match app.command {
-        Command::Build(build) => {
-            let _target = (build.artifact, build.os, build.arch, build.output);
-            eprintln!("build: native codegen is later");
-            ExitCode::from(1)
+        Command::Build(build) => match build_cmd(&build) {
+            Ok(()) => ExitCode::from(0),
+            Err(e) => {
+                eprintln!("{e}");
+                ExitCode::from(1)
+            }
         }
         Command::Generate(_) => {
             eprintln!("generate: the marker grammar is later");
@@ -109,6 +111,60 @@ fn main() -> ExitCode {
         }
         Command::Run(source) => run_path(&source.path, false),
         Command::Test(source) => run_path(&source.path, true),
+    }
+}
+
+fn build_cmd(build: &Build) -> Result<(), String> {
+    let os = build.os.unwrap_or_else(host_os);
+    let arch = build.arch.unwrap_or_else(host_arch);
+    let output = build.output.clone().unwrap_or_else(|| {
+        std::path::Path::new(&build.path)
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("a.out")
+            .to_string()
+    });
+    match (os, arch, build.artifact) {
+        (TargetOs::Linux, TargetArch::Amd64, Artifact::Binary) => {
+            let src = std::fs::read_to_string(&build.path).map_err(|e| format!("{}: {e}", build.path))?;
+            the_lang::build_linux_amd64(&src, std::path::Path::new(&output))
+        }
+        (_, _, Artifact::CShared) => Err("build: c-shared is not in this port".into()),
+        (os, arch, _) => Err(format!("build: no port for {os}/{arch}")),
+    }
+}
+
+fn host_os() -> TargetOs {
+    match std::env::consts::OS {
+        "macos" => TargetOs::Darwin,
+        "windows" => TargetOs::Windows,
+        _ => TargetOs::Linux,
+    }
+}
+
+fn host_arch() -> TargetArch {
+    match std::env::consts::ARCH {
+        "aarch64" => TargetArch::Arm64,
+        _ => TargetArch::Amd64,
+    }
+}
+
+impl std::fmt::Display for TargetOs {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            TargetOs::Linux => "linux",
+            TargetOs::Darwin => "darwin",
+            TargetOs::Windows => "windows",
+        })
+    }
+}
+
+impl std::fmt::Display for TargetArch {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            TargetArch::Amd64 => "amd64",
+            TargetArch::Arm64 => "arm64",
+        })
     }
 }
 

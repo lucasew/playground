@@ -98,7 +98,7 @@ fn build_accepts_target_after_path() {
     ]);
     assert_eq!(out.status.code(), Some(1));
     let err = String::from_utf8(out.stderr).unwrap();
-    assert!(err.contains("codegen"), "{err}");
+    assert!(err.contains("port"), "{err}");
 }
 
 #[test]
@@ -122,11 +122,16 @@ fn lone_dash_is_a_path() {
 }
 
 #[test]
-fn build_reports_codegen_later() {
-    let out = run(&["build", "examples/01-counter.lang"]);
-    assert_eq!(out.status.code(), Some(1));
+fn build_compiles_counter() {
+    let produced = std::path::Path::new("target/the-lang-counter");
+    let _ = std::fs::remove_file(produced);
+    let out = run(&["build", "--output", "target/the-lang-counter", "examples/01-counter.lang"]);
+    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
     assert!(out.stdout.is_empty());
-    assert!(String::from_utf8(out.stderr).unwrap().contains("codegen"));
+    let ran = Command::new(produced).output().expect("run compiled counter");
+    assert!(ran.status.success(), "{}", String::from_utf8_lossy(&ran.stderr));
+    assert_eq!(String::from_utf8(ran.stderr).unwrap(), "count: 1\n");
+    let _ = std::fs::remove_file(produced);
 }
 
 #[test]

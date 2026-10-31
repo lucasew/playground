@@ -1,7 +1,10 @@
 mod ast;
+mod compile;
 mod eval;
 mod parse;
 mod runtime;
+
+pub use compile::build_linux_amd64;
 
 pub use eval::{run_source, Outcome};
 
