@@ -26,6 +26,11 @@ pub enum Item {
         params: Vec<String>,
         body: Vec<Stmt>,
     },
+    Func {
+        name: String,
+        params: Vec<String>,
+        body: Vec<Stmt>,
+    },
     Main(Vec<Stmt>),
     Test(Vec<Stmt>),
 }
@@ -113,6 +118,7 @@ pub enum Expr {
         expr: Box<Expr>,
         arms: Vec<Arm>,
     },
+    Block(Vec<Stmt>),
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -133,8 +139,10 @@ pub struct Arm {
 #[derive(Clone, Debug)]
 pub enum Pattern {
     Wildcard,
+    Bool(bool),
     Bind(String),
     Variant {
+        type_name: String,
         name: String,
         fields: Vec<PatternField>,
         named: bool,

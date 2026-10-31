@@ -7,8 +7,8 @@ type Shape enum {
 
 Shape.area(self) f64 {
   match self {
-    circle(r) => 3.14 * r * r
-    rect { w, h } => w * h
+    Shape.circle(r) => 3.14 * r * r
+    Shape.rect { w, h } => w * h
   }
 }
 

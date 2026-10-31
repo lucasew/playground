@@ -21,8 +21,8 @@ fn shape_area() {
         }
         Shape.area(self) f64 {
           match self {
-            circle(r) => 3.14 * r * r
-            rect { w, h } => w * h
+            Shape.circle(r) => 3.14 * r * r
+            Shape.rect { w, h } => w * h
           }
         }
         main {
@@ -62,8 +62,8 @@ fn dead_actor_is_error_dead() {
           b = Bomb[int]{}
           await b.boom()
           match await b.value() {
-            ok(_) => false
-            err(e) => is(e, error.dead)
+            Result.ok(_) => false
+            Result.err(e) => is(e, error.dead)
           }
         }
     "#;

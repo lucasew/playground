@@ -11,7 +11,7 @@ Counter.value() {
 main {
   c = Counter[int]{}
   match await c.value() {
-    ok(_) => false
-    err(e) => is(e, error.dead)
+    Result.ok(_) => false
+    Result.err(e) => is(e, error.dead)
   }
 }

@@ -1,0 +1,33 @@
+import runtime from "runtime"
+
+func ok(result) {
+  runtime.test_only()
+  match result {
+    Result.ok(v) => some(v)
+    Result.err(_) => { runtime.fail_check(); none }
+  }
+}
+
+func equal(expected, actual) {
+  runtime.test_only()
+  match expected == actual {
+    true => {}
+    false => runtime.fail_check()
+  }
+}
+
+func true(cond) {
+  runtime.test_only()
+  match cond {
+    true => {}
+    false => runtime.fail_check()
+  }
+}
+
+func false(cond) {
+  runtime.test_only()
+  match cond {
+    false => {}
+    true => runtime.fail_check()
+  }
+}

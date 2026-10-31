@@ -88,6 +88,7 @@ impl<'a> Lexer<'a> {
             b']' => Tok::RBrack,
             b',' => Tok::Comma,
             b'.' => Tok::Dot,
+            b';' => Tok::Semi,
             b':' => Tok::Colon,
             b'+' => {
                 if self.peek() == Some(b'=') {
@@ -262,6 +263,7 @@ impl Parser {
                 self.bump();
                 Ok(Item::Test(self.block()?))
             }
+            "func" => self.func_item(),
             _ => self.method(),
         }
     }
@@ -476,8 +478,35 @@ impl Parser {
         Ok(Item::Method { type_name, name, params, body })
     }
 
+    fn func_item(&mut self) -> Result<Item, String> {
+        self.bump();
+        let name = self.eat_ident()?;
+        self.want(&Tok::LParen)?;
+        let mut params = Vec::new();
+        if !matches!(self.peek(), Tok::RParen) {
+            params.push(self.eat_ident()?);
+            while matches!(self.peek(), Tok::Comma) {
+                self.bump();
+                if matches!(self.peek(), Tok::RParen) {
+                    break;
+                }
+                params.push(self.eat_ident()?);
+            }
+        }
+        self.want(&Tok::RParen)?;
+        if matches!(self.peek(), Tok::Ident(_)) && !matches!(self.peek(), Tok::LBrace) {
+            let _ret = self.type_name()?;
+        }
+        let body = self.block()?;
+        Ok(Item::Func { name, params, body })
+    }
+
     fn block(&mut self) -> Result<Vec<Stmt>, String> {
         self.want(&Tok::LBrace)?;
+        self.block_body()
+    }
+
+    fn block_body(&mut self) -> Result<Vec<Stmt>, String> {
         let mut stmts = Vec::new();
         while !matches!(self.peek(), Tok::RBrace | Tok::Eof) {
             self.skip_semi();
@@ -587,8 +616,32 @@ impl Parser {
                 self.bump();
                 return Ok(Pattern::Wildcard);
             }
+            if name == "true" || name == "false" {
+                let next_groups = matches!(
+                    self.toks.get(self.i + 1).map(|t| &t.0),
+                    Some(Tok::LParen | Tok::LBrace | Tok::Dot)
+                );
+                if !next_groups {
+                    self.bump();
+                    return Ok(Pattern::Bool(name == "true"));
+                }
+            }
             self.bump();
-            if matches!(self.peek(), Tok::LParen) {
+            if matches!(self.peek(), Tok::Dot) {
+                self.bump();
+                let variant = self.eat_ident()?;
+                return self.variant_pattern(name, variant);
+            }
+            if matches!(self.peek(), Tok::LParen | Tok::LBrace) {
+                return Err(self.err("a variant pattern names its type, as in Shape.circle"));
+            }
+            return Ok(Pattern::Bind(name));
+        }
+        Err(self.err("expected a pattern"))
+    }
+
+    fn variant_pattern(&mut self, type_name: String, name: String) -> Result<Pattern, String> {
+        if matches!(self.peek(), Tok::LParen) {
                 self.bump();
                 let mut fields = Vec::new();
                 if !matches!(self.peek(), Tok::RParen) {
@@ -601,7 +654,7 @@ impl Parser {
                     }
                 }
                 self.want(&Tok::RParen)?;
-                return Ok(Pattern::Variant { name, fields, named: false });
+                return Ok(Pattern::Variant { type_name, name, fields, named: false });
             }
             if matches!(self.peek(), Tok::LBrace) {
                 self.bump();
@@ -625,12 +678,10 @@ impl Parser {
                     fields.push(PatternField { name: fname, pat });
                 }
                 self.want(&Tok::RBrace)?;
-                return Ok(Pattern::Variant { name, fields, named: true });
+                return Ok(Pattern::Variant { type_name, name, fields, named: true });
             }
-            return Ok(Pattern::Bind(name));
+            Ok(Pattern::Variant { type_name, name, fields: Vec::new(), named: false })
         }
-        Err(self.err("expected a pattern"))
-    }
 
     fn pat_field_pos(&mut self, index: usize) -> Result<PatternField, String> {
         let pat = self.pattern()?;
@@ -638,6 +689,7 @@ impl Parser {
             Pattern::Bind(n) => n.clone(),
             Pattern::Wildcard => format!("_{index}"),
             Pattern::Variant { name, .. } => name.clone(),
+            Pattern::Bool(_) => format!("_{index}"),
         };
         Ok(PatternField { name, pat })
     }
@@ -738,6 +790,7 @@ impl Parser {
             Tok::Int(n) => Ok(Expr::Int(n)),
             Tok::Float(n) => Ok(Expr::Float(n)),
             Tok::Str(s) => Ok(Expr::Str(s)),
+            Tok::LBrace => Ok(Expr::Block(self.block_body()?)),
             Tok::LParen => {
                 let saved = self.brace_ends;
                 self.brace_ends = false;

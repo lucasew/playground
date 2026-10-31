@@ -1,10 +1,30 @@
-func ok[T](result Result[T]) {
-	result.unwrap()
+import runtime from "runtime"
+
+func ok(result) {
+  runtime.test_only()
+  result.unwrap()
 }
 
-func equal[T](a, b T) {
-	if a == b {
-		return
-	}
-	fmt.fatalf("%v != %v", a, b)
+func equal(expected, actual) {
+  runtime.test_only()
+  match expected == actual {
+    true => {}
+    false => err(error.dead).unwrap()
+  }
+}
+
+func true(cond) {
+  runtime.test_only()
+  match cond {
+    true => {}
+    false => err(error.dead).unwrap()
+  }
+}
+
+func false(cond) {
+  runtime.test_only()
+  match cond {
+    false => {}
+    true => err(error.dead).unwrap()
+  }
 }

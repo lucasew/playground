@@ -41,14 +41,15 @@ Inherited C:
 | TEC-06 | an `err` payload | The payload is an `error` value, not an enum. `__unwrap__` builds the cause chain. `is` walks that chain for a sentinel. `find[T]` walks it for a type. | `is` returns bool. `find` returns `Option[T]`. |
 | TEC-07 | `as[Target](value)` | Try the source `__to__` whose result is `Target`. Then try `Target.__from__`. Then try a defined type and its underlying type. An `Err` does not continue the search. | the return type of the selected method |
 | TEC-08 | an integer literal | `int` is 32-bit signed. `usize` is unsigned and has the pointer width. A literal in a typed place takes that place's type when the value fits. A computed `int` needs `as` to become another integer type. `==` on two values of the same integer type returns `bool`. | a value of the place's type |
-| TEC-09 | `type Name enum` | Each variant is one of three forms: a name, ordered fields, named fields. `match` names every variant. `Result` and `Option` are prelude enums. | one variant |
+| TEC-09 | `type Name enum` | Each variant is one of three forms: a name, ordered fields, named fields. `match` names every variant. A pattern writes the type and the variant, as in `Shape.circle(r)` and `Result.ok(value)`. `Result` and `Option` are prelude enums. | one variant |
 | TEC-10 | an import line | `import { A, B } from "specifier"` binds those names. `import mod from "specifier"` binds the whole module, and calls are `mod.A`. An import that uses `*` is rejected. A specifier that starts with `./` or `../` is a path inside the module. A first element with a dot is a remote module path. The default URL is `https://` plus that path. A first element with no dot is the standard library. The string has no version and no scheme. `lang.mod` records requirements. `lang.lock` records checksums. Selection is minimal version selection. | bound names, or one module value |
 | TEC-11 | `runtime.lockOSThread` | The call pins the actor to its current OS thread. No other actor runs on that thread until the matching unlock count. The main actor starts on the OS main thread. | a pinned actor |
 | TEC-12 | a method declaration | Fields stay in the actor block and in the struct block. Methods stay outside. `self` is in scope. The last expression is the result. A name may have several argument lists. | a callable method |
 | TEC-13 | `+`, `-`, `*` on a builtin integer | The operation wraps modulo 2 to the width. Signed values use two's complement wrap. | a value of the same integer type |
 | TEC-14 | `build` and a program path | `build` writes one file. `--artifact binary` writes an executable. `--artifact c-shared` writes a C shared library. Absent `--artifact` means `binary`. `--os` and `--arch` select the target. Absent flags mean the host OS and the host architecture. `--output` is the file path. Absent `--output` means the base name of the path, in the current directory. | one file, empty stdout |
 | TEC-15 | a `test` block | `build` and `run` omit every `test` block. A top-level `test` block is one short-lived actor. The `test` command starts that actor. The actor dies when the block ends. A `test` block inside a function stays in that actor and runs only under `test`. | exit 0 when every test actor finishes with no recorded failure. Exit 1 when one dies by `unwrap` or `require`, or finishes with a recorded `check` failure. |
-| TEC-16 | `check` and `require` | Both are standard library modules. They are legal only inside a `test` block. The calls are `equal(expected, actual)`, `true(condition)`, `false(condition)`, and `ok(result)`. `check` records a failure and continues. `require` kills the actor. `require.ok` returns the `ok` value. `check.ok` returns `Option[T]`. | a continued turn, a recorded failure, or a dead actor |
+| TEC-16 | `check` and `require` | Both are the-lang modules. They are legal only inside a `test` block. The calls are `equal(expected, actual)`, `true(condition)`, `false(condition)`, and `ok(result)`. `check` records a failure and continues. `require` kills the actor. `require.ok` returns the `ok` value. `check.ok` returns `Option[T]`. The host module `runtime` exports `test_only` and `fail_check`. | a continued turn, a recorded failure, or a dead actor |
+| TEC-17 | the runtime and an OS | The runtime allocates, schedules turns, and exits through the OS interface. Linux uses the syscall ABI. Windows uses the NT interface. Darwin uses libSystem, because that OS has no stable syscall ABI. libc is the C calling convention for `--artifact c-shared` and for a call into C. Those calls run on the main actor. A `binary` artifact does not use libc to spawn, await, or exit. | one process |
 
 ## Tooling
 
@@ -187,7 +188,7 @@ Residual risk: `run` and `test` execute the user program with the rights of the 
 3. A remote call protocol. It MUST NOT change a pid or `as`. Clusters stay out.
 4. The `generate` marker. The command exists. This draft does not name the marker.
 5. A composed integer type whose operations do not wrap. Builtin integers keep TEC-13.
-6. Native code generation. It implements `build` in TEC-14. Until then, `run` interprets `main` and `test` interprets test blocks. `build` exits 1 and reports that codegen is later.
+6. Native code generation. It implements `build` in TEC-14 and the runtime in TEC-17. Until then, `run` interprets `main` and `test` interprets test blocks. `build` exits 1 and reports that codegen is later. The interpreter is not the runtime.
 
 ## Assumptions
 
@@ -212,6 +213,7 @@ Residual risk: `run` and `test` execute the user program with the rights of the 
 - ADR-0011: A top-level `test` block is one short-lived actor. Rejected: a `Test` function name as the only test form.
 - ADR-0012: `check` and `require` live in the standard library. Rejected: a language `assert` keyword.
 - ADR-0013: argv is a usage spec. Rejected: a copied lewkit parser.
+- ADR-0015: The runtime is the platform. libc is only the C calling convention. Rejected: actors implemented by libc calls.
 
 ## Examples
 

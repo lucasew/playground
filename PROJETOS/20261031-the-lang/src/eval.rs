@@ -21,6 +21,14 @@ pub enum Value {
     Module(HashMap<String, Value>),
     Type(String),
     Native(Native),
+    Func(Box<FuncObj>),
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct FuncObj {
+    params: Vec<String>,
+    body: Vec<Stmt>,
+    env: HashMap<String, Value>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -117,14 +125,8 @@ pub struct ErrorObj {
 pub enum Native {
     Fprintf,
     Is,
-    RequireOk,
-    RequireEqual,
-    RequireTrue,
-    RequireFalse,
-    CheckOk,
-    CheckEqual,
-    CheckTrue,
-    CheckFalse,
+    TestOnly,
+    FailCheck,
     Ok,
     Err,
     Some,
@@ -418,6 +420,7 @@ impl<'a> Vm<'a> {
                     other => Ok(other),
                 }
             }
+            Expr::Block(stmts) => self.exec_block(self.current, stmts),
             Expr::Match { expr, arms } => {
                 let v = self.eval(expr)?;
                 for arm in arms {
@@ -521,6 +524,7 @@ impl<'a> Vm<'a> {
         let fun = self.eval(callee)?;
         match fun {
             Value::Native(n) => self.native(n, values),
+            Value::Func(f) => self.call_func(*f, values),
             Value::Enum { type_name, variant, fields } if type_name == "$method" => {
                 let recv = fields.into_iter().next().map(|(_, v)| v).unwrap_or(Value::Unit);
                 self.invoke(recv, &variant, values)
@@ -749,21 +753,45 @@ impl<'a> Vm<'a> {
                 let target = args.get(1).cloned().unwrap_or(Value::Unit);
                 Ok(Value::Bool(error_is(&err, &target)))
             }
+            Native::TestOnly => self.test_only(),
+            Native::FailCheck => {
+                self.note_check();
+                Ok(Value::Unit)
+            }
             Native::Ok => Ok(ok(args.into_iter().next().unwrap_or(Value::Unit))),
             Native::Err => Ok(Value::Result(Err(Box::new(args.into_iter().next().unwrap_or(Value::Unit))))),
             Native::Some => Ok(Value::Option(Some(Box::new(args.into_iter().next().unwrap_or(Value::Unit))))),
             Native::None => Ok(Value::Option(None)),
-            Native::RequireOk => self.require_ok(args),
-            Native::RequireEqual => self.require_equal(args),
-            Native::RequireTrue => self.require_bool(args, true),
-            Native::RequireFalse => self.require_bool(args, false),
-            Native::CheckOk => self.check_ok(args),
-            Native::CheckEqual => {
-                self.check_equal(args)?;
-                Ok(Value::Unit)
+        }
+    }
+
+    fn call_func(&mut self, func: FuncObj, args: Vec<Value>) -> Result<Value, Flow> {
+        let saved = self.actors.get(&self.current).map(|a| a.fields.clone());
+        {
+            let actor = self.actors.get_mut(&self.current).ok_or_else(|| Flow::Error("no actor".into()))?;
+            for (k, v) in &func.env {
+                actor.fields.insert(k.clone(), v.clone());
             }
-            Native::CheckTrue => self.check_bool(args, true),
-            Native::CheckFalse => self.check_bool(args, false),
+            for (i, p) in func.params.iter().enumerate() {
+                if let Some(arg) = args.get(i) {
+                    actor.fields.insert(p.clone(), arg.clone());
+                }
+            }
+        }
+        let value = self.exec_block(self.current, &func.body);
+        if let Some(saved) = saved {
+            if let Some(actor) = self.actors.get_mut(&self.current) {
+                actor.fields = saved;
+            }
+        }
+        value
+    }
+
+    fn test_only(&self) -> Result<Value, Flow> {
+        if self.testing {
+            Ok(Value::Unit)
+        } else {
+            Err(Flow::Error("check and require are legal only inside a test block".into()))
         }
     }
 
@@ -810,95 +838,28 @@ impl<'a> Vm<'a> {
         Ok(Value::Unit)
     }
 
-    fn require_ok(&mut self, args: Vec<Value>) -> Result<Value, Flow> {
-        self.ensure_test()?;
-        match args.into_iter().next() {
-            Some(Value::Result(Ok(v))) => Ok(*v),
-            _ => self.fail_require(),
-        }
-    }
-
-    fn require_equal(&mut self, args: Vec<Value>) -> Result<Value, Flow> {
-        self.ensure_test()?;
-        let mut it = args.into_iter();
-        let a = it.next().unwrap_or(Value::Unit);
-        let b = it.next().unwrap_or(Value::Unit);
-        let b = self.coerce_int_literal(&b, &a)?;
-        let a = self.coerce_int_literal(&a, &b)?;
-        if values_eq(&a, &b) { Ok(Value::Unit) } else { self.fail_require() }
-    }
-
-    fn require_bool(&mut self, args: Vec<Value>, expect: bool) -> Result<Value, Flow> {
-        self.ensure_test()?;
-        match args.first() {
-            Some(Value::Bool(v)) if *v == expect => Ok(Value::Unit),
-            _ => self.fail_require(),
-        }
-    }
-
-    fn check_ok(&mut self, args: Vec<Value>) -> Result<Value, Flow> {
-        self.ensure_test()?;
-        match args.into_iter().next() {
-            Some(Value::Result(Ok(v))) => Ok(Value::Option(Some(v))),
-            _ => {
-                self.note_check();
-                Ok(Value::Option(None))
-            }
-        }
-    }
-
-    fn check_equal(&mut self, args: Vec<Value>) -> Result<(), Flow> {
-        self.ensure_test()?;
-        let mut it = args.into_iter();
-        let a = it.next().unwrap_or(Value::Unit);
-        let b = it.next().unwrap_or(Value::Unit);
-        if !values_eq(&a, &b) {
-            self.note_check();
-        }
-        Ok(())
-    }
-
-    fn check_bool(&mut self, args: Vec<Value>, expect: bool) -> Result<Value, Flow> {
-        self.ensure_test()?;
-        match args.first() {
-            Some(Value::Bool(v)) if *v == expect => Ok(Value::Unit),
-            _ => {
-                self.note_check();
-                Ok(Value::Unit)
-            }
-        }
-    }
-
-    fn ensure_test(&self) -> Result<(), Flow> {
-        if self.testing && self.actors.get(&self.current).is_some_and(|a| a.type_name == "test" || self.testing) {
-            return Ok(());
-        }
-        Err(Flow::Error("check and require are legal only inside a test block".into()))
-    }
-
     fn note_check(&mut self) {
         if let Some(actor) = self.actors.get_mut(&self.current) {
             actor.check_failed = true;
         }
     }
 
-    fn fail_require(&mut self) -> Result<Value, Flow> {
-        if let Some(actor) = self.actors.get_mut(&self.current) {
-            actor.alive = false;
-        }
-        Err(Flow::Dead)
-    }
-
     fn match_pat(&self, pat: &Pattern, value: &Value) -> Option<Vec<(String, Value)>> {
         match pat {
             Pattern::Wildcard => Some(Vec::new()),
+            Pattern::Bool(b) => match value {
+                Value::Bool(v) if v == b => Some(Vec::new()),
+                _ => None,
+            },
             Pattern::Bind(n) => Some(vec![(n.clone(), value.clone())]),
-            Pattern::Variant { name, fields, named } => match value {
-                Value::Result(Ok(v)) if name == "ok" => bind_one(fields, v),
-                Value::Result(Err(v)) if name == "err" => bind_one(fields, v),
-                Value::Option(Some(v)) if name == "some" => bind_one(fields, v),
-                Value::Option(None) if name == "none" => Some(Vec::new()),
-                Value::Enum { variant, fields: vfields, .. } if variant == name => {
+            Pattern::Variant { type_name, name, fields, named } => match value {
+                Value::Result(Ok(v)) if type_name == "Result" && name == "ok" => bind_one(fields, v),
+                Value::Result(Err(v)) if type_name == "Result" && name == "err" => bind_one(fields, v),
+                Value::Option(Some(v)) if type_name == "Option" && name == "some" => bind_one(fields, v),
+                Value::Option(None) if type_name == "Option" && name == "none" => Some(Vec::new()),
+                Value::Enum { type_name: got, variant, fields: vfields, .. }
+                    if got == type_name && variant == name =>
+                {
                     let mut binds = Vec::new();
                     if *named {
                         for pf in fields {
@@ -1021,6 +982,10 @@ fn is_builtin_type(name: &str) -> bool {
 fn std_module(name: &str) -> Option<Value> {
     let mut map = HashMap::new();
     match name {
+        "runtime" => {
+            map.insert("test_only".into(), Value::Native(Native::TestOnly));
+            map.insert("fail_check".into(), Value::Native(Native::FailCheck));
+        }
         "fmt" => {
             map.insert("fprintf".into(), Value::Native(Native::Fprintf));
             map.insert("stderr".into(), Value::Int(IntVal::new(IntKind::I32, 2)));
@@ -1029,21 +994,44 @@ fn std_module(name: &str) -> Option<Value> {
             map.insert("is".into(), Value::Native(Native::Is));
             map.insert("dead".into(), Vm::dead_error());
         }
-        "require" => {
-            map.insert("ok".into(), Value::Native(Native::RequireOk));
-            map.insert("equal".into(), Value::Native(Native::RequireEqual));
-            map.insert("true".into(), Value::Native(Native::RequireTrue));
-            map.insert("false".into(), Value::Native(Native::RequireFalse));
-        }
-        "check" => {
-            map.insert("ok".into(), Value::Native(Native::CheckOk));
-            map.insert("equal".into(), Value::Native(Native::CheckEqual));
-            map.insert("true".into(), Value::Native(Native::CheckTrue));
-            map.insert("false".into(), Value::Native(Native::CheckFalse));
-        }
+        "require" => return Some(lang_module(include_str!("../std/require.lang"))),
+        "check" => return Some(lang_module(include_str!("../std/check.lang"))),
         _ => return None,
     }
     Some(Value::Module(map))
+}
+
+fn lang_module(src: &str) -> Value {
+    let program = crate::parse::parse(src).expect("stdlib");
+    let mut env = HashMap::new();
+    for item in &program.items {
+        match item {
+            Item::ImportNamed { names, from } => {
+                let module = std_module(from).expect("stdlib import");
+                for name in names {
+                    env.insert(name.clone(), module_get(&module, name).expect("stdlib export"));
+                }
+            }
+            Item::ImportModule { name, from } => {
+                env.insert(name.clone(), std_module(from).expect("stdlib import"));
+            }
+            _ => {}
+        }
+    }
+    let mut map = HashMap::new();
+    for item in &program.items {
+        if let Item::Func { name, params, body } = item {
+            map.insert(
+                name.clone(),
+                Value::Func(Box::new(FuncObj {
+                    params: params.clone(),
+                    body: body.clone(),
+                    env: env.clone(),
+                })),
+            );
+        }
+    }
+    Value::Module(map)
 }
 
 fn module_get(module: &Value, name: &str) -> Option<Value> {
