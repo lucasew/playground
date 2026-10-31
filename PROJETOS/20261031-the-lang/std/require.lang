@@ -1,0 +1,10 @@
+func ok[T](result Result[T]) {
+	result.unwrap()
+}
+
+func equal[T](a, b T) {
+	if a == b {
+		return
+	}
+	fmt.fatalf("%v != %v", a, b)
+}

@@ -174,7 +174,8 @@ Residual risk: `run` and `test` execute the user program with the rights of the 
 - [ ] `import * from "require"` is rejected.
 - [ ] `Counter{}` is rejected. `Counter[int]{}` is accepted.
 - [ ] `i32` maximum plus 1 wraps to `i32` minimum.
-- [ ] `the-lang build` writes one executable for the host OS and the host architecture, and writes no success text to stdout.
+- [ ] `the-lang run` on `examples/01-counter.lang` writes `count: 1` to stderr and exits 0.
+- [ ] `the-lang test` on `examples/04-test.lang` exits 0.
 - [ ] A top-level `test` block is absent from the `build` executable and runs as its own actor under `test`.
 - [ ] `require.equal(1, 0)` inside a top-level `test` block kills that actor and `test` exits 1.
 - [ ] `check.equal(1, 0)` inside a top-level `test` block lets the block finish, and `test` still exits 1.
@@ -186,6 +187,7 @@ Residual risk: `run` and `test` execute the user program with the rights of the 
 3. A remote call protocol. It MUST NOT change a pid or `as`. Clusters stay out.
 4. The `generate` marker. The command exists. This draft does not name the marker.
 5. A composed integer type whose operations do not wrap. Builtin integers keep TEC-13.
+6. Native code generation. It implements the `build` executable in TEC-14. Until then, `run` interprets `main` and `test` interprets test blocks. `build` exits 1 and reports that codegen is later.
 
 ## Assumptions
 
