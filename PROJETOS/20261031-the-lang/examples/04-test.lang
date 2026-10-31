@@ -1,0 +1,19 @@
+import require from "require"
+
+actor Counter[N] {
+  n: N = 0
+}
+
+Counter.incr() N {
+  self.n += 1
+  test {
+    self.n
+  }
+  self.n
+}
+
+test {
+  c = Counter[int]{}
+  require.ok(await c.incr())
+  require.equal(1, require.ok(await c.value()))
+}

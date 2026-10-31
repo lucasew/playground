@@ -1,0 +1,17 @@
+import { is } from "error"
+
+actor Counter[N] {
+  n: N = 0
+}
+
+Counter.value() {
+  self.n
+}
+
+main {
+  c = Counter[int]{}
+  match await c.value() {
+    ok(_) => false
+    err(e) => is(e, error.dead)
+  }
+}
