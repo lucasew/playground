@@ -19,7 +19,7 @@ fn shape_area() {
           circle(r: f64)
           rect { w: f64, h: f64 }
         }
-        Shape.area() f64 {
+        Shape.area(self) f64 {
           match self {
             circle(r) => 3.14 * r * r
             rect { w, h } => w * h
@@ -30,11 +30,13 @@ fn shape_area() {
           fprintf(stderr, "%f\n", s.area())
           t = Shape.rect { w: 3.0, h: 4.0 }
           fprintf(stderr, "%f\n", t.area())
+          u = Shape.rect { w: 4, h: 4 }
+          fprintf(stderr, "%f\n", u.area())
         }
     "#;
     let out = run_source(src, false).unwrap();
     assert_eq!(out.status, 0, "{}", out.stderr);
-    assert_eq!(out.stderr, "12.56\n12\n");
+    assert_eq!(out.stderr, "12.56\n12\n16\n");
 }
 
 #[test]

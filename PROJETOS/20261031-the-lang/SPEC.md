@@ -25,7 +25,7 @@ Non-goals:
 
 Inherited C:
 
-- path:Cargo.toml — package `the-lang`, edition 2024, no dependencies. The compiler host is Rust.
+- path:Cargo.toml — package `the-lang`, edition 2024. The compiler host is Rust. argv parsing is `usage-rs`.
 - path:mise.toml — Rust 1.93.0.
 - path:src/main.rs — the toolchain binary starts as a hello-world. It is not the language.
 
@@ -33,7 +33,7 @@ Inherited C:
 
 | ID | Input | Rule | Output |
 |----|-------|------|--------|
-| TEC-01 | argv of one toolchain binary | The commands are `build`, `run`, `test`, and `generate`. Flags follow lewkit `x/cmd`. Exit 0 is success, help, and version. Exit 2 is bad argv. Exit 1 is a command that ran and failed. | status and streams in the Public contract |
+| TEC-01 | argv of one toolchain binary | The commands are `build`, `run`, `test`, and `generate`. Flags follow the usage argv grammar. Exit 0 is success, help, and version. Exit 2 is bad argv. Exit 1 is a command that ran and failed. | status and streams in the Public contract |
 | TEC-02 | `spawn` of an actor | The runtime creates one actor with a fresh pid. A pid is a name. It does not keep the actor alive. The pid is never reused. | a pid of that actor type |
 | TEC-03 | a call on a pid | The call returns `Promise[Result[T]]` when the handler returns `T`. `await` freezes the caller until the handler returns. `ok` carries the handler value. A dead callee is `err(error.dead)`. | `Result[T]` |
 | TEC-04 | calls that arrive faster than the actor runs | The program passes no capacity. The runtime bounds the queue. Extra calls wait on their promises. A busy actor does not fail the call. | the same `Result[T]`, later |
@@ -46,7 +46,7 @@ Inherited C:
 | TEC-11 | `runtime.lockOSThread` | The call pins the actor to its current OS thread. No other actor runs on that thread until the matching unlock count. The main actor starts on the OS main thread. | a pinned actor |
 | TEC-12 | a method declaration | Fields stay in the actor block and in the struct block. Methods stay outside. `self` is in scope. The last expression is the result. A name may have several argument lists. | a callable method |
 | TEC-13 | `+`, `-`, `*` on a builtin integer | The operation wraps modulo 2 to the width. Signed values use two's complement wrap. | a value of the same integer type |
-| TEC-14 | `build` and a program path | `build` writes one native executable. `--os` and `--arch` select the target. Absent flags mean the host OS and the host architecture. `--output` is the file path. Absent `--output` means the base name of the path, in the current directory. | one executable file, empty stdout |
+| TEC-14 | `build` and a program path | `build` writes one file. `--artifact binary` writes an executable. `--artifact c-shared` writes a C shared library. Absent `--artifact` means `binary`. `--os` and `--arch` select the target. Absent flags mean the host OS and the host architecture. `--output` is the file path. Absent `--output` means the base name of the path, in the current directory. | one file, empty stdout |
 | TEC-15 | a `test` block | `build` and `run` omit every `test` block. A top-level `test` block is one short-lived actor. The `test` command starts that actor. The actor dies when the block ends. A `test` block inside a function stays in that actor and runs only under `test`. | exit 0 when every test actor finishes with no recorded failure. Exit 1 when one dies by `unwrap` or `require`, or finishes with a recorded `check` failure. |
 | TEC-16 | `check` and `require` | Both are standard library modules. They are legal only inside a `test` block. The calls are `equal(expected, actual)`, `true(condition)`, `false(condition)`, and `ok(result)`. `check` records a failure and continues. `require` kills the actor. `require.ok` returns the `ok` value. `check.ok` returns `Option[T]`. | a continued turn, a recorded failure, or a dead actor |
 
@@ -54,7 +54,7 @@ Inherited C:
 
 | TEC | Tool | Relation | We do not | Cite |
 |-----|------|----------|-----------|------|
-| TEC-01 | lewkit `x/cmd` | implement | link the Go package into this compiler | lewkit `x/cmd` parse rules |
+| TEC-01 | usage-rs | depend | a second argv parser, and the `usage` binary | https://usage.jdx.dev/spec/argv |
 | TEC-01 | Rust | implement | a Go compiler for the-lang | path:Cargo.toml |
 | TEC-10 | Go module resolution | implement | a version inside the import string | https://go.dev/ref/mod#minimal-version-selection |
 
@@ -94,11 +94,11 @@ Inherited C:
 
 The toolchain is one binary. The first argument is the command. The commands are `build`, `run`, `test`, and `generate`.
 
-A flag is one argument. A boolean is `--name`. A short boolean is `-n`. A value is `--name=value`. The same value may also be `--name` followed by the next argument. Boolean short flags cluster. `--` ends flags. Later tokens are positionals. A lone `-` is a positional. Flags may sit before positionals. Flags may sit after positionals until `--`. An unknown flag is a usage error. A missing value is a usage error. A root flag is valid on every command.
+A flag is one argument. A boolean is `--name`. A short boolean is `-n`. A value is `--name=value`. The same value may also be `--name` followed by the next argument. Boolean short flags cluster. `--` ends flags. Later tokens are positionals. A lone `-` is a positional. Flags may sit before positionals. Flags may sit after positionals until `--`. An unknown flag is a usage error. A missing value is a usage error. The root flags are `--help`, `-h`, and `--version`. Each one is valid on every command.
 
 `--help` and `-h` write usage to stdout and exit 0. `--version` writes the version to stdout and exits 0.
 
-Diagnostics go to stderr. A successful `build` writes no success text to stdout. It writes one native executable. `--os` names the target OS. `--arch` names the target architecture. The host is the default for both. The required OS names are `linux`, `darwin`, and `windows`. The required architecture names are `amd64` and `arm64`. `--output` names the executable path. When `--output` is absent, the file name is the base name of the path argument and the file is written in the current directory.
+Diagnostics go to stderr. A successful `build` writes no success text to stdout. It writes one file. `build` accepts `--artifact`, `--os`, `--arch`, and `--output`. `--artifact` is `binary` or `c-shared`. Absent `--artifact` means `binary`. `binary` is one executable. `c-shared` is one C shared library. `--os` names the target OS. `--arch` names the target architecture. The host is the default for both. The required OS names are `linux`, `darwin`, and `windows`. The required architecture names are `amd64` and `arm64`. `--output` names the file path. When `--output` is absent, the file name is the base name of the path argument and the file is written in the current directory. `run`, `test`, and `generate` reject those four flags.
 
 `run` uses the program status after the program starts. A toolchain failure before that start exits 1 when the argv was valid. It exits 2 when the argv was bad.
 
@@ -106,7 +106,7 @@ Diagnostics go to stderr. A successful `build` writes no success text to stdout.
 
 | Command | Type it mutates | Transition | Bad input |
 |---------|-----------------|------------|-----------|
-| build | program at path | write one native executable for `--os` and `--arch`. Success exits 0 with empty stdout. | bad argv exits 2. A compile failure exits 1. |
+| build | program at path | write one file for `--artifact`, `--os`, and `--arch`. Success exits 0 with empty stdout. | bad argv exits 2. A compile failure exits 1. |
 | run | program at path | start the program. `test` blocks are absent. After start, the status is the program status. | bad argv exits 2. A failure before start exits 1. |
 | test | program at path | start one actor for each top-level `test` block. `require` kills that actor. `check` records a failure and continues. | bad argv exits 2. A killed test actor or a recorded `check` failure exits 1. |
 | generate | program at path | the command exists. The marker grammar is later work. | bad argv exits 2. |
@@ -176,7 +176,7 @@ Residual risk: `run` and `test` execute the user program with the rights of the 
 - [ ] `i32` maximum plus 1 wraps to `i32` minimum.
 - [ ] `the-lang run` on `examples/01-counter.lang` writes `count: 1` to stderr and exits 0.
 - [ ] `the-lang test` on `examples/04-test.lang` exits 0.
-- [ ] A top-level `test` block is absent from the `build` executable and runs as its own actor under `test`.
+- [ ] A top-level `test` block is absent from the `build` output and runs as its own actor under `test`.
 - [ ] `require.equal(1, 0)` inside a top-level `test` block kills that actor and `test` exits 1.
 - [ ] `check.equal(1, 0)` inside a top-level `test` block lets the block finish, and `test` still exits 1.
 
@@ -187,7 +187,7 @@ Residual risk: `run` and `test` execute the user program with the rights of the 
 3. A remote call protocol. It MUST NOT change a pid or `as`. Clusters stay out.
 4. The `generate` marker. The command exists. This draft does not name the marker.
 5. A composed integer type whose operations do not wrap. Builtin integers keep TEC-13.
-6. Native code generation. It implements the `build` executable in TEC-14. Until then, `run` interprets `main` and `test` interprets test blocks. `build` exits 1 and reports that codegen is later.
+6. Native code generation. It implements `build` in TEC-14. Until then, `run` interprets `main` and `test` interprets test blocks. `build` exits 1 and reports that codegen is later.
 
 ## Assumptions
 
@@ -207,9 +207,11 @@ Residual risk: `run` and `test` execute the user program with the rights of the 
 - ADR-0007: Errors form a cause chain. Rejected: a `Fault` enum.
 - ADR-0008: Imports use braces and Go module paths. Rejected: a version inside the import string.
 - ADR-0009: Builtin integers wrap. Rejected: a trap on overflow.
-- ADR-0010: `build` writes one native executable for an OS and an architecture. Rejected: a mailbox-style capacity for the output.
+- ADR-0010: `build` writes one file for an OS and an architecture. Rejected: a mailbox-style capacity for the output.
+- ADR-0014: `--artifact` is `binary` or `c-shared`. Absent means `binary`. Rejected: an artifact flag on `run` or `test`.
 - ADR-0011: A top-level `test` block is one short-lived actor. Rejected: a `Test` function name as the only test form.
 - ADR-0012: `check` and `require` live in the standard library. Rejected: a language `assert` keyword.
+- ADR-0013: argv is a usage spec. Rejected: a copied lewkit parser.
 
 ## Examples
 

@@ -133,6 +133,8 @@ pub enum Native {
 
 #[derive(Clone, Debug)]
 struct Method {
+    /// `Type.method(self, ...)` is an instance method. `self` is the receiver, not a call argument.
+    has_self: bool,
     params: Vec<String>,
     body: Vec<Stmt>,
 }
@@ -202,9 +204,11 @@ impl<'a> Vm<'a> {
         for item in &program.items {
             match item {
                 Item::Method { type_name, name, params, body } => {
+                    let has_self = params.first().is_some_and(|p| p == "self");
+                    let params = if has_self { params[1..].to_vec() } else { params.clone() };
                     methods.insert(
                         (type_name.clone(), name.clone()),
-                        Method { params: params.clone(), body: body.clone() },
+                        Method { has_self, params, body: body.clone() },
                     );
                 }
                 Item::Actor { name, params, fields } => {
@@ -386,9 +390,18 @@ impl<'a> Vm<'a> {
                 let Value::Type(type_name) = self.eval(base)? else {
                     return Err(Flow::Error("named construct needs a type".into()));
                 };
+                let declared = self.enums.get(&type_name).and_then(|def| {
+                    def.variants.iter().find(|v| v.name == *variant).map(|v| v.fields.clone())
+                });
                 let mut built = Vec::new();
                 for (name, expr) in fields {
-                    built.push((name.clone(), self.eval(expr)?));
+                    let mut value = self.eval(expr)?;
+                    if let Some(field) = declared.as_ref().and_then(|fs| fs.iter().find(|f| f.name == *name)) {
+                        if let Some(ty) = &field.ty {
+                            value = coerce_to_ty(value, ty);
+                        }
+                    }
+                    built.push((name.clone(), value));
                 }
                 Ok(Value::Enum { type_name, variant: variant.clone(), fields: built })
             }
@@ -531,10 +544,9 @@ impl<'a> Vm<'a> {
         }
         for (i, arg) in args.into_iter().enumerate() {
             let name = var.fields.get(i).map(|f| f.name.clone()).unwrap_or_else(|| format!("_{i}"));
-            let arg = match (&arg, var.fields.get(i).and_then(|f| f.ty.as_ref())) {
-                (Value::Int(n), Some(ty)) => Value::Int(IntVal::new(int_kind_of(ty).unwrap_or(n.kind), n.bits)),
-                (Value::Float(_), _) => arg,
-                _ => arg,
+            let arg = match var.fields.get(i).and_then(|f| f.ty.as_ref()) {
+                Some(ty) => coerce_to_ty(arg, ty),
+                None => arg,
             };
             fields.push((name, arg));
         }
@@ -648,15 +660,17 @@ impl<'a> Vm<'a> {
         };
         {
             let actor = self.actors.get_mut(&self.current).ok_or_else(|| Flow::Error("no actor".into()))?;
-            if let Some(v) = recv_enum {
-                actor.fields.insert("self".into(), v);
-            } else if !actor.fields.contains_key("self") {
-                actor.fields.insert("self".into(), Value::Pid(actor.id));
-            }
             for (i, p) in m.params.iter().enumerate() {
                 if let Some(arg) = args.get(i) {
                     actor.fields.insert(p.clone(), arg.clone());
                 }
+            }
+            if let Some(v) = recv_enum {
+                if m.has_self {
+                    actor.fields.insert("self".into(), v);
+                }
+            } else if m.has_self || !actor.fields.contains_key("self") {
+                actor.fields.insert("self".into(), Value::Pid(actor.id));
             }
         }
         let value = self.exec_block(self.current, &m.body);
@@ -778,11 +792,11 @@ impl<'a> Vm<'a> {
                             out.push_str(s);
                         }
                     }
-                    b'f' => {
-                        if let Some(Value::Float(n)) = rest.next() {
-                            out.push_str(&format!("{n}"));
-                        }
-                    }
+                    b'f' => match rest.next() {
+                        Some(Value::Float(n)) => out.push_str(&format!("{n}")),
+                        Some(Value::Int(n)) => out.push_str(&n.as_i64().to_string()),
+                        _ => {}
+                    },
                     b'%' => out.push('%'),
                     _ => out.push(bytes[i + 1] as char),
                 }
@@ -979,6 +993,17 @@ fn values_eq(a: &Value, b: &Value) -> bool {
     }
 }
 
+fn coerce_to_ty(v: Value, ty: &TypeName) -> Value {
+    match v {
+        Value::Int(n) if ty.name == "f32" || ty.name == "f64" => Value::Float(n.bits as f64),
+        Value::Int(n) => {
+            let kind = IntKind::from_name(&ty.name).unwrap_or(n.kind);
+            Value::Int(IntVal::new(kind, n.bits))
+        }
+        other => other,
+    }
+}
+
 fn coerce_default(v: Value, type_name: &str) -> Value {
     match v {
         Value::Int(n) => {
@@ -987,10 +1012,6 @@ fn coerce_default(v: Value, type_name: &str) -> Value {
         }
         other => other,
     }
-}
-
-fn int_kind_of(ty: &TypeName) -> Option<IntKind> {
-    IntKind::from_name(&ty.name)
 }
 
 fn is_builtin_type(name: &str) -> bool {

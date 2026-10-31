@@ -1,11 +1,17 @@
+import fmt from "fmt"
+
 type Shape enum {
   circle(r: f64)
   rect { w: f64, h: f64 }
 }
 
-Shape.area() f64 {
+Shape.area(self) f64 {
   match self {
     circle(r) => 3.14 * r * r
     rect { w, h } => w * h
   }
+}
+
+main {
+  fmt.fprintf(fmt.stderr, "4x4 square: %f\n", Shape.rect {w: 4, h: 4}.area())
 }
