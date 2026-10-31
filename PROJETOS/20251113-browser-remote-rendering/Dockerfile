@@ -17,7 +17,7 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -o rendereiro cmd/rendereiro/main.go
 
 # Runtime stage
-FROM chromedp/headless-shell:latest
+FROM chromedp/headless-shell:latest@sha256:f76fce2964611eb1e25b90d906727884db12a8918a6d85a0df2619a9ef845c7c
 
 WORKDIR /app
 
