@@ -216,6 +216,7 @@ fn encode(buf: &mut Vec<u8>, fixes: &mut Vec<Fix>, inst: &Inst) -> Result<(), St
             buf.push(0xC9);
             Ok(())
         }
+        Inst::Xchg(dst, src) => encode_xchg(buf, fixes, dst, src),
         Inst::Syscall => {
             buf.extend([0x0F, 0x05]);
             Ok(())
@@ -351,13 +352,14 @@ fn encode_alu(buf: &mut Vec<u8>, fixes: &mut Vec<Fix>, op: Alu, dst: &Operand, s
         Alu::Sub => (0x29, 0x2B, 5),
         Alu::Xor => (0x31, 0x33, 6),
         Alu::Shl => (0x00, 0x00, 4),
+        Alu::Shr => (0x00, 0x00, 5),
     };
     match (dst, src) {
-        (Operand::Reg(d), Operand::Imm(n)) if matches!(op, Alu::Shl) => {
+        (Operand::Reg(d), Operand::Imm(n)) if matches!(op, Alu::Shl | Alu::Shr) => {
             let d = reg(d)?;
-            emit_rex(buf, d.w == 64, 4, None, Some(d.n));
-            buf.push(0xC1);
-            buf.push(modrm(3, 4, d.n));
+            emit_rex(buf, d.w == 64, imm_ext, None, Some(d.n));
+            buf.push(if d.w == 8 { 0xC0 } else { 0xC1 });
+            buf.push(modrm(3, imm_ext, d.n));
             buf.push(*n as u8);
             Ok(())
         }
@@ -450,6 +452,15 @@ fn encode_cmp(buf: &mut Vec<u8>, fixes: &mut Vec<Fix>, left: &Operand, right: &O
         }
         _ => Err("bad cmp".into()),
     }
+}
+
+fn encode_xchg(buf: &mut Vec<u8>, fixes: &mut Vec<Fix>, dst: &Operand, src: &Operand) -> Result<(), String> {
+    let (name, mem) = match (dst, src) {
+        (Operand::Reg(name), Operand::Mem(mem)) | (Operand::Mem(mem), Operand::Reg(name)) => (name, mem),
+        _ => return Err("xchg".into()),
+    };
+    let reg = reg(name)?;
+    emit_rm(buf, fixes, 0x87, reg.n, reg.w == 64, mem).map(|_| ())
 }
 
 fn encode_push(buf: &mut Vec<u8>, value: &Operand) -> Result<(), String> {

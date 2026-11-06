@@ -1,0 +1,29 @@
+import { fprintf, stderr } from "fmt"
+
+actor Worker[N] {
+  n: N = 0
+}
+
+Worker.plus(x) N {
+  self.n += x
+  self.n
+}
+
+actor Total[N] {
+  n: N = 0
+}
+
+Total.take(w, x) N {
+  self.n += (await w.plus(x)).unwrap()
+  self.n
+}
+
+main {
+  left = Worker[int]{}
+  right = Worker[int]{}
+  total = Total[int]{}
+  fprintf(stderr, "%d\n", (await total.take(left, 4)).unwrap())
+  fprintf(stderr, "%d\n", (await total.take(right, 7)).unwrap())
+  fprintf(stderr, "%d\n", (await total.take(left, 1)).unwrap())
+  fprintf(stderr, "%d %d\n", (await left.plus(0)).unwrap(), (await right.plus(0)).unwrap())
+}

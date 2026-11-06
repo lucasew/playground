@@ -72,6 +72,7 @@ pub enum Inst {
     Ret,
     Leave,
     Syscall,
+    Xchg(Operand, Operand),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -80,6 +81,7 @@ pub enum Alu {
     Sub,
     Xor,
     Shl,
+    Shr,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -209,6 +211,10 @@ impl File {
 
     pub fn syscall(&mut self) -> &mut Self {
         self.inst(Inst::Syscall)
+    }
+
+    pub fn xchg(&mut self, dst: Operand, src: Operand) -> &mut Self {
+        self.inst(Inst::Xchg(dst, src))
     }
 
     fn inst(&mut self, inst: Inst) -> &mut Self {
@@ -415,6 +421,7 @@ fn make_inst(inst: &Inst) -> String {
         Inst::Ret => ("ret", Vec::new()),
         Inst::Leave => ("leave", Vec::new()),
         Inst::Syscall => ("syscall", Vec::new()),
+        Inst::Xchg(dst, src) => ("xchg", vec![make_operand(dst), make_operand(src)]),
     };
     let mut line = format!("    {op}");
     if !args.is_empty() {
@@ -431,6 +438,7 @@ fn alu_name(op: Alu) -> &'static str {
         Alu::Sub => "sub",
         Alu::Xor => "xor",
         Alu::Shl => "shl",
+        Alu::Shr => "shr",
     }
 }
 
@@ -472,13 +480,14 @@ fn decode(op: &str, mut args: Vec<Operand>, line: usize) -> Result<Inst, String>
             let (dst, src) = two(&mut args);
             Inst::Lea(dst, src)
         }
-        "add" | "sub" | "xor" | "shl" => {
+        "add" | "sub" | "xor" | "shl" | "shr" => {
             need(2)?;
             let alu = match op {
                 "add" => Alu::Add,
                 "sub" => Alu::Sub,
                 "xor" => Alu::Xor,
-                _ => Alu::Shl,
+                "shl" => Alu::Shl,
+                _ => Alu::Shr,
             };
             let (dst, src) = two(&mut args);
             Inst::Alu(alu, dst, src)
@@ -545,6 +554,11 @@ fn decode(op: &str, mut args: Vec<Operand>, line: usize) -> Result<Inst, String>
         "syscall" => {
             need(0)?;
             Inst::Syscall
+        }
+        "xchg" => {
+            need(2)?;
+            let (dst, src) = two(&mut args);
+            Inst::Xchg(dst, src)
         }
         _ => return Err(format!("line {line}: unknown instruction {op}")),
     })
@@ -681,7 +695,7 @@ fn parse_mem_inner(text: &str, line: usize) -> Result<Mem, String> {
 
 fn take_reg(text: &str) -> Option<(String, &str)> {
     const REGS: &[&str] = &[
-        "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "rbp", "rsp", "eax", "ebx", "ecx", "edx", "r15",
+        "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "rbp", "rsp", "eax", "ebx", "ecx", "edx", "al", "r15",
         "r14", "r13", "r12", "r11", "r10", "r9", "r8", "dl",
     ];
     let mut best: Option<(&str, &str)> = None;

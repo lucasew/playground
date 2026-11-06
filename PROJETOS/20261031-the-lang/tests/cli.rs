@@ -122,6 +122,19 @@ fn lone_dash_is_a_path() {
 }
 
 #[test]
+fn build_compiles_workers() {
+    let produced = std::path::Path::new("target/the-lang-workers");
+    let _ = std::fs::remove_file(produced);
+    let out = run(&["build", "--output", "target/the-lang-workers", "examples/05-workers.lang"]);
+    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    assert!(out.stdout.is_empty());
+    let ran = Command::new(produced).output().expect("run compiled workers");
+    assert!(ran.status.success(), "{}", String::from_utf8_lossy(&ran.stderr));
+    assert_eq!(String::from_utf8(ran.stderr).unwrap(), "4\n11\n16\n5 7\n");
+    let _ = std::fs::remove_file(produced);
+}
+
+#[test]
 fn build_compiles_counter() {
     let produced = std::path::Path::new("target/the-lang-counter");
     let _ = std::fs::remove_file(produced);

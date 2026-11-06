@@ -195,17 +195,26 @@ pub struct Method {
     pub steps: Vec<Step>,
 }
 
+#[derive(Clone, Copy)]
+pub enum Arg {
+    None,
+    Imm(u16),
+    Param(u8),
+    Local(u8),
+}
+
 pub enum Step {
     Load(u16),
     Add(u16),
+    AddArg(u8),
+    AddAwait { slot: u16, actor: u8, method: u16, arg: Arg },
     Store(u16),
 }
 
 pub enum Main {
     Actor(u16),
-    Await(u16, u16),
     Write(Vec<u8>),
-    AwaitI64(u16, u16),
+    Await { slot: u16, method: u16, arg0: Arg, arg1: Arg, print: bool },
 }
 
 pub fn assemble(methods: &[Method], main: &[Main]) -> Result<Object, String> {
@@ -270,6 +279,8 @@ pub fn assemble(methods: &[Method], main: &[Main]) -> Result<Object, String> {
     b.ret();
 
     b.label("rt_call");
+    b.mov(9, 2);
+    b.mov(10, 3);
     b.adr(2, "next_promise");
     b.ldr(3, 2, 0);
     b.add_imm(4, 3, 1);
@@ -277,12 +288,14 @@ pub fn assemble(methods: &[Method], main: &[Main]) -> Result<Object, String> {
     b.adr(5, "mbox_w");
     b.ldr(6, 5, 0);
     b.adr(7, "mbox");
-    b.add_lsl(8, 6, 6, 1);
+    b.add_lsl(8, 6, 6, 2);
     b.lsl(8, 8, 3);
     b.add(7, 7, 8);
     b.str(0, 7, 0);
     b.str(1, 7, 8);
     b.str(3, 7, 16);
+    b.str(9, 7, 24);
+    b.str(10, 7, 32);
     b.add_imm(6, 6, 1);
     b.str(6, 5, 0);
     b.adr(8, "prom_ready");
@@ -309,18 +322,22 @@ pub fn assemble(methods: &[Method], main: &[Main]) -> Result<Object, String> {
     b.cmp(2, 4);
     b.bcond(2, "await_dead");
     b.adr(5, "mbox");
-    b.add_lsl(6, 2, 2, 1);
+    b.add_lsl(6, 2, 2, 2);
     b.lsl(6, 6, 3);
     b.add(5, 5, 6);
     b.ldr(20, 5, 0);
     b.ldr(21, 5, 8);
     b.ldr(22, 5, 16);
+    b.ldr(4, 5, 24);
+    b.ldr(6, 5, 32);
     b.add_imm(2, 2, 1);
     b.str(2, 1, 0);
     b.adr(7, "lang_methods");
-    b.lsl(6, 21, 3);
-    b.add(7, 7, 6);
+    b.lsl(9, 21, 3);
+    b.add(7, 7, 9);
     b.mov(0, 20);
+    b.mov(1, 4);
+    b.mov(2, 6);
     b.br(7);
     b.label("await_resume");
     b.adr(1, "prom_val");
@@ -391,14 +408,17 @@ pub fn assemble(methods: &[Method], main: &[Main]) -> Result<Object, String> {
         emit_method(&mut b, method);
     }
     emit_main(&mut b, main);
-    b.finish("_start", &[("actors", 64 * 64), ("mbox", 128 * 24), ("prom_val", 256 * 8), ("prom_ready", 256), ("next_actor", 8), ("next_promise", 8), ("mbox_r", 8), ("mbox_w", 8)], 64 * 64 + 128 * 24 + 256 * 8 + 256 + 32)
+    b.finish("_start", &[("actors", 64 * 64), ("mbox", 128 * 40), ("prom_val", 256 * 8), ("prom_ready", 256), ("next_actor", 8), ("next_promise", 8), ("mbox_r", 8), ("mbox_w", 8)], 64 * 64 + 128 * 40 + 256 * 8 + 256 + 32)
 }
 
 fn emit_method(b: &mut Buf, method: &Method) {
     b.label(&method.name);
     b.stp_pre(29, 30, 31, -16);
     b.stp_pre(20, 21, 31, -16);
+    b.stp_pre(22, 23, 31, -16);
     b.mov(20, 0);
+    b.mov(21, 1);
+    b.mov(22, 2);
     for step in &method.steps {
         match step {
             Step::Load(slot) => {
@@ -407,6 +427,20 @@ fn emit_method(b: &mut Buf, method: &Method) {
                 b.bl("rt_load");
             }
             Step::Add(n) => b.add_imm(0, 0, *n),
+            Step::AddArg(i) => b.add(0, 0, 21 + *i),
+            Step::AddAwait { slot, actor, method, arg } => {
+                b.mov(0, 20);
+                b.movz(1, *slot);
+                b.bl("rt_load");
+                b.mov(23, 0);
+                b.mov(0, 21 + *actor);
+                b.movz(1, *method);
+                put_arg(b, 2, arg);
+                b.movz(3, 0);
+                b.bl("rt_call");
+                b.bl("rt_await");
+                b.add(0, 0, 23);
+            }
             Step::Store(slot) => {
                 b.mov(2, 0);
                 b.mov(0, 20);
@@ -416,9 +450,19 @@ fn emit_method(b: &mut Buf, method: &Method) {
             }
         }
     }
+    b.ldp_post(22, 23, 31, 16);
     b.ldp_post(20, 21, 31, 16);
     b.ldp_post(29, 30, 31, 16);
     b.ret();
+}
+
+fn put_arg(b: &mut Buf, rd: u8, arg: &Arg) {
+    match arg {
+        Arg::None => b.movz(rd, 0),
+        Arg::Imm(n) => b.movz(rd, *n),
+        Arg::Local(slot) => b.mov(rd, 19 + *slot),
+        Arg::Param(slot) => b.mov(rd, 21 + *slot),
+    }
 }
 
 fn emit_main(b: &mut Buf, main: &[Main]) {
@@ -431,12 +475,14 @@ fn emit_main(b: &mut Buf, main: &[Main]) {
                 b.bl("rt_actor");
                 b.mov(19 + *slot as u8, 0);
             }
-            Main::Await(slot, method) | Main::AwaitI64(slot, method) => {
+            Main::Await { slot, method, arg0, arg1, print } => {
                 b.mov(0, 19 + *slot as u8);
                 b.movz(1, *method);
+                put_arg(b, 2, arg0);
+                put_arg(b, 3, arg1);
                 b.bl("rt_call");
                 b.bl("rt_await");
-                if matches!(op, Main::AwaitI64(_, _)) {
+                if *print {
                     b.bl("rt_write_i64");
                 }
             }
@@ -669,7 +715,7 @@ fn store64(mem: &mut [u8], addr: usize, value: u64) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{simulate, Buf, Main, Method, Step};
+    use super::{simulate, Arg, Buf, Main, Method, Step};
 
     #[test]
     fn encodings_match_known_words() {
@@ -690,9 +736,9 @@ mod tests {
         ];
         let main = vec![
             Main::Actor(0),
-            Main::Await(0, 0),
+            Main::Await { slot: 0, method: 0, arg0: Arg::None, arg1: Arg::None, print: false },
             Main::Write(b"count: ".to_vec()),
-            Main::AwaitI64(0, 1),
+            Main::Await { slot: 0, method: 1, arg0: Arg::None, arg1: Arg::None, print: true },
             Main::Write(b"\n".to_vec()),
         ];
         let object = super::assemble(&methods, &main).unwrap();

@@ -12,6 +12,13 @@ fn counter_prints_one() {
 }
 
 #[test]
+fn workers_sum_across_actors() {
+    let out = run_source(&file("05-workers.lang"), false).unwrap();
+    assert_eq!(out.status, 0, "{}", out.stderr);
+    assert_eq!(out.stderr, "4\n11\n16\n5 7\n");
+}
+
+#[test]
 fn shape_area() {
     let src = r#"
         import { fprintf, stderr } from "fmt"
