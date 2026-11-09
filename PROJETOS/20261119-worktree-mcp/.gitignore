@@ -1,0 +1,4 @@
+bin/
+execs/
+*.log
+*.log.pid

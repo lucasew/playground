@@ -1,0 +1,28 @@
+[tools]
+go = "1.27.1"
+goreleaser = "2.17.0"
+svu = "3.3.0"
+
+[tasks.install]
+description = "Tidy and download Go modules"
+run = "go mod tidy && go get -v ./..."
+
+[tasks.format]
+description = "Format Go packages"
+run = "go fmt ./..."
+
+[tasks.lint]
+description = "Run go vet"
+run = "go vet ./..."
+
+[tasks.test]
+description = "Run Go tests"
+run = "go test ./..."
+
+[tasks.build]
+description = "Build env-mcp"
+run = "go build -o bin/env-mcp ./cmd/env-mcp"
+
+[tasks.ci]
+description = "Lint, test, and build"
+depends = ["lint", "test", "build"]

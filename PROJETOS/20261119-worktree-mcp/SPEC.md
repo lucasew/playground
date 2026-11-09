@@ -52,14 +52,15 @@ Inherited C (cite the file):
 | TEC-03 | `lewkit/x/parse` | adopt | write an LR parser; write a lexer | lewtec/lewkit `x/parse/doc.go` |
 | TEC-03 | `github.com/modelcontextprotocol/go-sdk` | wrap | implement JSON-RPC; implement the transport; hand-write tool schemas | modelcontextprotocol/go-sdk README |
 | TEC-10 | `lewkit/x/cmd` | adopt | implement subcommand dispatch; implement flag parsing; implement usage text; implement `--version`; implement exit codes; implement the `format` argument | lewtec/lewkit `x/cmd` |
+| TEC-10 | `lewkit/x/text/table` | adopt | implement a table renderer; invent a CSV or JSONL encoder | lewtec/lewkit `x/text/table/format.go` |
 | TEC-09 | Herdr socket API already in this path | wrap | implement a terminal multiplexer | lewtec/herdr-reflow `pkg/herdr/client.go` |
 | TEC-01 | `lewkit/x/git` | adopt | implement Git worktree bookkeeping | lewtec/lewkit `x/git` |
 | TEC-01 | `git worktree add` | adopt | reimplement worktrees | `git` binary |
 | TEC-01, TEC-02 | Herdr `worktree.create`, `worktree.open`, `pane.move` | wrap | implement checkout placement; implement sidebar layout | lewtec/herdr-reflow `pkg/herdr/reorder.go` |
-| TEC-05 | Herdr `tab.create`, `pane.send_text` | wrap | implement a PTY | lewtec/herdr-reflow `pkg/herdr/client.go` |
-| TEC-06, TEC-07 | Herdr `pane.wait_for_output` and `pane.read` | wrap | implement terminal emulation; implement scrollback | lewtec/herdr-reflow |
+| TEC-05 | the `runner.Executor` seam over Herdr `tab.create`, `pane.send_text`, `pane.send_keys` | adopt | implement a PTY; call Herdr from the operation table | `internal/runner/runner.go`, lewtec/herdr-reflow `pkg/herdr/client.go` |
+| TEC-06, TEC-07 | `runner.Executor.Read` over Herdr `pane.read`; the sentinel line carries the exit status | wrap | implement terminal emulation; implement scrollback | `internal/runner/herdr`, lewtec/herdr-reflow |
 | TEC-04, TEC-05, TEC-06, TEC-07, TEC-08 | the type checker, the evaluator, and the path resolver | implement | adopt a general Lisp interpreter | none |
-| TEC-10 | output formatting | adopt | invent a serialization contract | lewtec/lewkit `x/cmd` `format` |
+| TEC-10 | output formatting | adopt | invent a serialization contract | lewtec/lewkit `x/text/table` |
 
 | Cell | Pick | C or D | Implements | Cite if C |
 |------|------|--------|------------|-----------|
@@ -130,8 +131,8 @@ One binary, `env-mcp`, with `x/cmd` subcommands. Every operation in the table is
 
 | Surface | Entry | Arguments | Result rendering |
 |---------|-------|-----------|------------------|
-| MCP | the `eval` tool and the `env_get`, `exec`, `logs`, `poll`, `list`, `close` tools over stdio | typed tool inputs, standard MCP tool calling | the `format` argument, default `json` |
-| CLI | `env-mcp env get github:owner/repo@base <slug>`, `env-mcp env list`, `env-mcp env close <env>`, `env-mcp exec <env> <argv…>`, `env-mcp logs <exec>`, `env-mcp poll <exec>`, `env-mcp eval '<expr>' --arg NAME=VALUE`, `env-mcp serve` | flags and positional arguments; a trailing variadic argument accepts `--` and runs the same without it | the `format` argument, default `text` |
+| MCP | the `eval` tool and the `env_get`, `exec`, `logs`, `poll`, `list`, `close` tools over stdio | typed tool inputs, standard MCP tool calling | the `format` argument, default `jsonl` |
+| CLI | `env-mcp env get github:owner/repo@base <slug>`, `env-mcp env list`, `env-mcp env close <env>`, `env-mcp exec <env> <argv…>`, `env-mcp logs <exec>`, `env-mcp poll <exec>`, `env-mcp eval '<expr>' --arg NAME=VALUE`, `env-mcp serve` | flags and positional arguments; a trailing variadic argument accepts `--` and runs the same without it | the `format` argument from `x/cmd`, default `table` |
 
 `serve` runs the MCP transport. Every other subcommand runs one operation and exits.
 
@@ -205,7 +206,7 @@ The MCP tool `env_get` and the expression operation `env repo slug` are the same
 
 | Concern | Measure, or why it cannot happen |
 |---------|----------------------------------|
-| Exit contract | Every result is tagged `value` or `failure`; a `failure` names the effects already performed; the CLI exits non-zero for a `failure` and zero for a `value`; the same failing expression reports the same failing subexpression on every run |
+| Exit contract | Every result is tagged `value` or `failure`. A `failure` names the effects already performed. The CLI exits non-zero for a `failure` and zero for a `value`. The same failing expression reports the same failing subexpression on every run. |
 | Untrusted input | Every path argument resolves under the env root; the resolver has a table test with `..`, absolute, symlink-escaping, and empty inputs, and each one is rejected |
 | Identity | A second `env` call for one `(repo, slug)` creates no worktree: a test calls it twice and asserts one `git worktree list` row and one layout record |
 | Layout safety | A test creates a user tab in the env place, closes and re-opens the env, and asserts the user tab is untouched |
@@ -279,3 +280,4 @@ Residual risk:
 - ADR-0011: `x/cmd` owns dispatch, flags, exit codes, and rendering through `format`. Rejected: a bespoke `--json` flag and a hand-written serializer.
 - ADR-0012: `Env` carries no path; the API shape keeps paths out of results and text is not policed. Rejected: rewriting absolute paths inside exec output.
 - ADR-0013: An env holds at most 8 live execs. Rejected: an unbounded exec count.
+- ADR-0014: Execution sits behind one `Executor` seam (`Open`, `Start`, `Status`, `Read`, `Kill`, `Close`) registered as a lewkit driver. `internal/runner/herdr` is the default (weight 90) and `internal/runner/host` is the daemon-free fallback (weight 10); the registry picks by weight and compatibility, so a build with no Herdr session still runs. The record stores `runner` and an opaque `place`, never a PID or tab. Rejected: an own daemon; a hard Herdr dependency; an abstract interface with one implementation.
