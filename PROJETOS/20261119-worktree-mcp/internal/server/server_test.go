@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/lucasew/env-mcp/internal/backend"
 	"github.com/lucasew/env-mcp/internal/env"
-	"github.com/lucasew/env-mcp/internal/runner"
 	"github.com/stretchr/testify/require"
 )
 
@@ -32,19 +32,16 @@ func run(t *testing.T, dir string, args ...string) {
 	require.NoError(t, err, string(out))
 }
 
-func newServer(t *testing.T, r runner.Executor) *Server {
+func newServer(t *testing.T) (*Server, *fakeProvisioner) {
 	t.Helper()
 	store, err := env.NewStore(t.TempDir())
 	require.NoError(t, err)
-	s := NewServer(store, backendAt(t, t.TempDir(), gitRepo(t)), t.TempDir())
-	// Always install a runner: falling through to the registry would write
-	// into the package directory.
-	s.Runner = r
-	return s
+	fake := newFake()
+	return NewServer(store, fake), fake
 }
 
-func TestEnvGetTwiceMakesOneWorktree(t *testing.T) {
-	s := newServer(t, &fakeRunner{})
+func TestEnvGetTwiceProvisionsIdempotently(t *testing.T) {
+	s, _ := newServer(t)
 
 	first, err := s.EnvGet(t.Context(), "github:o/r@main", "feat")
 	require.NoError(t, err)
@@ -58,20 +55,44 @@ func TestEnvGetTwiceMakesOneWorktree(t *testing.T) {
 	all, err := s.Store.List()
 	require.NoError(t, err)
 	require.Len(t, all, 1)
+	require.Equal(t, first.Handle, all[0].Handle)
 }
 
 func TestEnvViewHasNoPath(t *testing.T) {
-	s := newServer(t, &fakeRunner{})
+	s, _ := newServer(t)
 	view, err := s.EnvGet(t.Context(), "github:o/r@main", "feat")
 	require.NoError(t, err)
 	require.Equal(t, "github:o/r/feat", string(view.Handle))
 	b, err := json.Marshal(view)
 	require.NoError(t, err)
-	require.NotContains(t, string(b), viewCheckoutRoot(t, s))
+	require.NotContains(t, string(b), "checkouts")
+	require.NotContains(t, string(b), "worktrees")
+}
+
+func TestRegistryHoldsOnlyBackendHandle(t *testing.T) {
+	s, _ := newServer(t)
+	_, err := s.EnvGet(t.Context(), "github:o/r@main", "feat")
+	require.NoError(t, err)
+	all, err := s.Store.List()
+	require.NoError(t, err)
+	require.Len(t, all, 1)
+	require.Equal(t, "fake", all[0].Backend)
+	require.NotEmpty(t, all[0].Token)
+	require.NotContains(t, all[0].Token, "/tmp")
+}
+
+func TestEnvGetReprovisionsRecordedHandle(t *testing.T) {
+	s, fake := newServer(t)
+	_, err := s.EnvGet(t.Context(), "github:o/r@main", "feat")
+	require.NoError(t, err)
+	_, err = s.EnvGet(t.Context(), "github:o/r@main", "feat")
+	require.NoError(t, err)
+	provisions, _ := fake.counts()
+	require.Equal(t, 2, provisions)
 }
 
 func TestEnvCloseSpendsHandle(t *testing.T) {
-	s := newServer(t, &fakeRunner{})
+	s, _ := newServer(t)
 	view, err := s.EnvGet(t.Context(), "github:o/r@main", "feat")
 	require.NoError(t, err)
 	require.NoError(t, s.EnvClose(t.Context(), string(view.Handle)))
@@ -80,18 +101,39 @@ func TestEnvCloseSpendsHandle(t *testing.T) {
 }
 
 func TestBadRepoRejected(t *testing.T) {
-	s := newServer(t, &fakeRunner{})
+	s, _ := newServer(t)
 	for _, bad := range []string{"o/r@main", "gitlab:o/r@main", "github:o/r", "github:o@main", "github:o/r@"} {
 		_, err := s.EnvGet(t.Context(), bad, "feat")
 		require.ErrorIs(t, err, env.ErrRepo, bad)
 	}
 }
 
-// viewCheckoutRoot reads the stored root for the only env in the store.
-func viewCheckoutRoot(t *testing.T, s *Server) string {
-	t.Helper()
-	all, err := s.Store.List()
+func TestExecReturnsOpHandleScopedToEnv(t *testing.T) {
+	s, fake := newServer(t)
+	view, err := s.EnvGet(t.Context(), "github:o/r@main", "feat")
 	require.NoError(t, err)
-	require.Len(t, all, 1)
-	return all[0].Root
+	started, err := s.Exec(t.Context(), string(view.Handle), "", []string{"echo", "hi"})
+	require.NoError(t, err)
+	require.Equal(t, view.Handle, started.Env)
+	require.True(t, started.Handle.OwnedBy(fake.envs[tokenOf(t, started)].token))
+}
+
+func TestOpHandleFromAnotherEnvIsRefused(t *testing.T) {
+	s, _ := newServer(t)
+	one, err := s.EnvGet(t.Context(), "github:o/r@main", "one")
+	require.NoError(t, err)
+	two, err := s.EnvGet(t.Context(), "github:o/r@main", "two")
+	require.NoError(t, err)
+	started, err := s.Exec(t.Context(), string(one.Handle), "", []string{"echo", "hi"})
+	require.NoError(t, err)
+	// The op belongs to env one; asking env two's backend env for it fails.
+	e, _, err := s.open(t.Context(), two.Handle)
+	require.NoError(t, err)
+	_, err = e.Status(t.Context(), started.Handle)
+	require.ErrorIs(t, err, backend.ErrExec)
+}
+
+func tokenOf(t *testing.T, v ExecView) string {
+	t.Helper()
+	return v.Handle.Env
 }

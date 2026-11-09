@@ -9,14 +9,19 @@ import (
 )
 
 // Record is the persisted state of one env.
+//
+// It is the server's registry entry. Paths and terminal identifiers are not
+// part of it: the backend's opaque token is the only thing recorded about
+// where the env lives.
 type Record struct {
 	Handle Handle `json:"handle"`
 	Repo   string `json:"repo"`
 	Slug   string `json:"slug"`
 	Base   string `json:"base"`
-	Root   string `json:"root"`
-	// Source is the main checkout the worktree was cut from.
-	Source  string `json:"source"`
+	// Backend is the provisioner that issued Token.
+	Backend string `json:"backend"`
+	// Token is the backend's handle for this env.
+	Token   string `json:"token"`
 	Closed  bool   `json:"closed"`
 	Created bool   `json:"created"`
 }
@@ -37,6 +42,9 @@ func NewStore(dir string) (*Store, error) {
 func (s *Store) file(h Handle) string {
 	return filepath.Join(s.dir, HashHandle(h)+".json")
 }
+
+// Dir is the directory holding the registry records.
+func (s *Store) Dir() string { return s.dir }
 
 // HashHandle turns a handle into a filename-safe key.
 func HashHandle(h Handle) string {

@@ -2,24 +2,32 @@ package server
 
 import (
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/lucasew/env-mcp/internal/backend/local"
 	"github.com/lucasew/env-mcp/internal/env"
-	"github.com/lucasew/env-mcp/internal/runner"
 	"github.com/lucasew/env-mcp/internal/runner/host"
 	"github.com/stretchr/testify/require"
 )
 
-// newServerAt builds a server whose store and exec state both live in state.
-func newServerAt(t *testing.T, state string, r runner.Executor) *Server {
+// hostRoots remembers where each test's host executor keeps its runs, so a
+// test can read the pid of a command it started.
+var hostRoots = map[*Server]string{}
+
+func hostServer(t *testing.T, state string) *Server {
 	t.Helper()
-	store, err := env.NewStore(state + "/envs")
+	registry, err := env.NewStore(filepath.Join(state, "envs"))
 	require.NoError(t, err)
-	s := NewServer(store, backendAt(t, state+"/wt", gitRepo(t)), state)
-	s.Runner = r
+	b := local.New(filepath.Join(state, "checkouts"))
+	b.State = state
+	b.Executors = host.New(filepath.Join(state, "host"))
+	b.Store.Declared["o-r"] = gitRepo(t)
+	s := NewServer(registry, b)
+	hostRoots[s] = filepath.Join(state, "host")
 	return s
 }
 
@@ -27,7 +35,7 @@ func TestExecHandleCrossesProcesses(t *testing.T) {
 	state := t.TempDir()
 	// The first server owns the shared state; the second is what a new CLI
 	// process builds over the same directory.
-	first := newServerAt(t, state, host.New(state))
+	first := hostServer(t, state)
 
 	view, err := first.EnvGet(t.Context(), "github:o/r@main", "x")
 	require.NoError(t, err)
@@ -36,11 +44,11 @@ func TestExecHandleCrossesProcesses(t *testing.T) {
 	require.NoError(t, err)
 
 	// A fresh server, as a new CLI invocation would build.
-	second := newServerAt(t, state, host.New(state))
+	second := hostServer(t, state)
 	var page env.Page
 	var state2 ExecState
 	for range 100 {
-		state2, err = second.Poll(t.Context(), string(started.Handle))
+		state2, err = second.Poll(t.Context(), started.Handle.String())
 		require.NoError(t, err)
 		if state2.State == env.Exited {
 			break
@@ -50,14 +58,14 @@ func TestExecHandleCrossesProcesses(t *testing.T) {
 	require.Equal(t, env.Exited, state2.State)
 	require.Equal(t, 3, state2.ExitCode)
 
-	page, err = second.Logs(t.Context(), string(started.Handle), 0, 10, "")
+	page, err = second.Logs(t.Context(), started.Handle.String(), 0, 10, "")
 	require.NoError(t, err)
 	require.Equal(t, []string{"one", "two"}, page.Lines)
 	require.Equal(t, 2, page.NextOffset)
 }
 
 func TestExecLimitIsEight(t *testing.T) {
-	s := newServer(t, host.New(t.TempDir()))
+	s := hostServer(t, t.TempDir())
 	view, err := s.EnvGet(t.Context(), "github:o/r@main", "limit")
 	require.NoError(t, err)
 	for i := range env.MaxExecs {
@@ -67,19 +75,18 @@ func TestExecLimitIsEight(t *testing.T) {
 	_, err = s.Exec(t.Context(), string(view.Handle), "", []string{"sleep", "30"})
 	require.ErrorIs(t, err, env.ErrExecLimit)
 
-	// Kill the children and let their reapers finish writing before the
-	// temporary directory is removed.
 	require.NoError(t, s.KillEnv(t.Context(), view.Handle))
 	settle(t, s, view.Handle)
 }
 
 func TestCloseKillsLiveExecs(t *testing.T) {
-	s := newServer(t, host.New(t.TempDir()))
+	s := hostServer(t, t.TempDir())
 	view, err := s.EnvGet(t.Context(), "github:o/r@main", "close")
 	require.NoError(t, err)
 	started, err := s.Exec(t.Context(), string(view.Handle), "", []string{"sleep", "30"})
 	require.NoError(t, err)
-	pid := hostPID(t, s, started.Handle)
+	_ = started
+	pid := livePID(t, s)
 	require.True(t, processAlive(pid))
 
 	require.NoError(t, s.EnvClose(t.Context(), string(view.Handle)))
@@ -87,7 +94,7 @@ func TestCloseKillsLiveExecs(t *testing.T) {
 }
 
 func TestCwdEscapeRejected(t *testing.T) {
-	s := newServer(t, host.New(t.TempDir()))
+	s := hostServer(t, t.TempDir())
 	view, err := s.EnvGet(t.Context(), "github:o/r@main", "escape")
 	require.NoError(t, err)
 	_, err = s.Exec(t.Context(), string(view.Handle), "../..", []string{"true"})
@@ -95,24 +102,20 @@ func TestCwdEscapeRejected(t *testing.T) {
 }
 
 func TestEmptyArgvRejected(t *testing.T) {
-	s := newServer(t, host.New(t.TempDir()))
+	s := hostServer(t, t.TempDir())
 	view, err := s.EnvGet(t.Context(), "github:o/r@main", "empty")
 	require.NoError(t, err)
 	_, err = s.Exec(t.Context(), string(view.Handle), "", nil)
 	require.ErrorIs(t, err, env.ErrArgv)
 }
 
-// settle waits until no exec of handle is live, so no reaper writes after the
-// test returns.
+// settle waits until no host process of handle is live, so no reaper writes
+// after the test returns.
 func settle(t *testing.T, s *Server, handle env.Handle) {
 	t.Helper()
 	require.Eventually(t, func() bool {
-		recs, err := s.allExecs(handle)
-		if err != nil {
-			return false
-		}
-		for _, rec := range recs {
-			if pid := pidFromPlace(t, rec.Place); processAlive(pid) {
+		for _, pid := range envPIDs(t, s) {
+			if processAlive(pid) {
 				return false
 			}
 		}
@@ -121,20 +124,40 @@ func settle(t *testing.T, s *Server, handle env.Handle) {
 	time.Sleep(50 * time.Millisecond)
 }
 
-// hostPID reads the process the host executor started for an exec.
-func hostPID(t *testing.T, s *Server, handle env.Handle) int {
+// livePID returns a pid the host executor started that is still running.
+func livePID(t *testing.T, s *Server) int {
 	t.Helper()
-	rec, err := s.lookup(string(handle))
-	require.NoError(t, err)
-	return pidFromPlace(t, rec.Place)
+	for _, pid := range envPIDs(t, s) {
+		if processAlive(pid) {
+			return pid
+		}
+	}
+	require.FailNow(t, "no live host pid")
+	return 0
 }
 
-// pidFromPlace reads the pid the host executor recorded beside a stream.
-func pidFromPlace(t *testing.T, place runner.Place) int {
+// envPIDs reads every pid the host executor recorded for this server. The
+// test built the backend, so it knows where the executor keeps its runs.
+func envPIDs(t *testing.T, s *Server) []int {
 	t.Helper()
-	b, err := os.ReadFile(string(place) + ".pid")
+	root := filepath.Join(hostRoots[s], "runs")
+	dirs, err := os.ReadDir(root)
 	require.NoError(t, err)
-	pid, err := strconv.Atoi(strings.TrimSpace(string(b)))
-	require.NoError(t, err)
-	return pid
+	var pids []int
+	for _, dir := range dirs {
+		path := filepath.Join(root, dir.Name())
+		files, err := os.ReadDir(path)
+		require.NoError(t, err)
+		for _, f := range files {
+			if !strings.HasSuffix(f.Name(), ".pid") {
+				continue
+			}
+			b, err := os.ReadFile(filepath.Join(path, f.Name()))
+			require.NoError(t, err)
+			pid, err := strconv.Atoi(strings.TrimSpace(string(b)))
+			require.NoError(t, err)
+			pids = append(pids, pid)
+		}
+	}
+	return pids
 }

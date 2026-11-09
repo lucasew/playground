@@ -3,45 +3,42 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 
+	"github.com/lucasew/env-mcp/internal/backend"
 	"github.com/lucasew/env-mcp/internal/env"
-	"github.com/lucasew/env-mcp/internal/runner"
 )
 
 // ExecView is what a caller sees of one started command.
+//
+// Handle is the op handle: it names one command inside one env. Env is the
+// env's own handle, so a caller always knows which env the op belongs to.
 type ExecView struct {
-	Handle env.Handle `json:"handle"`
-	Env    env.Handle `json:"env"`
-	Argv   []string   `json:"argv"`
+	Handle backend.Exec `json:"handle"`
+	Env    env.Handle   `json:"env"`
+	Argv   []string     `json:"argv"`
 }
 
 // ExecState is one exec's lifecycle without its output.
 type ExecState struct {
-	Handle     env.Handle `json:"handle"`
-	State      env.State  `json:"state"`
-	ExitCode   int        `json:"exit_code"`
-	NextOffset int        `json:"next_offset"`
+	Handle     backend.Exec `json:"handle"`
+	State      env.State    `json:"state"`
+	ExitCode   int          `json:"exit_code"`
+	NextOffset int          `json:"next_offset"`
 }
 
-// execRecord is the persisted part of one exec. It survives the process that
-// started it, so the CLI can address an exec across invocations. Runner and
-// Place are the executor seam: the record never names a PID or a tab, only
-// the executor that owns it and the token that executor returned.
+// execRecord is the persisted part of one exec. Env and Handle are the two
+// levels: the env the command runs in and the op inside it. The record never
+// names a PID, a tab, or a checkout — only the handles the backend issued.
 type execRecord struct {
-	Handle env.Handle   `json:"handle"`
 	Env    env.Handle   `json:"env"`
+	Handle backend.Exec `json:"handle"`
 	Argv   []string     `json:"argv"`
-	Runner string       `json:"runner"`
-	Place  runner.Place `json:"place"`
-	Offset int          `json:"offset"`
-	// Killed records that the caller stopped this exec. A runner may drop
-	// the place on kill, so the record answers for it afterwards.
-	Killed bool `json:"killed"`
 }
 
 // Exec starts argv in the env at cwd and returns its handle immediately.
@@ -50,105 +47,59 @@ func (s *Server) Exec(ctx context.Context, handle, cwd string, argv []string) (E
 		return ExecView{}, env.ErrArgv
 	}
 	envHandle := env.Handle(handle)
-	envRec, err := s.Store.Get(envHandle)
+	e, _, err := s.open(ctx, envHandle)
 	if err != nil {
 		return ExecView{}, err
 	}
-	if envRec == nil {
-		return ExecView{}, fmt.Errorf("%w: %s", env.ErrHandle, handle)
-	}
-	if envRec.Closed {
-		return ExecView{}, fmt.Errorf("%w: %s", env.ErrClosed, handle)
-	}
-	live, err := s.liveExecs(envHandle)
+	op, err := e.Exec(ctx, backend.Start{Dir: cwd, Argv: argv, Label: labelFor(argv)})
 	if err != nil {
-		return ExecView{}, err
+		return ExecView{}, execErr(err)
 	}
-	if len(live) >= env.MaxExecs {
-		return ExecView{}, fmt.Errorf("%w: %d", env.ErrExecLimit, env.MaxExecs)
-	}
-	dir, err := env.Resolve(envRec.Root, cwd)
-	if err != nil {
-		return ExecView{}, err
-	}
-	execHandle, err := s.nextExecHandle(envHandle)
-	if err != nil {
-		return ExecView{}, err
-	}
-	r, err := s.runner()
-	if err != nil {
-		return ExecView{}, err
-	}
-	surface, err := r.Open(ctx, runner.Env{Checkout: envRec.Root, Source: envRec.Source, Label: string(envHandle)})
-	if err != nil {
-		return ExecView{}, err
-	}
-	place, err := r.Start(ctx, surface, runner.Start{
-		Dir:   dir,
-		Argv:  argv,
-		Label: labelFor(execHandle),
-	})
-	if err != nil {
-		return ExecView{}, err
-	}
-	rec := execRecord{
-		Handle: execHandle,
-		Env:    envHandle,
-		Argv:   argv,
-		Runner: r.ID(),
-		Place:  place,
-	}
+	rec := execRecord{Env: envHandle, Handle: op, Argv: argv}
 	if err := s.putExec(rec); err != nil {
 		return ExecView{}, err
 	}
-	return ExecView{Handle: execHandle, Env: envHandle, Argv: argv}, nil
+	return ExecView{Handle: op, Env: envHandle, Argv: argv}, nil
 }
 
 // Logs reads one page of an exec stream and reports its state.
 func (s *Server) Logs(ctx context.Context, handle string, offset, limit int, pattern string) (env.Page, error) {
-	rec, r, err := s.execAndRunner(handle)
+	e, id, err := s.execAndEnv(ctx, handle)
 	if err != nil {
 		return env.Page{}, err
 	}
-	if rec.Killed {
-		return env.Page{Lines: []string{}, NextOffset: offset, State: env.Exited}, nil
-	}
-	page, err := r.Read(ctx, rec.Place, runner.Output{Offset: offset, Limit: limit, Pattern: pattern})
+	page, err := e.Read(ctx, id, backend.Read{Offset: offset, Limit: limit, Pattern: pattern})
 	if err != nil {
 		return env.Page{}, execErr(err)
 	}
-	status, err := r.Status(ctx, rec.Place)
+	status, err := e.Status(ctx, id)
 	if err != nil {
-		return env.Page{}, err
+		return env.Page{}, execErr(err)
 	}
 	return env.Page{
-		Lines:         page.Lines,
-		NextOffset:    page.NextOffset,
-		State:         env.State(status.State),
-		ExitCode:      status.ExitCode,
-		TruncatedFrom: truncatedFrom(page),
+		Lines:      page.Lines,
+		NextOffset: page.NextOffset,
+		State:      env.State(status.State),
+		ExitCode:   status.ExitCode,
 	}, nil
 }
 
 // Poll reports one exec state and its stream length.
 func (s *Server) Poll(ctx context.Context, handle string) (ExecState, error) {
-	rec, r, err := s.execAndRunner(handle)
+	e, id, err := s.execAndEnv(ctx, handle)
 	if err != nil {
 		return ExecState{}, err
 	}
-	if rec.Killed {
-		return ExecState{Handle: rec.Handle, State: env.Exited}, nil
-	}
-	status, err := r.Status(ctx, rec.Place)
+	status, err := e.Status(ctx, id)
 	if err != nil {
-		return ExecState{}, err
+		return ExecState{}, execErr(err)
 	}
-	page, err := r.Read(ctx, rec.Place, runner.Output{})
+	page, err := e.Read(ctx, id, backend.Read{})
 	if err != nil {
 		return ExecState{}, execErr(err)
 	}
 	return ExecState{
-		Handle:     rec.Handle,
+		Handle:     id,
 		State:      env.State(status.State),
 		ExitCode:   status.ExitCode,
 		NextOffset: page.NextOffset,
@@ -157,142 +108,88 @@ func (s *Server) Poll(ctx context.Context, handle string) (ExecState, error) {
 
 // Kill stops an exec. Killing an exited exec succeeds.
 func (s *Server) Kill(ctx context.Context, handle string) error {
-	rec, r, err := s.execAndRunner(handle)
+	e, id, err := s.execAndEnv(ctx, handle)
 	if err != nil {
 		return err
 	}
-	if rec.Killed {
-		return nil
-	}
-	if status, err := r.Status(ctx, rec.Place); err == nil && status.State == runner.Exited {
-		return nil
-	}
-	if err := r.Kill(ctx, rec.Place); err != nil {
-		return err
-	}
-	rec.Killed = true
-	return s.putExec(rec)
+	return execErr(e.Kill(ctx, id))
 }
 
 // KillEnv stops every live exec of an env before the env handle is spent.
 func (s *Server) KillEnv(ctx context.Context, handle env.Handle) error {
-	all, err := s.allExecs(handle)
+	e, _, err := s.open(ctx, handle)
 	if err != nil {
 		return err
 	}
-	for _, rec := range all {
-		r, err := s.runnerByID(rec.Runner)
-		if err != nil {
-			continue
-		}
-		if rec.Killed {
-			continue
-		}
-		if status, err := r.Status(ctx, rec.Place); err != nil || status.State == runner.Running {
-			if r.Kill(ctx, rec.Place) == nil {
-				rec.Killed = true
-				_ = s.putExec(rec)
-			}
-		}
-	}
-	return nil
+	return e.KillAll(ctx)
 }
 
-// runner returns the executor this server uses.
-func (s *Server) runner() (runner.Executor, error) {
-	if s.Runner != nil {
-		return s.Runner, nil
-	}
-	return runner.Open(context.Background())
-}
-
-// runnerByID rebuilds the executor named in a record. The registry is the
-// only place that knows how to construct one, so a record typed by another
-// executor is reported as unavailable rather than misread.
-func (s *Server) runnerByID(id string) (runner.Executor, error) {
-	r, err := s.runner()
-	if err != nil {
-		return nil, err
-	}
-	if r.ID() != id {
-		return nil, fmt.Errorf("%w: exec started by %q", env.ErrExec, id)
-	}
-	return r, nil
-}
-
-// execAndRunner loads one record and the executor that owns it.
-func (s *Server) execAndRunner(handle string) (execRecord, runner.Executor, error) {
-	rec, err := s.lookup(handle)
-	if err != nil {
-		return execRecord{}, nil, err
-	}
-	r, err := s.runnerByID(rec.Runner)
-	if err != nil {
-		return execRecord{}, nil, err
-	}
-	return rec, r, nil
-}
-
-// execErr maps a runner error onto the public sentinels.
+// execErr maps a backend error onto the public sentinels.
 func execErr(err error) error {
 	if err == nil {
 		return nil
 	}
-	msg := err.Error()
 	switch {
-	case strings.Contains(msg, runner.ErrPattern.Error()):
+	case errors.Is(err, backend.ErrExec):
+		return fmt.Errorf("%w: %w", env.ErrExec, err)
+	case errors.Is(err, backend.ErrPattern):
 		return fmt.Errorf("%w: %w", env.ErrPattern, err)
-	case strings.Contains(msg, runner.ErrOffset.Error()):
+	case errors.Is(err, backend.ErrOffset):
 		return fmt.Errorf("%w: %w", env.ErrOffset, err)
+	case errors.Is(err, backend.ErrLimit):
+		return fmt.Errorf("%w: %w", env.ErrExecLimit, err)
+	case errors.Is(err, backend.ErrClosed):
+		return fmt.Errorf("%w: %w", env.ErrClosed, err)
 	default:
 		return err
 	}
 }
 
-// truncatedFrom reports the first line a runner can still reach, when it
-// dropped lines the caller asked for.
-func truncatedFrom(page runner.Page) int {
-	if !page.Truncated {
-		return 0
+// labelFor names a command for a human watching the backend's surface.
+func labelFor(argv []string) string {
+	if len(argv) == 0 {
+		return ""
 	}
-	return page.NextOffset
+	return filepath.Base(argv[0])
 }
 
-func labelFor(handle env.Handle) string {
-	_, after, ok := strings.Cut(string(handle), "@")
-	if !ok {
-		return string(handle)
-	}
-	return after
-}
-
-func (s *Server) liveExecs(handle env.Handle) ([]execRecord, error) {
-	all, err := s.allExecs(handle)
+// execAndEnv loads one exec record and opens the env that owns it.
+//
+// The op handle carries its env's token, so a handle minted by another env
+// is refused by the backend before it can reach any command.
+func (s *Server) execAndEnv(ctx context.Context, handle string) (backend.Env, backend.Exec, error) {
+	rec, err := s.lookup(handle)
 	if err != nil {
-		return nil, err
+		return nil, backend.Exec{}, err
 	}
-	var live []execRecord
-	for _, rec := range all {
-		r, err := s.runnerByID(rec.Runner)
-		if err != nil {
-			continue
-		}
-		if rec.Killed {
-			continue
-		}
-		if status, err := r.Status(context.Background(), rec.Place); err == nil && status.State == runner.Running {
-			live = append(live, rec)
-		}
+	e, _, err := s.open(ctx, rec.Env)
+	if err != nil {
+		return nil, backend.Exec{}, err
 	}
-	return live, nil
+	return e, rec.Handle, nil
 }
 
+// execKey is the filename part of one op handle as stored on disk.
+func execKey(op string) string { return env.HashHandle(env.Handle(op)) }
+
+// execDir holds one env's exec records, keyed by the backend token the op
+// handles embed, so a lookup from an op handle finds it without a scan.
+func (s *Server) execDir(token string) string {
+	return filepath.Join(s.Store.Dir(), "execs", env.HashHandle(env.Handle(token)))
+}
+
+// lookup loads one exec record. The op handle names its own env, so the
+// record is a direct read: no scan and no ambiguity across envs.
 func (s *Server) lookup(handle string) (execRecord, error) {
-	b, err := os.ReadFile(s.execFile(env.Handle(handle)))
+	id, err := parseExec(handle)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return execRecord{}, fmt.Errorf("%w: %s", env.ErrExec, handle)
-		}
+		return execRecord{}, err
+	}
+	b, err := os.ReadFile(filepath.Join(s.execDir(id.Env), execKey(handle)+".json"))
+	if os.IsNotExist(err) {
+		return execRecord{}, fmt.Errorf("%w: %s", env.ErrExec, handle)
+	}
+	if err != nil {
 		return execRecord{}, err
 	}
 	var rec execRecord
@@ -302,21 +199,33 @@ func (s *Server) lookup(handle string) (execRecord, error) {
 	return rec, nil
 }
 
+// parseExec reads the "<env>/<op>" spelling of an op handle. The op handle
+// is the backend's, so this only splits it apart far enough to find the
+// record on disk; the backend validates it again when the env opens it.
+func parseExec(text string) (backend.Exec, error) {
+	i := strings.LastIndex(text, "/")
+	if i <= 0 || i == len(text)-1 {
+		return backend.Exec{}, fmt.Errorf("%w: %s", env.ErrExec, text)
+	}
+	return backend.Exec{Env: text[:i], Op: text[i+1:]}, nil
+}
+
 func (s *Server) putExec(rec execRecord) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if err := os.MkdirAll(s.execDir(rec.Env), 0o700); err != nil {
+	dir := s.execDir(rec.Handle.Env)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
 	}
 	b, err := json.Marshal(rec)
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(s.execFile(rec.Handle), b, 0o600)
+	return os.WriteFile(filepath.Join(dir, execKey(rec.Handle.String())+".json"), b, 0o600)
 }
 
-func (s *Server) allExecs(handle env.Handle) ([]execRecord, error) {
-	entries, err := os.ReadDir(s.execDir(handle))
+// allExecs lists one env's exec records in the order they were started. The
+// caller passes the env's backend token.
+func (s *Server) allExecs(token string) ([]execRecord, error) {
+	entries, err := os.ReadDir(s.execDir(token))
 	if os.IsNotExist(err) {
 		return nil, nil
 	}
@@ -325,10 +234,7 @@ func (s *Server) allExecs(handle env.Handle) ([]execRecord, error) {
 	}
 	var out []execRecord
 	for _, e := range entries {
-		if !strings.HasSuffix(e.Name(), ".json") {
-			continue
-		}
-		b, err := os.ReadFile(filepath.Join(s.execDir(handle), e.Name()))
+		b, err := os.ReadFile(filepath.Join(s.execDir(token), e.Name()))
 		if err != nil {
 			return nil, err
 		}
@@ -338,31 +244,6 @@ func (s *Server) allExecs(handle env.Handle) ([]execRecord, error) {
 		}
 		out = append(out, rec)
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Handle < out[j].Handle })
+	sort.Slice(out, func(i, j int) bool { return out[i].Handle.Op < out[j].Handle.Op })
 	return out, nil
-}
-
-func (s *Server) execDir(handle env.Handle) string {
-	return filepath.Join(s.StateDir, "execs", env.HashHandle(handle))
-}
-
-func (s *Server) execFile(handle env.Handle) string {
-	parent, _, _ := strings.Cut(string(handle), "@")
-	return filepath.Join(s.StateDir, "execs", env.HashHandle(env.Handle(parent)), env.HashHandle(handle)+".json")
-}
-
-// nextExecHandle mints the next exec handle in an env. The handle is
-// persisted before the process starts, so two invocations never mint the
-// same one.
-func (s *Server) nextExecHandle(handle env.Handle) (env.Handle, error) {
-	if err := os.MkdirAll(s.execDir(handle), 0o700); err != nil {
-		return "", err
-	}
-	for n := 1; ; n++ {
-		candidate := env.Handle(fmt.Sprintf("%s@%d", handle, n))
-		if _, err := os.Stat(s.execFile(candidate)); err == nil {
-			continue
-		}
-		return candidate, nil
-	}
 }

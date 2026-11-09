@@ -1,38 +1,37 @@
 // Package server runs the operation table against envs.
+//
+// The server owns the registry: which envs exist, what repository and slug
+// each one stands for, and the handle its backend issued. It never learns
+// where an env lives. Provisioning, running commands, and teardown all go
+// through [backend.Handle] values that the backend interprets.
 package server
 
 import (
 	"context"
 	"fmt"
-	"sync"
 
+	"github.com/lucasew/env-mcp/internal/backend"
 	"github.com/lucasew/env-mcp/internal/env"
-	"github.com/lucasew/env-mcp/internal/runner"
 )
 
-// Server owns the env store, the backend that checks out envs, and the
-// executor that runs their commands.
+// Server owns the env registry and the provisioner it delegates to.
 type Server struct {
-	Store    *env.Store
-	Backend  *env.Backend
-	StateDir string
-	// Runner overrides the executor the registry would pick. Tests set it;
-	// production leaves it nil so the driver registry decides.
-	Runner runner.Executor
-
-	mu sync.Mutex
+	// Store keeps the registry records. It never holds a checkout path.
+	Store *env.Store
+	// Backend provisions envs and runs their commands.
+	Backend backend.Provisioner
 }
 
-// NewServer builds a server that keeps its exec state in stateDir.
-func NewServer(store *env.Store, backend *env.Backend, stateDir string) *Server {
-	return &Server{
-		Store:    store,
-		Backend:  backend,
-		StateDir: stateDir,
-	}
+// NewServer builds a server over a registry and a provisioner.
+func NewServer(store *env.Store, provisioner backend.Provisioner) *Server {
+	return &Server{Store: store, Backend: provisioner}
 }
 
 // EnvGet ensures the env for repo and slug and returns its view.
+//
+// The handle names the env, not its location. A handle the server already
+// recorded is re-provisioned, so an env that disappeared underneath the
+// backend comes back on the same handle.
 func (s *Server) EnvGet(ctx context.Context, repoText, slugText string) (EnvView, error) {
 	repo, err := env.ParseRepo(repoText)
 	if err != nil {
@@ -50,33 +49,33 @@ func (s *Server) EnvGet(ctx context.Context, repoText, slugText string) (EnvView
 	if rec != nil && rec.Closed {
 		return EnvView{}, fmt.Errorf("%w: %s", env.ErrClosed, handle)
 	}
-	created := false
-	if rec == nil {
-		place, err := s.Backend.Ensure(ctx, repo, slug)
-		if err != nil {
-			return EnvView{}, err
-		}
-		created = place.Created
-		rec = &env.Record{
-			Handle:  handle,
-			Repo:    repo.String(),
-			Slug:    string(slug),
-			Base:    repo.Base,
-			Root:    place.Root,
-			Source:  place.Source,
-			Created: place.Created,
-		}
-		if err := s.Store.Put(*rec); err != nil {
-			return EnvView{}, err
-		}
+	p, err := s.Backend.Provision(ctx, backend.Request{
+		Owner: repo.Owner,
+		Name:  repo.Name,
+		Base:  repo.Base,
+		Slug:  string(slug),
+		Label: string(handle),
+	})
+	if err != nil {
+		return EnvView{}, err
 	}
-	// Opening the env opens its surface: one workspace, one agent shell,
-	// and the place every exec of this env will use.
-	if _, err := s.openSurface(ctx, handle, rec.Root, rec.Source); err != nil {
+	// Provisioning is idempotent, so the backend always answers with the
+	// env's handle. A record whose token changes was re-provisioned.
+	if rec == nil {
+		rec = &env.Record{}
+	}
+	plugged := rec.Token == p.Handle.Token
+	rec.Handle = handle
+	rec.Repo = repo.String()
+	rec.Slug = string(slug)
+	rec.Base = repo.Base
+	rec.Token = p.Handle.Token
+	rec.Backend = p.Handle.Backend
+	if err := s.Store.Put(*rec); err != nil {
 		return EnvView{}, err
 	}
 	status := "resumed"
-	if created {
+	if !plugged || p.Created {
 		status = "created"
 	}
 	return EnvView{Handle: handle, Repo: rec.Repo, Slug: rec.Slug, Base: rec.Base, Status: status}, nil
@@ -91,7 +90,7 @@ type EnvView struct {
 	Status string     `json:"status"`
 }
 
-// EnvList returns every env the store knows.
+// EnvList returns every env the registry knows.
 func (s *Server) EnvList() ([]EnvView, error) {
 	records, err := s.Store.List()
 	if err != nil {
@@ -114,7 +113,8 @@ func (s *Server) EnvList() ([]EnvView, error) {
 	return out, nil
 }
 
-// EnvClose closes one env and frees its handle.
+// EnvClose closes one env: every live command stops and the backend tears
+// down everything it provisioned for it.
 func (s *Server) EnvClose(ctx context.Context, handleText string) error {
 	handle := env.Handle(handleText)
 	rec, err := s.Store.Get(handle)
@@ -127,14 +127,32 @@ func (s *Server) EnvClose(ctx context.Context, handleText string) error {
 	if rec.Closed {
 		return fmt.Errorf("%w: %s", env.ErrClosed, handle)
 	}
-	if err := s.KillEnv(ctx, handle); err != nil {
+	e, err := s.Backend.Open(ctx, backend.Handle{Backend: rec.Backend, Token: rec.Token})
+	if err != nil {
 		return err
 	}
-	if surface, ok := s.peekSurface(ctx, rec.Root); ok && surface != "" {
-		if r, err := s.runner(); err == nil {
-			_ = r.Close(ctx, surface)
-		}
+	if err := e.Close(ctx); err != nil {
+		return err
 	}
 	rec.Closed = true
 	return s.Store.Put(*rec)
+}
+
+// open returns the backend env behind a registry record.
+func (s *Server) open(ctx context.Context, handle env.Handle) (backend.Env, *env.Record, error) {
+	rec, err := s.Store.Get(handle)
+	if err != nil {
+		return nil, nil, err
+	}
+	if rec == nil {
+		return nil, nil, fmt.Errorf("%w: %s", env.ErrHandle, handle)
+	}
+	if rec.Closed {
+		return nil, nil, fmt.Errorf("%w: %s", env.ErrClosed, handle)
+	}
+	e, err := s.Backend.Open(ctx, backend.Handle{Backend: rec.Backend, Token: rec.Token})
+	if err != nil {
+		return nil, nil, err
+	}
+	return e, rec, nil
 }

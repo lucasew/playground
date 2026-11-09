@@ -10,7 +10,7 @@ func TestStoreRoundTrip(t *testing.T) {
 	store, err := NewStore(t.TempDir())
 	require.NoError(t, err)
 	h := NewHandle(Repo{Scheme: "github", Owner: "lewtec", Name: "lewkit", Base: "main"}, "slug")
-	rec := Record{Handle: h, Repo: "github:lewtec/lewkit@main", Slug: "slug", Root: "/x"}
+	rec := Record{Handle: h, Repo: "github:lewtec/lewkit@main", Slug: "slug", Base: "main", Backend: "local", Token: "tok"}
 	require.NoError(t, store.Put(rec))
 
 	got, err := store.Get(h)

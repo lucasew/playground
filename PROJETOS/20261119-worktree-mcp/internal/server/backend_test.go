@@ -1,30 +1,28 @@
 package server
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
-	"github.com/lewtec/lewkit/x/git"
-	"github.com/lucasew/env-mcp/internal/env"
-	"github.com/lucasew/env-mcp/internal/store"
+	"github.com/lucasew/env-mcp/internal/backend/local"
 	"github.com/stretchr/testify/require"
 )
 
-// backendAt builds a backend whose store keeps its checkouts under root and
-// uses clone for repo o/r.
-func backendAt(t *testing.T, root, clone string) *env.Backend {
-	t.Helper()
-	st := store.New(root, "github.com")
-	st.Git = &git.Git{}
-	if clone != "" {
-		st.Declared["o-r"] = clone
-	}
-	return &env.Backend{Store: st}
-}
-
-func TestDefaultBackendClonesUnderTheStateDir(t *testing.T) {
+func TestDefaultBackendClonesUnderTheWorkdir(t *testing.T) {
 	state := t.TempDir()
-	b := DefaultBackend(state)
+	b := DefaultBackend(state).(*local.Backend)
 	require.NotNil(t, b.Store)
 	require.Equal(t, state+"/checkouts/clones", b.Store.Clones)
 	require.Equal(t, state+"/checkouts/worktrees", b.Store.Checkouts)
+	require.Equal(t, "local", b.ID())
+}
+
+func TestDefaultBackendReadsDeclaredRepos(t *testing.T) {
+	state := t.TempDir()
+	cfg := `{"repos": {"github:o/r": "/somewhere/r"}, "workdir": "/w"}`
+	require.NoError(t, os.WriteFile(filepath.Join(state, "config.json"), []byte(cfg), 0o600))
+	b := DefaultBackend(state).(*local.Backend)
+	require.Equal(t, "/w/clones", b.Store.Clones)
+	require.Equal(t, "/somewhere/r", b.Store.Declared["o-r"])
 }

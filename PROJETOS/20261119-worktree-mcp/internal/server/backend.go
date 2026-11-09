@@ -6,14 +6,16 @@ import (
 	"path/filepath"
 
 	"github.com/lewtec/lewkit/x/git"
+	"github.com/lucasew/env-mcp/internal/backend"
+	"github.com/lucasew/env-mcp/internal/backend/local"
+	"github.com/lucasew/env-mcp/internal/backend/local/store"
 	"github.com/lucasew/env-mcp/internal/env"
-	"github.com/lucasew/env-mcp/internal/store"
 )
 
 // Config is the server's declaration of local checkouts.
 type Config struct {
 	// Repos maps github:owner/repo to a local checkout path. A repo named
-	// here is never cloned; the store uses the checkout as-is.
+	// here is never cloned; the backend uses the checkout as-is.
 	Repos map[string]string `json:"repos"`
 	// Workdir is the directory clones and worktrees live under.
 	Workdir string `json:"workdir"`
@@ -36,10 +38,12 @@ func LoadConfig(stateDir string) (Config, error) {
 	return cfg, nil
 }
 
-// DefaultBackend builds the backend over one store rooted in the state
-// directory. The store owns every clone and checkout, so the Herdr backend
-// and any later one receive the same paths the server recorded.
-func DefaultBackend(stateDir string) *env.Backend {
+// DefaultBackend builds the local backend over the server's state directory.
+//
+// The server keeps the registry; this backend owns the mechanics — clones,
+// worktrees, and the terminal surface commands run on. Nothing in its internals
+// reaches the caller.
+func DefaultBackend(stateDir string) backend.Provisioner {
 	cfg, err := LoadConfig(stateDir)
 	if err != nil {
 		cfg = Config{}
@@ -48,15 +52,17 @@ func DefaultBackend(stateDir string) *env.Backend {
 	if root == "" {
 		root = filepath.Join(stateDir, "checkouts")
 	}
-	st := store.New(root, "")
-	st.Git = &git.Git{}
-	// Config keys are github:owner/repo, the store keys on owner-repo.
+	b := local.New(root)
+	b.State = stateDir
+	b.Store.Git = &git.Git{}
+	// Config keys are github:owner/repo, the store keys on owner-name.
 	for key, path := range cfg.Repos {
 		repo, err := env.ParseRepo(key + "@main")
 		if err != nil {
 			continue
 		}
-		st.Declared[repo.Owner+"-"+repo.Name] = path
+		r := store.Repo{Owner: repo.Owner, Name: repo.Name, Base: repo.Base}
+		b.Store.Declared[r.Dir()] = path
 	}
-	return &env.Backend{Store: st}
+	return b
 }

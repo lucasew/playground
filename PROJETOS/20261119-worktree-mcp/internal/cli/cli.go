@@ -121,7 +121,7 @@ func Open() (*server.Server, error) {
 		return nil, err
 	}
 	ConfigureRunners(state)
-	return server.NewServer(store, server.DefaultBackend(state), state), nil
+	return server.NewServer(store, server.DefaultBackend(state)), nil
 }
 
 // ConfigureRunners points every registered executor at the state directory.

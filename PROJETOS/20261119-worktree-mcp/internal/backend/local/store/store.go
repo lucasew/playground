@@ -1,9 +1,8 @@
-// Package store owns every filesystem location the server manages: the
-// clones it keeps and the worktrees it cuts from them.
+// Package store is the local backend's disk layout: the clones it keeps and
+// the worktrees it cuts from them.
 //
-// It is the single answer to "where does this repo live and where is this
-// unit of work checked out". Backends (Herdr today, anything later) receive a
-// checkout from here; they never derive a path themselves.
+// It is an implementation detail of the local backend. The server owns which
+// envs exist; this package only answers where the local ones live on disk.
 //
 // The store is safe to use from several processes: every question it answers
 // is read back from git, and the per-repo lock serializes concurrent clones.
@@ -151,7 +150,7 @@ func (s *Store) Checkout(ctx context.Context, repo Repo, main, branch string) (s
 	if head == branch {
 		return git.Resolve(main), false, nil
 	}
-	path := filepath.Join(s.Checkouts, filepath.Base(main), safeName(branch))
+	path := filepath.Join(s.Checkouts, filepath.Base(main), SafeName(branch))
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return "", false, fmt.Errorf("%w: %s: %w", ErrCheckout, branch, err)
 	}
@@ -199,7 +198,7 @@ func (s *Store) lock(name string) func() {
 	return m.Unlock
 }
 
-// safeName turns a branch into one path segment.
-func safeName(branch string) string {
+// SafeName turns a branch into one path segment.
+func SafeName(branch string) string {
 	return strings.ReplaceAll(branch, "/", "-")
 }
