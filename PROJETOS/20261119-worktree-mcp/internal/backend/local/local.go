@@ -259,10 +259,14 @@ func (b *Backend) executor(ctx context.Context) (runner.Executor, error) {
 	return runner.Open(ctx)
 }
 
-// key names one env inside this backend: the repository, its base, and the
-// slug. The base is part of the name, so two bases of one repo are two envs.
+// key names one env inside this backend.
+//
+// The name covers the repository, its base, and the slug, then hashes so the
+// token says nothing about the env: it reaches an agent through op handles,
+// and an agent never learns how this backend stores an env.
 func key(req backend.Request) string {
-	return req.Owner + "-" + req.Name + "-" + store.SafeName(req.Base) + "-" + store.SafeName(req.Slug)
+	plain := req.Owner + "-" + req.Name + "-" + store.SafeName(req.Base) + "-" + store.SafeName(req.Slug)
+	return env.HashHandle(env.Handle(plain))
 }
 
 func (b *Backend) noteFile(token string) string {
