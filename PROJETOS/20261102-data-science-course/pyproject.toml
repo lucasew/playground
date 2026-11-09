@@ -1,0 +1,21 @@
+[project]
+name = "20261102-data-science-course"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "lucasew", email = "lucas59356@gmail.com" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "matplotlib",
+    "numpy",
+    "scipy",
+]
+
+[project.scripts]
+20261102-data-science-course = "20261102_data_science_course:main"
+
+[build-system]
+requires = ["uv_build>=0.13.6,<0.14.0"]
+build-backend = "uv_build"
