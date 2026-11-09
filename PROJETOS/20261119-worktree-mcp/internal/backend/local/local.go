@@ -60,6 +60,16 @@ func (b *Backend) Provision(ctx context.Context, req backend.Request) (backend.P
 	if err != nil {
 		return backend.Provisioned{}, err
 	}
+	// Provisioning one env again resumes it; it must not adopt a worktree
+	// that already belongs to another env of the same branch.
+	token := key(req)
+	if n, ok, err := b.read(token); err != nil {
+		return backend.Provisioned{}, err
+	} else if ok && !n.Closed {
+		if _, err := os.Stat(n.Checkout); err == nil {
+			return backend.Provisioned{Handle: backend.Handle{Backend: b.ID(), Token: token}, Created: false}, nil
+		}
+	}
 	checkout, made, err := b.Store.Checkout(ctx, repo, main, req.Slug)
 	if err != nil {
 		return backend.Provisioned{}, err
@@ -80,11 +90,11 @@ func (b *Backend) Provision(ctx context.Context, req backend.Request) (backend.P
 		Surface:  surface,
 		Executor: exec.ID(),
 	}
-	if err := b.write(key(req), n); err != nil {
+	if err := b.write(token, n); err != nil {
 		return backend.Provisioned{}, err
 	}
 	return backend.Provisioned{
-		Handle:  backend.Handle{Backend: b.ID(), Token: key(req)},
+		Handle:  backend.Handle{Backend: b.ID(), Token: token},
 		Created: cloned || made,
 	}, nil
 }
@@ -94,11 +104,11 @@ func (b *Backend) Open(ctx context.Context, h backend.Handle) (backend.Env, erro
 	if h.Backend != b.ID() {
 		return nil, fmt.Errorf("%w: %s: not a local handle", backend.ErrEnv, h.Token)
 	}
-	n, err := b.read(h.Token)
+	n, ok, err := b.read(h.Token)
 	if err != nil {
 		return nil, err
 	}
-	if n == (note{}) {
+	if !ok {
 		return nil, fmt.Errorf("%w: %s", backend.ErrEnv, h.Token)
 	}
 	if n.Closed {
@@ -259,19 +269,20 @@ func (b *Backend) noteFile(token string) string {
 	return filepath.Join(b.State, "local", "envs", token+".json")
 }
 
-func (b *Backend) read(token string) (note, error) {
+// read returns the note for one env and whether it exists.
+func (b *Backend) read(token string) (note, bool, error) {
 	buf, err := os.ReadFile(b.noteFile(token))
 	if os.IsNotExist(err) {
-		return note{}, nil
+		return note{}, false, nil
 	}
 	if err != nil {
-		return note{}, err
+		return note{}, false, err
 	}
 	var n note
 	if err := json.Unmarshal(buf, &n); err != nil {
-		return note{}, fmt.Errorf("local: %s: %w", token, err)
+		return note{}, false, fmt.Errorf("local: %s: %w", token, err)
 	}
-	return n, nil
+	return n, true, nil
 }
 
 func (b *Backend) write(token string, n note) error {
