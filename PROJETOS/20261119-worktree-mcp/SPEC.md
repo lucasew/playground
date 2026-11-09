@@ -34,7 +34,7 @@ Inherited C (cite the file):
 
 | ID | Input | Rule | Output |
 |----|-------|------|--------|
-| TEC-01 | A repo identity `github:owner/repo@base` and a slug | Resolve the identity to a clone (the declared one, else a clone the store makes), then ensure one linked worktree at the slug branch, reusing the worktree already on that branch. One `(repo, slug)` pair is one env for the life of its record. | One env handle with one status token: `created` or `resumed` |
+| TEC-01 | A repo identity `github:owner/repo@base` and a slug | Look the pair up in the server's registry. A recorded env resumes: the server asks the backend to provision it again and the same handle comes back. A new pair asks the backend to provision one env, the backend sets up the checkout and a place to run commands, and the server records the backend's opaque handle. One `(repo, slug)` pair is one env for the life of its record. | One env handle with one status token: `created` or `resumed` |
 | TEC-02 | An env handle and the agent's current location | Place the agent's own session in the env checkout; repeat calls are a no-op beyond re-ensuring the standard layout. | The agent standing in the env |
 | TEC-03 | One expression source, a map of named arguments, and a handle table | Parse into a tree, type-check the whole expression against the closed item table, then evaluate; a type error executes nothing. | One JSON value plus any handles minted |
 | TEC-04 | A typed operation on an item | Every operation is total on its declared item types; an argument of another type fails the expression before evaluation. | A value of a declared type |
@@ -42,7 +42,9 @@ Inherited C (cite the file):
 | TEC-06 | An event stream, a line offset, and an optional RE2 pattern | Read whole lines from the offset, apply the pattern server-side, advance the cursor past every scanned line. | Lines, a next offset, and truncation notice |
 | TEC-07 | A wait condition from the closed set `literal`, `pattern`, `exit`, plus a finite timeout | Poll the event stream until the condition holds; on timeout report the scanned lines and the state. | The stream handle and the matched lines |
 | TEC-08 | A handle-addressed path | Resolve relative to the env root; reject `..`, an absolute path, and any resolved path outside the env root. | A file inside the env |
-| TEC-09 | A new env and the layout record | Create one labeled place for the env with one agent shell; create one more labeled place per exec on demand. Never touch a place the server did not create. | A standard layout the user can see |
+| TEC-09 | One provisioned env | Give the env its own place to run commands, created by the backend that provisioned it; that backend creates one more labeled place per exec on demand, and never touches a place it did not create. The server sees only a handle, never the place. | A standard layout the user can see |
+
+| TEC-11 | An env handle and an operation on one command | Address the op by a handle that carries its env. The op handle is minted per start and scoped to one env, so a backend refuses it against any other env and no caller can name an op by a bare number. | An op handle: its env handle plus the backend's op token |
 | TEC-10 | One operation from the table, its arguments, and a `format` | Run the operation, then render its `Result` through the chosen `format`. The MCP surface passes arguments as typed tool inputs; the CLI surface passes them as flags and positional arguments. | One rendered result with one exit status |
 
 ## Tooling
@@ -54,10 +56,11 @@ Inherited C (cite the file):
 | TEC-10 | `lewkit/x/cmd` | adopt | implement subcommand dispatch; implement flag parsing; implement usage text; implement `--version`; implement exit codes; implement the `format` argument | lewtec/lewkit `x/cmd` |
 | TEC-10 | `lewkit/x/text/table` | adopt | implement a table renderer; invent a CSV or JSONL encoder | lewtec/lewkit `x/text/table/format.go` |
 | TEC-09 | Herdr socket API already in this path | wrap | implement a terminal multiplexer | lewtec/herdr-reflow `pkg/herdr/client.go` |
-| TEC-01 | `internal/store`: clones and worktrees | implement | re-derive paths in each backend | `internal/store/store.go` |
+| TEC-01 | `internal/backend/local/store`: clones and worktrees | implement | let the server read a checkout path | `internal/backend/local/store/store.go` |
 | TEC-01 | `lewkit/x/git` and `git clone` | adopt | implement Git worktree bookkeeping | lewtec/lewkit `x/git` |
 | TEC-01 | `git worktree add` | adopt | reimplement worktrees | `git` binary |
-| TEC-01, TEC-02 | Herdr `worktree.create`, `worktree.open`, `pane.move` | wrap | implement checkout placement; implement sidebar layout | lewtec/herdr-reflow `pkg/herdr/reorder.go` |
+| TEC-01, TEC-09 | Herdr `worktree.open`, `tab.create`, `pane.send_text` | wrap | implement checkout placement; implement sidebar layout; expose Herdr above the local backend | lewtec/herdr-reflow `pkg/herdr/reorder.go` |
+| TEC-01, TEC-11 | `lewkit/x/driver` | adopt | implement backend discovery; implement weight ordering | lewtec/lewkit `x/driver` |
 | TEC-05 | the `runner.Executor` seam over Herdr `tab.create`, `pane.send_text`, `pane.send_keys` | adopt | implement a PTY; call Herdr from the operation table | `internal/runner/runner.go`, lewtec/herdr-reflow `pkg/herdr/client.go` |
 | TEC-06, TEC-07 | `runner.Executor.Read` over Herdr `pane.read`; the sentinel line carries the exit status | wrap | implement terminal emulation; implement scrollback | `internal/runner/herdr`, lewtec/herdr-reflow |
 | TEC-04, TEC-05, TEC-06, TEC-07, TEC-08 | the type checker, the evaluator, and the path resolver | implement | adopt a general Lisp interpreter | none |
@@ -67,17 +70,17 @@ Inherited C (cite the file):
 |------|------|--------|------------|-----------|
 | Language | Go 1.27 | C | TEC-03 | `lewkit` and `herdr-reflow` are Go; `x/parse` is a Go library |
 | Runtime | one binary, `env-mcp`, with an MCP transport and terminal subcommands | D | TEC-03, TEC-10 | |
-| Persistence | server state directory: one JSON record per env and one append-only event stream per exec | D | TEC-01, TEC-06 | |
+| Persistence | server state directory: one registry record per env holding the backend's opaque handle, plus the backend's own store under the same directory | D | TEC-01, TEC-06 | |
 | UI | none; Herdr is the visible surface | D | TEC-09 | |
 | Packaging | `mise` project tasks and a GoReleaser release, like `herdr-reflow` | D | TEC-03, TEC-10 | |
-| Identity | env handle is `repo/slug`, minted by the server, valid for the life of the record | D | TEC-01 | |
+| Identity | env handle is `repo/slug`, minted by the server; op handle is `env-token/op`, minted per start | D | TEC-01, TEC-11 | |
 | Host OS | macOS and Linux | D | TEC-09 | |
 
 Three cited gaps stay open by decision:
 
 - No Lisp evaluator exists in lewkit and none exists in a LEWTEC project (`none` after reading `lewkit/x/*` and `lewtec/herdr-reflow`). TEC-04, TEC-05, TEC-06, TEC-07 and TEC-08 are ours.
 - No typed item table exists anywhere in the org. The table in Types is the whole definition.
-- Herdr has no typed handle layer; the wrapper maps one MCP exec to one Herdr place and nothing more.
+- Herdr has no typed handle layer; the local backend maps one exec to one Herdr tab and nothing more, and the server never calls Herdr.
 
 ## Terminology
 
@@ -268,17 +271,18 @@ Residual risk:
 
 ## Decision history
 
-- ADR-0001: Herdr is the layout engine and the MCP derives location from Herdr state. Rejected: owning a second layout model beside Herdr's sidebar.
+- ADR-0001: The local backend uses Herdr as its layout engine, and the MCP keeps no layout model of its own. Herdr is an implementation detail *inside* the local backend, not a layer the server can see. Rejected: a second layout model beside Herdr's sidebar; making Herdr part of the server's contract.
 - ADR-0002: The agent's vocabulary is env and exec only. Rejected: exposing workspace, tab, and pane names.
 - ADR-0003: The contract returns no path; every file access goes through handle operations. Rejected: returning the checkout path as the local leak.
 - ADR-0004: `env_get` moves the agent into the env. Rejected: telling the agent to `cd` itself.
 - ADR-0005: The public surface is a stateless typed expression and a small fixed tool set. Rejected: a tool-only surface; a stateful REPL.
 - ADR-0006: Output is an offset-addressed append-only event stream filtered server-side by RE2. Rejected: a port probe as readiness evidence; an in-memory output buffer.
 - ADR-0007: `exec` starts one named process and returns it immediately; readiness is a separate `wait`. Rejected: blocking `exec` on a readiness heuristic.
-- ADR-0008: The server owns the checkout store. For one `github:owner/repo`, it uses a clone declared in config when there is one and otherwise clones the repo into its own store; it then cuts one linked worktree per `(repo, slug)` from that clone. Owners: the store alone decides where clones and worktrees live, and every backend receives a finished checkout. Cloning uses the host's own git credentials; the server holds none of its own. Rejected: requiring a pre-existing checkout, which made every repo a manual setup step.
+- ADR-0008: The server owns the registry, not the checkouts. A backend provisions an env and is responsible for setting up its checkout, because whether that is a local directory, a sandbox, or something else is the backend's business. The local backend is the simplest one: for one `github:owner/repo` it uses a clone declared in config when there is one and otherwise clones the repo into its store, then cuts one linked worktree per `(repo, slug)`. Cloning uses the host's own git credentials; the server holds none of its own. Rejected: the server owning the checkout store (it made one storage layout the contract); requiring a pre-existing checkout.
 - ADR-0009: The language has exactly one application form and no `begin`. Rejected: `begin` and named definitions in v0.
 - ADR-0010: One binary with subcommands; every operation is reachable from the MCP surface and the CLI surface with identical rules. Rejected: a separate debug CLI with its own rules.
 - ADR-0011: `x/cmd` owns dispatch, flags, exit codes, and rendering through `format`. Rejected: a bespoke `--json` flag and a hand-written serializer.
 - ADR-0012: `Env` carries no path; the API shape keeps paths out of results and text is not policed. Rejected: rewriting absolute paths inside exec output.
 - ADR-0013: An env holds at most 8 live execs. Rejected: an unbounded exec count.
+- ADR-0015: One contract for any provisioner: `Provision` returns an opaque env handle, and `Open` turns a handle back into an env whose whole surface is `Exec`, `Status`, `Read`, `Kill`, `KillAll`, and `Close`. The server stores the handle and never learns where the env lives. Two levels of handle: an env handle names one env, and an op handle names one command inside it and carries its env, so it can never be replayed against another env. The local backend registers as a lewkit driver, so a sandbox backend can replace it without touching the server. Rejected: a `Place` call that hands checkout paths back to the server; a bare per-env op number; a separate checkout store peer of the backend.
 - ADR-0014: Execution sits behind one `Executor` seam (`Open`, `Start`, `Status`, `Read`, `Kill`, `Close`) registered as a lewkit driver. `internal/runner/herdr` is the default (weight 90) and `internal/runner/host` is the daemon-free fallback (weight 10), opt-in through `ENV_MCP_ALLOW_HOST_RUNNER`; the registry picks by weight and compatibility, so losing the Herdr session is a clear error unless the caller opts into loose processes. The record stores `runner` and an opaque `place`, never a PID or tab. Rejected: an own daemon; a hard Herdr dependency; an abstract interface with one implementation.
