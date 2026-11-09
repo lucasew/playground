@@ -8,9 +8,28 @@ import (
 
 // Workspace is one row of the Herdr workspace list.
 type Workspace struct {
-	ID     string `json:"workspace_id"`
-	Label  string `json:"label"`
-	Number int    `json:"number"`
+	ID       string    `json:"workspace_id"`
+	Label    string    `json:"label"`
+	Number   int       `json:"number"`
+	Worktree *Worktree `json:"worktree"`
+}
+
+// Worktree is the checkout a workspace is bound to, when it has one.
+type Worktree struct {
+	RepoRoot string `json:"repo_root"`
+	Checkout string `json:"checkout_path"`
+	Linked   bool   `json:"is_linked_worktree"`
+}
+
+// ListWorkspaces returns every workspace in the session.
+func (c *Client) ListWorkspaces(ctx context.Context) ([]Workspace, error) {
+	var body struct {
+		Workspaces []Workspace `json:"workspaces"`
+	}
+	if err := c.call(ctx, "workspace.list", map[string]any{}, &body); err != nil {
+		return nil, err
+	}
+	return body.Workspaces, nil
 }
 
 // Opened is the workspace worktree.open returned.
@@ -21,7 +40,16 @@ type Opened struct {
 
 // OpenWorktree shows an existing checkout as a workspace. source is the
 // repo the checkout belongs to; Herdr requires it for a linked worktree.
+//
+// parent is the workspace to nest under. Herdr has no native parent/child
+// workspaces: nesting happens here, so a linked worktree shows up under the
+// workspace that stands for its repository.
 func (c *Client) OpenWorktree(ctx context.Context, path, label, source string) (Opened, error) {
+	return c.OpenWorktreeUnder(ctx, "", path, label, source)
+}
+
+// OpenWorktreeUnder opens a checkout as a workspace nested under parent.
+func (c *Client) OpenWorktreeUnder(ctx context.Context, parent, path, label, source string) (Opened, error) {
 	params := map[string]any{
 		"path":  path,
 		"label": label,
@@ -30,9 +58,31 @@ func (c *Client) OpenWorktree(ctx context.Context, path, label, source string) (
 	if source != "" {
 		params["cwd"] = source
 	}
+	if parent != "" {
+		params["workspace"] = parent
+	}
 	var opened Opened
 	err := c.call(ctx, "worktree.open", params, &opened)
 	return opened, err
+}
+
+// CreateWorkspace opens a plain workspace at cwd. It is what groups envs of
+// one repository when the repository has no workspace of its own yet.
+func (c *Client) CreateWorkspace(ctx context.Context, cwd, label string) (Workspace, error) {
+	var body struct {
+		Workspace Workspace `json:"workspace"`
+	}
+	if err := c.call(ctx, "workspace.create", map[string]any{
+		"cwd":   cwd,
+		"label": label,
+		"focus": false,
+	}, &body); err != nil {
+		return Workspace{}, err
+	}
+	if body.Workspace.ID == "" {
+		return Workspace{}, fmt.Errorf("herdr workspace.create: %w", ErrEmpty)
+	}
+	return body.Workspace, nil
 }
 
 // Tab is one row of the Herdr tab list.

@@ -19,7 +19,6 @@ import (
 // Root is the env-mcp command line.
 type Root struct {
 	Env   *EnvCmd   `cmd:"" help:"manage envs"`
-	Exec  *ExecCmd  `cmd:"" help:"run a command in an env"`
 	Logs  *LogsCmd  `cmd:"" help:"read an exec event stream"`
 	Poll  *PollCmd  `cmd:"" help:"report one exec state"`
 	Kill  *KillCmd  `cmd:"" help:"stop one exec"`
@@ -38,6 +37,7 @@ type EnvCmd struct {
 	Get   *EnvGetCmd   `cmd:"" help:"open or resume an env"`
 	List  *EnvListCmd  `cmd:"" help:"list envs"`
 	Close *EnvCloseCmd `cmd:"" help:"close an env"`
+	Exec  *ExecCmd     `cmd:"" help:"run a command in an env"`
 }
 
 // EnvGetCmd opens or resumes one env.

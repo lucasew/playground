@@ -18,6 +18,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/lewtec/lewkit/x/git"
 	"github.com/lucasew/env-mcp/internal/herdr"
 	"github.com/lucasew/env-mcp/internal/runner"
 )
@@ -51,14 +52,20 @@ func (e *Executor) client() *herdr.Client {
 // Open ensures the workspace for an env and returns its place.
 //
 // The workspace is the execution surface: the agent shell lives in it and
-// every exec becomes a tab. Reopening an env returns the same workspace.
+// every exec becomes a tab. Each env's workspace nests under the workspace
+// of its repository, so the sidebar groups one repo's envs together.
+// Reopening an env returns the same workspace.
 func (e *Executor) Open(ctx context.Context, env runner.Env) (runner.Place, error) {
 	if place, err := e.storedPlace(env.Checkout); err == nil && place != "" {
 		if alive, err := e.workspaceAlive(ctx, string(place)); err == nil && alive {
 			return place, nil
 		}
 	}
-	opened, err := e.client().OpenWorktree(ctx, env.Checkout, env.Label, env.Source)
+	parent, err := e.repoWorkspace(ctx, env)
+	if err != nil {
+		return "", err
+	}
+	opened, err := e.client().OpenWorktreeUnder(ctx, parent, env.Checkout, env.Label, env.Source)
 	if err != nil {
 		return "", err
 	}
@@ -76,6 +83,49 @@ func (e *Executor) Open(ctx context.Context, env runner.Env) (runner.Place, erro
 		return "", err
 	}
 	return place, nil
+}
+
+// repoWorkspace returns the workspace that groups the envs of one repo.
+//
+// The repository's main checkout gets a workspace of its own when it has
+// none; every env then nests under it. The lookup reads Herdr's own state,
+// so a workspace the user already has for that repo is reused and no
+// second grouping is invented.
+func (e *Executor) repoWorkspace(ctx context.Context, env runner.Env) (string, error) {
+	if env.Source == "" {
+		return "", nil
+	}
+	if id, ok := e.workspaceForCheckout(ctx, env.Source); ok {
+		return id, nil
+	}
+	opened, err := e.client().OpenWorktree(ctx, env.Source, repoLabel(env.Source), env.Source)
+	if err != nil {
+		return "", err
+	}
+	return opened.Workspace.ID, nil
+}
+
+// workspaceForCheckout reports the workspace already bound to a checkout.
+func (e *Executor) workspaceForCheckout(ctx context.Context, checkout string) (string, bool) {
+	spaces, err := e.client().ListWorkspaces(ctx)
+	if err != nil {
+		return "", false
+	}
+	want := git.Resolve(checkout)
+	for _, space := range spaces {
+		if space.Worktree == nil || space.Worktree.Checkout == "" {
+			continue
+		}
+		if git.Resolve(space.Worktree.Checkout) == want {
+			return space.ID, true
+		}
+	}
+	return "", false
+}
+
+// repoLabel names a repository's workspace for a human watching the sidebar.
+func repoLabel(source string) string {
+	return filepath.Base(source)
 }
 
 // Start opens a tab for one command in the env workspace, sends the command

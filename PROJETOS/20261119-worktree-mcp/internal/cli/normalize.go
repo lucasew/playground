@@ -2,14 +2,16 @@ package cli
 
 import "strings"
 
-// InsertDashes normalizes the exec subcommand argv.
+// InsertDashes normalizes the exec argv.
 //
-// x/cmd treats a leading "-" as one of its own flags, so "env-mcp exec <env>
-// sh -c …" would fail with "unknown flag: -c". This inserts the "--"
+// x/cmd treats a leading "-" as one of its own flags, so "env-mcp env exec
+// <env> sh -c …" would fail with "unknown flag: -c". This inserts the "--"
 // separator before <argv> when the caller omitted it, so the CLI spelling
-// works with or without "--", exactly like the expression form. exec's own
-// flags (--cwd) stay before the separator; everything after the env handle
-// is passed through untouched.
+// works with or without "--".
+//
+// exec's own flags (--cwd) stay before the separator; everything after the
+// env handle is passed through untouched. Both spellings are accepted:
+// "env exec" and the older top-level "exec".
 func InsertDashes(args []string) []string {
 	start := -1
 	for i, a := range args {
