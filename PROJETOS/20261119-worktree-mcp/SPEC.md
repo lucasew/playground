@@ -44,7 +44,7 @@ Inherited C (cite the file):
 | TEC-08 | A handle-addressed path | Resolve relative to the env root; reject `..`, an absolute path, and any resolved path outside the env root. | A file inside the env |
 | TEC-09 | One provisioned env | Give the env its own place to run commands, created by the backend that provisioned it; that backend creates one more labeled place per exec on demand, and never touches a place it did not create. The server sees only a handle, never the place. | A standard layout the user can see |
 
-| TEC-11 | An env handle and an operation on one command | Address the op by a handle that carries its env. The op handle is minted per start and scoped to one env, so a backend refuses it against any other env and no caller can name an op by a bare number. | An op handle: its env handle plus the backend's op token |
+| TEC-11 | An env handle and an operation on one command | Address the op by a handle that carries its env. The op handle is minted per start and scoped to one env, so a backend refuses it against any other env and no caller can name an op by a bare number. Handles are short (`<env>.<op>`) because an agent repeats them in every call; what they name lives in the registry. | An op handle: its env handle plus the backend's op token |
 | TEC-10 | One operation from the table, its arguments, and a `format` | Run the operation, then render its `Result` through the chosen `format`. The MCP surface passes arguments as typed tool inputs; the CLI surface passes them as flags and positional arguments. | One rendered result with one exit status |
 
 ## Tooling
@@ -73,7 +73,7 @@ Inherited C (cite the file):
 | Persistence | server state directory: one registry record per env holding the backend's opaque handle, plus the backend's own store under the same directory | D | TEC-01, TEC-06 | |
 | UI | none; Herdr is the visible surface | D | TEC-09 | |
 | Packaging | `mise` project tasks and a GoReleaser release, like `herdr-reflow` | D | TEC-03, TEC-10 | |
-| Identity | env handle is `repo/slug`, minted by the server; op handle is `env-token/op`, minted per start | D | TEC-01, TEC-11 | |
+| Identity | env handle is a 10-character minted ID; op handle is `<env>.<op>`, minted per start; the registry maps a handle to its repo and slug | D | TEC-01, TEC-11 | |
 | Host OS | macOS and Linux | D | TEC-09 | |
 
 Three cited gaps stay open by decision:
@@ -103,7 +103,7 @@ Three cited gaps stay open by decision:
 | Type | Exported | Identity or value | Mutable | Nil/error | Callers MUST NOT |
 |------|----------|-------------------|---------|-----------|------------------|
 | `Repo` | yes | value; the string `github:owner/repo@base` | no | error on a wrong scheme; error on a wrong segment count; error on an empty base | construct one that skips `Parse` |
-| `Env` | yes | identity; `repo/slug` | no | error on an unknown handle | pass an `Env` that `env` did not mint; expect a checkout path field |
+| `Env` | yes | identity; a 10-character handle the server minted | no | error on an unknown or malformed handle | pass an `Env` that `env` did not mint; expect a checkout path field |
 | `Exec` | yes | identity; minted per start | no | error on unknown handle | reuse an `Exec` after `env close` |
 | `Stream` | yes | value handle over one `Exec` at an offset | no | error when the offset exceeds the stream | read past `truncated_from` without noticing |
 | `File` | yes | value; an env-relative path | no | error when the path escapes | escape the env root; pass an absolute path |
@@ -136,7 +136,7 @@ One binary, `env-mcp`, with `x/cmd` subcommands. Every operation in the table is
 | Surface | Entry | Arguments | Result rendering |
 |---------|-------|-----------|------------------|
 | MCP | the `eval` tool and the `env_get`, `exec`, `logs`, `poll`, `list`, `close` tools over stdio | typed tool inputs, standard MCP tool calling | the `format` argument, default `jsonl` |
-| CLI | `env-mcp env get github:owner/repo@base <slug>`, `env-mcp env list`, `env-mcp env close <env>`, `env-mcp exec <env> <argv…>`, `env-mcp logs <exec>`, `env-mcp poll <exec>`, `env-mcp eval '<expr>' --arg NAME=VALUE`, `env-mcp serve` | flags and positional arguments; a trailing variadic argument accepts `--` and runs the same without it | the `format` argument from `x/cmd`, default `table` |
+| CLI | `env-mcp env get github:owner/repo@base <slug>`, `env-mcp env list`, `env-mcp env close <env>`, `env-mcp env exec <env> <argv…>`, `env-mcp logs <exec>`, `env-mcp poll <exec>`, `env-mcp eval '<expr>' --arg NAME=VALUE`, `env-mcp serve` | flags and positional arguments; a trailing variadic argument accepts `--` and runs the same without it | the `format` argument from `x/cmd`, default `table` |
 
 `serve` runs the MCP transport. Every other subcommand runs one operation and exits.
 
@@ -284,5 +284,6 @@ Residual risk:
 - ADR-0011: `x/cmd` owns dispatch, flags, exit codes, and rendering through `format`. Rejected: a bespoke `--json` flag and a hand-written serializer.
 - ADR-0012: `Env` carries no path; the API shape keeps paths out of results and text is not policed. Rejected: rewriting absolute paths inside exec output.
 - ADR-0013: An env holds at most 8 live execs. Rejected: an unbounded exec count.
+- ADR-0016: Handles are short minted identifiers, not descriptions. An env handle is 10 characters from a vowel-free alphabet, and an op handle is `<env>.<op>`. The registry holds what a handle means, so `env_get` is idempotent by looking up `(repo, slug)` rather than by recomputing a name. Rejected: a readable `owner/name/slug` handle, which cost tokens in every call and put the identity in the handle instead of the registry.
 - ADR-0015: One contract for any provisioner: `Provision` returns an opaque env handle, and `Open` turns a handle back into an env whose whole surface is `Exec`, `Status`, `Read`, `Kill`, `KillAll`, and `Close`. The server stores the handle and never learns where the env lives. Two levels of handle: an env handle names one env, and an op handle names one command inside it and carries its env, so it can never be replayed against another env. The local backend registers as a lewkit driver, so a sandbox backend can replace it without touching the server. Rejected: a `Place` call that hands checkout paths back to the server; a bare per-env op number; a separate checkout store peer of the backend.
 - ADR-0014: Execution sits behind one `Executor` seam (`Open`, `Start`, `Status`, `Read`, `Kill`, `Close`) registered as a lewkit driver. `internal/runner/herdr` is the default (weight 90) and `internal/runner/host` is the daemon-free fallback (weight 10), opt-in through `ENV_MCP_ALLOW_HOST_RUNNER`; the registry picks by weight and compatibility, so losing the Herdr session is a clear error unless the caller opts into loose processes. The record stores `runner` and an opaque `place`, never a PID or tab. Rejected: an own daemon; a hard Herdr dependency; an abstract interface with one implementation.

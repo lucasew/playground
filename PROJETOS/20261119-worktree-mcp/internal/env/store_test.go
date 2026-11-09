@@ -9,7 +9,7 @@ import (
 func TestStoreRoundTrip(t *testing.T) {
 	store, err := NewStore(t.TempDir())
 	require.NoError(t, err)
-	h := NewHandle(Repo{Scheme: "github", Owner: "lewtec", Name: "lewkit", Base: "main"}, "slug")
+	h := Handle("k3m9xq2p1a")
 	rec := Record{Handle: h, Repo: "github:lewtec/lewkit@main", Slug: "slug", Base: "main", Backend: "local", Token: "tok"}
 	require.NoError(t, store.Put(rec))
 
@@ -32,6 +32,6 @@ func TestStoreMissingIsNil(t *testing.T) {
 }
 
 func TestHandleIsFilenameSafe(t *testing.T) {
-	h := NewHandle(Repo{Scheme: "github", Owner: "o", Name: "n", Base: "main"}, "feat/x")
+	h := Handle("k3m9xq2p1a")
 	require.NotContains(t, HashHandle(h), "/")
 }

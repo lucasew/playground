@@ -56,6 +56,22 @@ func HashHandle(h Handle) string {
 	return fmt.Sprintf("%016x", sum)
 }
 
+// Find returns the record for a repo and slug, or nil when the registry has
+// none. It is what keeps `env_get` idempotent: the pair names the env, and
+// the handle is whatever the registry minted for it.
+func (s *Store) Find(repo string, slug string) (*Record, error) {
+	all, err := s.List()
+	if err != nil {
+		return nil, err
+	}
+	for i := range all {
+		if all[i].Repo == repo && all[i].Slug == slug {
+			return &all[i], nil
+		}
+	}
+	return nil, nil
+}
+
 // Get reads one record. A missing record is nil and no error.
 func (s *Store) Get(h Handle) (*Record, error) {
 	b, err := os.ReadFile(s.file(h))

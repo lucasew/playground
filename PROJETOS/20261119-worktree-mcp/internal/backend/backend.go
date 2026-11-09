@@ -85,24 +85,25 @@ type Start struct {
 // Exec addresses one command inside one env.
 //
 // An op handle is scoped to the env that started it: the value carries the
-// env's token, so the same handle can never be replayed against another env.
-// The server stores the value verbatim and never builds one itself.
+// env's handle, so the same handle can never be replayed against another
+// env. The server stores the value verbatim and never builds one itself.
 //
-// The two levels are therefore explicit in the type: Handle names an env,
-// Exec names an op inside the env that Handle names.
+// The two levels are explicit in the type: Env names an env, Op names a
+// command inside that env. A handle is short because an agent repeats it in
+// every call.
 type Exec struct {
-	// Env is the token of the env that started this command.
+	// Env is the handle of the env that started this command.
 	Env string `json:"env"`
-	// Op is the env's own name for this command.
+	// Op is the backend's own name for this command.
 	Op string `json:"op"`
 }
 
 // String is the stable form the server prints and matches errors against.
-func (e Exec) String() string { return e.Env + "/" + e.Op }
+func (e Exec) String() string { return e.Env + "." + e.Op }
 
-// OwnedBy reports whether this op belongs to the env with the given token.
+// OwnedBy reports whether this op belongs to the env with the given handle.
 // The backend refuses any op handle from another env.
-func (e Exec) OwnedBy(token string) bool { return e.Env == token }
+func (e Exec) OwnedBy(handle string) bool { return e.Env == handle }
 
 // Status is what a backend reports about one command.
 type Status struct {
@@ -159,7 +160,10 @@ type Provisioner interface {
 	// Open returns the env behind a handle this backend issued. It fails
 	// with ErrEnv when the handle is unknown and ErrClosed when it was
 	// closed.
-	Open(ctx context.Context, h Handle) (Env, error)
+	//
+	// name is the short handle the server shows an agent. Op handles are
+	// minted from it, so an agent never sees the backend's own token.
+	Open(ctx context.Context, h Handle, name string) (Env, error)
 }
 
 // Open builds the provisioner for this host.

@@ -38,7 +38,7 @@ func (f *fakeProvisioner) Provision(_ context.Context, req backend.Request) (bac
 	}, nil
 }
 
-func (f *fakeProvisioner) Open(_ context.Context, h backend.Handle) (backend.Env, error) {
+func (f *fakeProvisioner) Open(_ context.Context, h backend.Handle, name string) (backend.Env, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	e, ok := f.envs[h.Token]
@@ -48,6 +48,7 @@ func (f *fakeProvisioner) Open(_ context.Context, h backend.Handle) (backend.Env
 	if e.closed {
 		return nil, fmt.Errorf("%w: %s", backend.ErrClosed, h.Token)
 	}
+	e.name = name
 	return e, nil
 }
 
@@ -61,6 +62,7 @@ func (f *fakeProvisioner) counts() (provisions, closed int) {
 type fakeEnv struct {
 	mu     sync.Mutex
 	id     string
+	name   string
 	token  string
 	ops    map[string]*fakeOp
 	next   int
@@ -81,11 +83,11 @@ func (e *fakeEnv) Exec(_ context.Context, start backend.Start) (backend.Exec, er
 	e.next++
 	op := fmt.Sprintf("%d", e.next)
 	e.ops[op] = &fakeOp{argv: start.Argv, dir: start.Dir}
-	return backend.Exec{Env: e.token, Op: op}, nil
+	return backend.Exec{Env: e.name, Op: op}, nil
 }
 
 func (e *fakeEnv) note(id backend.Exec) (*fakeOp, error) {
-	if !id.OwnedBy(e.token) {
+	if !id.OwnedBy(e.name) {
 		return nil, fmt.Errorf("%w: %s: not an op in this env", backend.ErrExec, id)
 	}
 	op, ok := e.ops[id.Op]

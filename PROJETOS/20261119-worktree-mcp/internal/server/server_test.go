@@ -62,7 +62,9 @@ func TestEnvViewHasNoPath(t *testing.T) {
 	s, _ := newServer(t)
 	view, err := s.EnvGet(t.Context(), "github:o/r@main", "feat")
 	require.NoError(t, err)
-	require.Equal(t, "github:o/r/feat", string(view.Handle))
+	require.Len(t, string(view.Handle), env.HandleLen)
+	_, err = env.ParseHandle(string(view.Handle))
+	require.NoError(t, err)
 	b, err := json.Marshal(view)
 	require.NoError(t, err)
 	require.NotContains(t, string(b), "checkouts")
@@ -109,13 +111,43 @@ func TestBadRepoRejected(t *testing.T) {
 }
 
 func TestExecReturnsOpHandleScopedToEnv(t *testing.T) {
-	s, fake := newServer(t)
+	s, _ := newServer(t)
 	view, err := s.EnvGet(t.Context(), "github:o/r@main", "feat")
 	require.NoError(t, err)
 	started, err := s.Exec(t.Context(), string(view.Handle), "", []string{"echo", "hi"})
 	require.NoError(t, err)
-	require.Equal(t, view.Handle, started.Env)
-	require.True(t, started.Handle.OwnedBy(fake.envs[tokenOf(t, started)].token))
+	require.Equal(t, view.Handle, env.Handle(started.Env))
+	require.True(t, started.Handle.OwnedBy(string(view.Handle)))
+	require.NotContains(t, started.Handle.String(), "/")
+}
+
+func TestOpHandleIsShort(t *testing.T) {
+	s, _ := newServer(t)
+	view, err := s.EnvGet(t.Context(), "github:o/r@main", "feat")
+	require.NoError(t, err)
+	started, err := s.Exec(t.Context(), string(view.Handle), "", []string{"echo", "hi"})
+	require.NoError(t, err)
+	// "<handle>.<op>" with a single-digit op.
+	require.Equal(t, env.HandleLen+2, len(started.Handle.String()))
+}
+
+func TestEnvGetMintsAShortHandleOnce(t *testing.T) {
+	s, _ := newServer(t)
+	first, err := s.EnvGet(t.Context(), "github:o/r@main", "feat")
+	require.NoError(t, err)
+	second, err := s.EnvGet(t.Context(), "github:o/r@main", "feat")
+	require.NoError(t, err)
+	require.Equal(t, first.Handle, second.Handle)
+	require.Len(t, string(first.Handle), env.HandleLen)
+}
+
+func TestDifferentSlugsGetDifferentHandles(t *testing.T) {
+	s, _ := newServer(t)
+	one, err := s.EnvGet(t.Context(), "github:o/r@main", "one")
+	require.NoError(t, err)
+	two, err := s.EnvGet(t.Context(), "github:o/r@main", "two")
+	require.NoError(t, err)
+	require.NotEqual(t, one.Handle, two.Handle)
 }
 
 func TestOpHandleFromAnotherEnvIsRefused(t *testing.T) {
@@ -131,9 +163,4 @@ func TestOpHandleFromAnotherEnvIsRefused(t *testing.T) {
 	require.NoError(t, err)
 	_, err = e.Status(t.Context(), started.Handle)
 	require.ErrorIs(t, err, backend.ErrExec)
-}
-
-func tokenOf(t *testing.T, v ExecView) string {
-	t.Helper()
-	return v.Handle.Env
 }

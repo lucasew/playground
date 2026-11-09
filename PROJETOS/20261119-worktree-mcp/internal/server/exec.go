@@ -46,7 +46,10 @@ func (s *Server) Exec(ctx context.Context, handle, cwd string, argv []string) (E
 	if len(argv) == 0 || argv[0] == "" {
 		return ExecView{}, env.ErrArgv
 	}
-	envHandle := env.Handle(handle)
+	envHandle, err := env.ParseHandle(handle)
+	if err != nil {
+		return ExecView{}, err
+	}
 	e, _, err := s.open(ctx, envHandle)
 	if err != nil {
 		return ExecView{}, err
@@ -169,13 +172,10 @@ func (s *Server) execAndEnv(ctx context.Context, handle string) (backend.Env, ba
 	return e, rec.Handle, nil
 }
 
-// execKey is the filename part of one op handle as stored on disk.
-func execKey(op string) string { return env.HashHandle(env.Handle(op)) }
-
-// execDir holds one env's exec records, keyed by the backend token the op
-// handles embed, so a lookup from an op handle finds it without a scan.
-func (s *Server) execDir(token string) string {
-	return filepath.Join(s.Store.Dir(), "execs", env.HashHandle(env.Handle(token)))
+// execDir holds one env's exec records. It is keyed by the env handle, which
+// every op handle names, so a lookup is a direct read.
+func (s *Server) execDir(handle string) string {
+	return filepath.Join(s.Store.Dir(), "execs", handle)
 }
 
 // lookup loads one exec record. The op handle names its own env, so the
@@ -185,7 +185,7 @@ func (s *Server) lookup(handle string) (execRecord, error) {
 	if err != nil {
 		return execRecord{}, err
 	}
-	b, err := os.ReadFile(filepath.Join(s.execDir(id.Env), execKey(handle)+".json"))
+	b, err := os.ReadFile(filepath.Join(s.execDir(id.Env), id.Op+".json"))
 	if os.IsNotExist(err) {
 		return execRecord{}, fmt.Errorf("%w: %s", env.ErrExec, handle)
 	}
@@ -199,11 +199,11 @@ func (s *Server) lookup(handle string) (execRecord, error) {
 	return rec, nil
 }
 
-// parseExec reads the "<env>/<op>" spelling of an op handle. The op handle
-// is the backend's, so this only splits it apart far enough to find the
-// record on disk; the backend validates it again when the env opens it.
+// parseExec reads the "<env>.<op>" spelling of an op handle. The backend
+// checks it again when the env opens it, so this only splits it far enough to
+// find the record on disk.
 func parseExec(text string) (backend.Exec, error) {
-	i := strings.LastIndex(text, "/")
+	i := strings.LastIndex(text, ".")
 	if i <= 0 || i == len(text)-1 {
 		return backend.Exec{}, fmt.Errorf("%w: %s", env.ErrExec, text)
 	}
@@ -219,13 +219,13 @@ func (s *Server) putExec(rec execRecord) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(dir, execKey(rec.Handle.String())+".json"), b, 0o600)
+	return os.WriteFile(filepath.Join(dir, rec.Handle.Op+".json"), b, 0o600)
 }
 
 // allExecs lists one env's exec records in the order they were started. The
-// caller passes the env's backend token.
-func (s *Server) allExecs(token string) ([]execRecord, error) {
-	entries, err := os.ReadDir(s.execDir(token))
+// caller passes the env handle.
+func (s *Server) allExecs(handle string) ([]execRecord, error) {
+	entries, err := os.ReadDir(s.execDir(handle))
 	if os.IsNotExist(err) {
 		return nil, nil
 	}
@@ -234,7 +234,7 @@ func (s *Server) allExecs(token string) ([]execRecord, error) {
 	}
 	var out []execRecord
 	for _, e := range entries {
-		b, err := os.ReadFile(filepath.Join(s.execDir(token), e.Name()))
+		b, err := os.ReadFile(filepath.Join(s.execDir(handle), e.Name()))
 		if err != nil {
 			return nil, err
 		}

@@ -41,10 +41,13 @@ func (s *Server) EnvGet(ctx context.Context, repoText, slugText string) (EnvView
 	if err := slug.Validate(); err != nil {
 		return EnvView{}, err
 	}
-	handle := env.NewHandle(repo, slug)
-	rec, err := s.Store.Get(handle)
+	rec, err := s.Store.Find(repo.String(), string(slug))
 	if err != nil {
 		return EnvView{}, err
+	}
+	handle := env.Handle("")
+	if rec != nil {
+		handle = rec.Handle
 	}
 	if rec != nil && rec.Closed {
 		return EnvView{}, fmt.Errorf("%w: %s", env.ErrClosed, handle)
@@ -54,7 +57,7 @@ func (s *Server) EnvGet(ctx context.Context, repoText, slugText string) (EnvView
 		Name:  repo.Name,
 		Base:  repo.Base,
 		Slug:  string(slug),
-		Label: string(handle),
+		Label: label(repo, slug),
 	})
 	if err != nil {
 		return EnvView{}, err
@@ -63,6 +66,9 @@ func (s *Server) EnvGet(ctx context.Context, repoText, slugText string) (EnvView
 	// env's handle. A record whose token changes was re-provisioned.
 	if rec == nil {
 		rec = &env.Record{}
+		if handle, err = env.MintHandle(); err != nil {
+			return EnvView{}, err
+		}
 	}
 	plugged := rec.Token == p.Handle.Token
 	rec.Handle = handle
@@ -79,6 +85,12 @@ func (s *Server) EnvGet(ctx context.Context, repoText, slugText string) (EnvView
 		status = "created"
 	}
 	return EnvView{Handle: handle, Repo: rec.Repo, Slug: rec.Slug, Base: rec.Base, Status: status}, nil
+}
+
+// label names an env for a human watching the backend's surface. The handle
+// is short on purpose, so it says nothing about the work; the label does.
+func label(repo env.Repo, slug env.Slug) string {
+	return repo.Owner + "/" + repo.Name + ":" + string(slug)
 }
 
 // EnvView is what a caller sees of one env. It has no checkout path.
@@ -116,7 +128,10 @@ func (s *Server) EnvList() ([]EnvView, error) {
 // EnvClose closes one env: every live command stops and the backend tears
 // down everything it provisioned for it.
 func (s *Server) EnvClose(ctx context.Context, handleText string) error {
-	handle := env.Handle(handleText)
+	handle, err := env.ParseHandle(handleText)
+	if err != nil {
+		return err
+	}
 	rec, err := s.Store.Get(handle)
 	if err != nil {
 		return err
@@ -127,7 +142,7 @@ func (s *Server) EnvClose(ctx context.Context, handleText string) error {
 	if rec.Closed {
 		return fmt.Errorf("%w: %s", env.ErrClosed, handle)
 	}
-	e, err := s.Backend.Open(ctx, backend.Handle{Backend: rec.Backend, Token: rec.Token})
+	e, err := s.Backend.Open(ctx, backend.Handle{Backend: rec.Backend, Token: rec.Token}, string(rec.Handle))
 	if err != nil {
 		return err
 	}
@@ -150,7 +165,7 @@ func (s *Server) open(ctx context.Context, handle env.Handle) (backend.Env, *env
 	if rec.Closed {
 		return nil, nil, fmt.Errorf("%w: %s", env.ErrClosed, handle)
 	}
-	e, err := s.Backend.Open(ctx, backend.Handle{Backend: rec.Backend, Token: rec.Token})
+	e, err := s.Backend.Open(ctx, backend.Handle{Backend: rec.Backend, Token: rec.Token}, string(rec.Handle))
 	if err != nil {
 		return nil, nil, err
 	}

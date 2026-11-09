@@ -100,7 +100,7 @@ func (b *Backend) Provision(ctx context.Context, req backend.Request) (backend.P
 }
 
 // Open returns the env behind a handle this backend issued.
-func (b *Backend) Open(ctx context.Context, h backend.Handle) (backend.Env, error) {
+func (b *Backend) Open(ctx context.Context, h backend.Handle, name string) (backend.Env, error) {
 	if h.Backend != b.ID() {
 		return nil, fmt.Errorf("%w: %s: not a local handle", backend.ErrEnv, h.Token)
 	}
@@ -118,7 +118,7 @@ func (b *Backend) Open(ctx context.Context, h backend.Handle) (backend.Env, erro
 	if err != nil {
 		return nil, err
 	}
-	return &envHandle{backend: b, note: n, exec: exec, token: h.Token}, nil
+	return &envHandle{backend: b, note: n, exec: exec, token: h.Token, name: name}, nil
 }
 
 // envHandle is the addressable env the server interacts with.
@@ -130,6 +130,8 @@ type envHandle struct {
 	note    note
 	exec    runner.Executor
 	token   string
+	// name is the short handle the server shows an agent.
+	name string
 }
 
 func (e *envHandle) Exec(ctx context.Context, start backend.Start) (backend.Exec, error) {
@@ -159,7 +161,7 @@ func (e *envHandle) Exec(ctx context.Context, start backend.Start) (backend.Exec
 	if err := e.putExec(execNote{ID: id, Place: place}); err != nil {
 		return backend.Exec{}, err
 	}
-	return backend.Exec{Env: e.token, Op: id}, nil
+	return backend.Exec{Env: e.name, Op: id}, nil
 }
 
 func (e *envHandle) Status(ctx context.Context, id backend.Exec) (backend.Status, error) {
@@ -220,7 +222,7 @@ func (e *envHandle) KillAll(ctx context.Context) error {
 		return err
 	}
 	for _, id := range ids {
-		_ = e.Kill(ctx, backend.Exec{Env: e.token, Op: id})
+		_ = e.Kill(ctx, backend.Exec{Env: e.name, Op: id})
 	}
 	return nil
 }
@@ -316,7 +318,7 @@ func (e *envHandle) execFile(id string) string {
 }
 
 func (e *envHandle) execNote(id backend.Exec) (execNote, error) {
-	if !id.OwnedBy(e.token) {
+	if !id.OwnedBy(e.name) {
 		return execNote{}, fmt.Errorf("%w: %s: not an op in this env", backend.ErrExec, id)
 	}
 	buf, err := os.ReadFile(e.execFile(id.Op))
@@ -384,7 +386,7 @@ func (e *envHandle) live(ctx context.Context) (int, error) {
 	}
 	live := 0
 	for _, id := range ids {
-		rec, err := e.execNote(backend.Exec{Env: e.token, Op: id})
+		rec, err := e.execNote(backend.Exec{Env: e.name, Op: id})
 		if err != nil || rec.Killed {
 			continue
 		}
