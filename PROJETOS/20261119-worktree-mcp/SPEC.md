@@ -34,7 +34,7 @@ Inherited C (cite the file):
 
 | ID | Input | Rule | Output |
 |----|-------|------|--------|
-| TEC-01 | A repo identity `github:owner/repo@base` and a slug | Resolve the identity to a local checkout, then ensure one linked worktree at the slug branch, reusing the worktree already on that branch. One `(repo, slug)` pair is one env for the life of its record. | One env handle with one status token: `created` or `resumed` |
+| TEC-01 | A repo identity `github:owner/repo@base` and a slug | Resolve the identity to a clone (the declared one, else a clone the store makes), then ensure one linked worktree at the slug branch, reusing the worktree already on that branch. One `(repo, slug)` pair is one env for the life of its record. | One env handle with one status token: `created` or `resumed` |
 | TEC-02 | An env handle and the agent's current location | Place the agent's own session in the env checkout; repeat calls are a no-op beyond re-ensuring the standard layout. | The agent standing in the env |
 | TEC-03 | One expression source, a map of named arguments, and a handle table | Parse into a tree, type-check the whole expression against the closed item table, then evaluate; a type error executes nothing. | One JSON value plus any handles minted |
 | TEC-04 | A typed operation on an item | Every operation is total on its declared item types; an argument of another type fails the expression before evaluation. | A value of a declared type |
@@ -54,7 +54,8 @@ Inherited C (cite the file):
 | TEC-10 | `lewkit/x/cmd` | adopt | implement subcommand dispatch; implement flag parsing; implement usage text; implement `--version`; implement exit codes; implement the `format` argument | lewtec/lewkit `x/cmd` |
 | TEC-10 | `lewkit/x/text/table` | adopt | implement a table renderer; invent a CSV or JSONL encoder | lewtec/lewkit `x/text/table/format.go` |
 | TEC-09 | Herdr socket API already in this path | wrap | implement a terminal multiplexer | lewtec/herdr-reflow `pkg/herdr/client.go` |
-| TEC-01 | `lewkit/x/git` | adopt | implement Git worktree bookkeeping | lewtec/lewkit `x/git` |
+| TEC-01 | `internal/store`: clones and worktrees | implement | re-derive paths in each backend | `internal/store/store.go` |
+| TEC-01 | `lewkit/x/git` and `git clone` | adopt | implement Git worktree bookkeeping | lewtec/lewkit `x/git` |
 | TEC-01 | `git worktree add` | adopt | reimplement worktrees | `git` binary |
 | TEC-01, TEC-02 | Herdr `worktree.create`, `worktree.open`, `pane.move` | wrap | implement checkout placement; implement sidebar layout | lewtec/herdr-reflow `pkg/herdr/reorder.go` |
 | TEC-05 | the `runner.Executor` seam over Herdr `tab.create`, `pane.send_text`, `pane.send_keys` | adopt | implement a PTY; call Herdr from the operation table | `internal/runner/runner.go`, lewtec/herdr-reflow `pkg/herdr/client.go` |
@@ -263,7 +264,7 @@ Residual risk:
 | AS-02 | `lewkit/x/parse` can express one application form with typed tokens | TEC-03 needs a hand-written lexer and a recursive-descent parser |
 | AS-05 | `lewkit/x/cmd` provides the `format` argument, subcommand dispatch, and exit codes named in TEC-10 | TEC-10 has no implementation and the CLI owns its own flags and rendering |
 | AS-03 | The user runs one server per Herdr session | Two servers would mint overlapping handles and race on the layout record |
-| AS-04 | `github:owner/repo@base` always names a checkout already present locally, per ADR-0008 | `env` must clone, which needs credentials the MCP does not own |
+| AS-04 | When no clone is declared, `git clone` reaches the host on its own credentials, per ADR-0008 | `env` cannot create an env for an undeclared repo, and the failure names the missing clone |
 
 ## Decision history
 
@@ -274,7 +275,7 @@ Residual risk:
 - ADR-0005: The public surface is a stateless typed expression and a small fixed tool set. Rejected: a tool-only surface; a stateful REPL.
 - ADR-0006: Output is an offset-addressed append-only event stream filtered server-side by RE2. Rejected: a port probe as readiness evidence; an in-memory output buffer.
 - ADR-0007: `exec` starts one named process and returns it immediately; readiness is a separate `wait`. Rejected: blocking `exec` on a readiness heuristic.
-- ADR-0008: A `github:` identity must already resolve to a local checkout declared in config. Rejected: cloning on demand before remote envs exist.
+- ADR-0008: The server owns the checkout store. For one `github:owner/repo`, it uses a clone declared in config when there is one and otherwise clones the repo into its own store; it then cuts one linked worktree per `(repo, slug)` from that clone. Owners: the store alone decides where clones and worktrees live, and every backend receives a finished checkout. Cloning uses the host's own git credentials; the server holds none of its own. Rejected: requiring a pre-existing checkout, which made every repo a manual setup step.
 - ADR-0009: The language has exactly one application form and no `begin`. Rejected: `begin` and named definitions in v0.
 - ADR-0010: One binary with subcommands; every operation is reachable from the MCP surface and the CLI surface with identical rules. Rejected: a separate debug CLI with its own rules.
 - ADR-0011: `x/cmd` owns dispatch, flags, exit codes, and rendering through `format`. Rejected: a bespoke `--json` flag and a hand-written serializer.

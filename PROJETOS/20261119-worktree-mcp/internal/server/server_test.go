@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/lewtec/lewkit/x/git"
 	"github.com/lucasew/env-mcp/internal/env"
 	"github.com/lucasew/env-mcp/internal/runner"
 	"github.com/stretchr/testify/require"
@@ -37,12 +36,7 @@ func newServer(t *testing.T, r runner.Executor) *Server {
 	t.Helper()
 	store, err := env.NewStore(t.TempDir())
 	require.NoError(t, err)
-	checkout := gitRepo(t)
-	s := NewServer(store, &env.Backend{
-		Git:       &git.Git{},
-		Workdir:   t.TempDir(),
-		Checkouts: map[string]string{"github:o/r": checkout},
-	}, t.TempDir())
+	s := NewServer(store, backendAt(t, t.TempDir(), gitRepo(t)), t.TempDir())
 	// Always install a runner: falling through to the registry would write
 	// into the package directory.
 	s.Runner = r

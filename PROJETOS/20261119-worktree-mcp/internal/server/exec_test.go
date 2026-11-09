@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lewtec/lewkit/x/git"
 	"github.com/lucasew/env-mcp/internal/env"
 	"github.com/lucasew/env-mcp/internal/runner"
 	"github.com/lucasew/env-mcp/internal/runner/host"
@@ -19,12 +18,7 @@ func newServerAt(t *testing.T, state string, r runner.Executor) *Server {
 	t.Helper()
 	store, err := env.NewStore(state + "/envs")
 	require.NoError(t, err)
-	checkout := gitRepo(t)
-	s := NewServer(store, &env.Backend{
-		Git:       &git.Git{},
-		Workdir:   state + "/wt",
-		Checkouts: map[string]string{"github:o/r": checkout},
-	}, state)
+	s := NewServer(store, backendAt(t, state+"/wt", gitRepo(t)), state)
 	s.Runner = r
 	return s
 }

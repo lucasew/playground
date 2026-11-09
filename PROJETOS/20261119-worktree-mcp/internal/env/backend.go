@@ -1,68 +1,65 @@
-// Package env's backend ensures one linked worktree per env.
+// Package env's backend turns one repo identity and slug into one checkout.
 package env
 
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
-	"strings"
 
-	"github.com/lewtec/lewkit/x/git"
+	"github.com/lucasew/env-mcp/internal/store"
 )
 
-// Backend places envs on the local filesystem and Herdr's session.
+// Backend places envs on the local filesystem. It owns no path logic of its
+// own: the store decides where clones and worktrees live, so every backend
+// shares one rule for the layout.
 type Backend struct {
-	Git     *git.Git
-	Workdir string
-	// Checkouts maps github:owner/repo to an existing local checkout.
-	Checkouts map[string]string
-	// Layout places a new env somewhere visible. Nil keeps it on disk only.
-	Layout Layout
+	Store *store.Store
 }
 
-// Layout is the standard layout the server derives for one env.
-type Layout interface {
-	// Open opens or resumes the env and returns its place numbers.
-	Open(ctx context.Context, root, label string) ([]int, error)
-	// Close tears down the places the server created.
-	Close(ctx context.Context, root string, places []int) error
+// Place is one env's checkout and the clone it was cut from.
+type Place struct {
+	// Root is the worktree for this env.
+	Root string
+	// Source is the main checkout the worktree belongs to.
+	Source string
+	// Created reports whether the worktree was made now.
+	Created bool
 }
 
-// Checkout returns the declared main checkout for repo.
-func (b *Backend) Checkout(repo Repo) (string, bool) {
-	path, ok := b.Checkouts[repo.Scheme+":"+repo.Owner+"/"+repo.Name]
-	return path, ok
+// Checkout returns the main checkout for repo, cloning it when the user did
+// not declare one.
+func (b *Backend) Checkout(ctx context.Context, repo Repo) (string, bool, error) {
+	if b.Store == nil {
+		return "", false, fmt.Errorf("%w: no store configured", ErrRepo)
+	}
+	return b.Store.Clone(ctx, storeRepo(repo))
 }
 
-// Ensure returns the worktree root for repo and slug, creating the worktree
-// when absent. A second call for the same pair returns the same root.
-func (b *Backend) Ensure(ctx context.Context, repo Repo, slug Slug) (string, bool, error) {
-	checkout, ok := b.Checkouts[repo.Scheme+":"+repo.Owner+"/"+repo.Name]
-	if !ok {
-		return "", false, fmt.Errorf("%w: %s: no local checkout declared", ErrRepo, repo)
+// Ensure returns the worktree for repo and slug, creating it when absent. A
+// second call for the same pair returns the same root.
+func (b *Backend) Ensure(ctx context.Context, repo Repo, slug Slug) (Place, error) {
+	if b.Store == nil {
+		return Place{}, fmt.Errorf("%w: no store configured", ErrRepo)
 	}
-	g := b.Git
-	if g == nil {
-		g = &git.Git{}
+	main, cloned, err := b.Store.Clone(ctx, storeRepo(repo))
+	if err != nil {
+		return Place{}, err
 	}
-	if existing, ok := g.LinkedWorktree(ctx, checkout, string(slug)); ok {
-		return git.Resolve(existing), false, nil
+	root, made, err := b.Store.Checkout(ctx, storeRepo(repo), main, string(slug))
+	if err != nil {
+		return Place{}, err
 	}
-	head, ok := g.Branch(ctx, checkout)
-	if !ok {
-		return "", false, fmt.Errorf("%w: %s: not a git checkout", ErrRepo, checkout)
+	return Place{Root: root, Source: main, Created: cloned || made}, nil
+}
+
+// Release removes the worktree for one env unless it is the main checkout.
+func (b *Backend) Release(ctx context.Context, place Place) error {
+	if b.Store == nil {
+		return nil
 	}
-	if head == string(slug) {
-		return git.Resolve(checkout), false, nil
-	}
-	path := filepath.Join(b.Workdir, repo.Owner+"-"+repo.Name, strings.ReplaceAll(string(slug), "/", "-"))
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return "", false, err
-	}
-	if err := g.Run(ctx, checkout, "worktree", "add", "-B", string(slug), path, repo.Base); err != nil {
-		return "", false, err
-	}
-	g.Clear()
-	return git.Resolve(path), true, nil
+	return b.Store.Release(ctx, place.Source, place.Root)
+}
+
+// storeRepo maps the env identity onto a store repo.
+func storeRepo(repo Repo) store.Repo {
+	return store.Repo{Owner: repo.Owner, Name: repo.Name, Base: repo.Base}
 }

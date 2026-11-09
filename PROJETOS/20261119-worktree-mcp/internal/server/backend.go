@@ -7,18 +7,20 @@ import (
 
 	"github.com/lewtec/lewkit/x/git"
 	"github.com/lucasew/env-mcp/internal/env"
+	"github.com/lucasew/env-mcp/internal/store"
 )
 
 // Config is the server's declaration of local checkouts.
 type Config struct {
-	// Repos maps github:owner/repo to a local checkout path.
+	// Repos maps github:owner/repo to a local checkout path. A repo named
+	// here is never cloned; the store uses the checkout as-is.
 	Repos map[string]string `json:"repos"`
-	// Workdir is the directory new worktrees are created under.
+	// Workdir is the directory clones and worktrees live under.
 	Workdir string `json:"workdir"`
 }
 
 // LoadConfig reads config.json from stateDir. A missing file is an empty
-// config, so a fresh install answers with "no local checkout declared".
+// config, which means every repo is cloned on demand.
 func LoadConfig(stateDir string) (Config, error) {
 	b, err := os.ReadFile(filepath.Join(stateDir, "config.json"))
 	if os.IsNotExist(err) {
@@ -34,20 +36,27 @@ func LoadConfig(stateDir string) (Config, error) {
 	return cfg, nil
 }
 
-// DefaultBackend builds the filesystem backend and the Herdr layout from
-// the state directory config.
+// DefaultBackend builds the backend over one store rooted in the state
+// directory. The store owns every clone and checkout, so the Herdr backend
+// and any later one receive the same paths the server recorded.
 func DefaultBackend(stateDir string) *env.Backend {
 	cfg, err := LoadConfig(stateDir)
 	if err != nil {
 		cfg = Config{}
 	}
-	workdir := cfg.Workdir
-	if workdir == "" {
-		workdir = filepath.Join(stateDir, "worktrees")
+	root := cfg.Workdir
+	if root == "" {
+		root = filepath.Join(stateDir, "checkouts")
 	}
-	return &env.Backend{
-		Git:       &git.Git{},
-		Workdir:   workdir,
-		Checkouts: cfg.Repos,
+	st := store.New(root, "")
+	st.Git = &git.Git{}
+	// Config keys are github:owner/repo, the store keys on owner-repo.
+	for key, path := range cfg.Repos {
+		repo, err := env.ParseRepo(key + "@main")
+		if err != nil {
+			continue
+		}
+		st.Declared[repo.Owner+"-"+repo.Name] = path
 	}
+	return &env.Backend{Store: st}
 }

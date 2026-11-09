@@ -52,20 +52,19 @@ func (s *Server) EnvGet(ctx context.Context, repoText, slugText string) (EnvView
 	}
 	created := false
 	if rec == nil {
-		root, made, err := s.Backend.Ensure(ctx, repo, slug)
+		place, err := s.Backend.Ensure(ctx, repo, slug)
 		if err != nil {
 			return EnvView{}, err
 		}
-		created = made
-		source, _ := s.Backend.Checkout(repo)
+		created = place.Created
 		rec = &env.Record{
 			Handle:  handle,
 			Repo:    repo.String(),
 			Slug:    string(slug),
 			Base:    repo.Base,
-			Root:    root,
-			Source:  source,
-			Created: made,
+			Root:    place.Root,
+			Source:  place.Source,
+			Created: place.Created,
 		}
 		if err := s.Store.Put(*rec); err != nil {
 			return EnvView{}, err

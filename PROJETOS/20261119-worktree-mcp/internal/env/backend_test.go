@@ -6,7 +6,9 @@ import (
 	"path/filepath"
 	"testing"
 
+	_ "github.com/lewtec/lewkit/x/driver/exec/prelude"
 	"github.com/lewtec/lewkit/x/git"
+	"github.com/lucasew/env-mcp/internal/store"
 	"github.com/stretchr/testify/require"
 )
 
@@ -24,29 +26,41 @@ func runGit(t *testing.T, dir string, args ...string) {
 	t.Helper()
 	cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
 	cmd.Env = append(os.Environ(),
+		"GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_SYSTEM=/dev/null",
 		"GIT_AUTHOR_NAME=test", "GIT_AUTHOR_EMAIL=test@example.com",
 		"GIT_COMMITTER_NAME=test", "GIT_COMMITTER_EMAIL=test@example.com")
 	out, err := cmd.CombinedOutput()
 	require.NoError(t, err, string(out))
 }
 
-func TestBackendIsIdempotent(t *testing.T) {
-	checkout := gitRepo(t)
-	b := &Backend{Git: &git.Git{}, Workdir: t.TempDir(), Checkouts: map[string]string{"github:o/r": checkout}}
-	repo := Repo{Scheme: "github", Owner: "o", Name: "r", Base: "main"}
-
-	first, created, err := b.Ensure(t.Context(), repo, "feat-x")
-	require.NoError(t, err)
-	require.True(t, created)
-
-	second, created, err := b.Ensure(t.Context(), repo, "feat-x")
-	require.NoError(t, err)
-	require.False(t, created)
-	require.Equal(t, first, second)
+// backendFor builds a backend whose store uses the given clone as repo o-r.
+func backendFor(t *testing.T, clone string) *Backend {
+	t.Helper()
+	st := store.New(t.TempDir(), "github.com")
+	st.Git = &git.Git{}
+	if clone != "" {
+		st.Declared["o-r"] = clone
+	}
+	return &Backend{Store: st}
 }
 
-func TestBackendRequiresDeclaredCheckout(t *testing.T) {
-	b := &Backend{Git: &git.Git{}, Workdir: t.TempDir(), Checkouts: map[string]string{}}
-	_, _, err := b.Ensure(t.Context(), Repo{Scheme: "github", Owner: "o", Name: "r", Base: "main"}, "s")
+func TestBackendIsIdempotent(t *testing.T) {
+	b := backendFor(t, gitRepo(t))
+	repo := Repo{Scheme: "github", Owner: "o", Name: "r", Base: "main"}
+
+	first, err := b.Ensure(t.Context(), repo, "feat-x")
+	require.NoError(t, err)
+	require.True(t, first.Created)
+
+	second, err := b.Ensure(t.Context(), repo, "feat-x")
+	require.NoError(t, err)
+	require.False(t, second.Created)
+	require.Equal(t, first.Root, second.Root)
+	require.Equal(t, first.Source, second.Source)
+}
+
+func TestBackendNeedsAStore(t *testing.T) {
+	b := &Backend{}
+	_, err := b.Ensure(t.Context(), Repo{Scheme: "github", Owner: "o", Name: "r", Base: "main"}, "s")
 	require.ErrorIs(t, err, ErrRepo)
 }
