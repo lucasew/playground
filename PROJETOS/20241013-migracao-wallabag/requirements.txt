@@ -9,7 +9,7 @@ colorama==0.4.6
 colorlog==6.8.2
 Delorean==1.0.0
 humanize==4.11.0
-idna==3.10
+idna==3.20
 lxml==5.3.0
 markdownify==0.13.1
 packaging==24.1
