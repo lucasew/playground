@@ -89,6 +89,8 @@ github.com/klauspost/compress v1.18.5 h1:/h1gH5Ce+VWNLSWqPzOVn6XBO+vJbCNGvjoaGBF
 github.com/klauspost/compress v1.18.5/go.mod h1:cwPg85FWrGar70rWktvGQj8/hthj3wpl0PGDogxkrSQ=
 github.com/lewtec/lewkit v0.0.0-20261018164858-d12f10429850 h1:imPvj4erOtnl1VBn7JrMnGe6kcllops6j7fTRRY1GaM=
 github.com/lewtec/lewkit v0.0.0-20261018164858-d12f10429850/go.mod h1:NZgXdc+sytm6NG3Cz5PIzCUP/jn5VC21SVVY22cMCUM=
+github.com/lewtec/lewkit v0.0.0-20261024211417-bbc129bd335d h1:pCZVWrMivYDvSG9W/Nk7Is2e0nBnsxrjrk4icH+W4KI=
+github.com/lewtec/lewkit v0.0.0-20261024211417-bbc129bd335d/go.mod h1:n7dWIrZq9bIAtWJyGUc1Ifejx33KGULml1ExAmPaoUA=
 github.com/lucasb-eyer/go-colorful v1.4.0 h1:UtrWVfLdarDgc44HcS7pYloGHJUjHV/4FwW4TvVgFr4=
 github.com/lucasb-eyer/go-colorful v1.4.0/go.mod h1:R4dSotOR9KMtayYi1e77YzuveK+i7ruzyGqttikkLy0=
 github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 h1:6E+4a0GO5zZEnZ81pIr0yLvtUWk2if982qA3F3QD6H4=
