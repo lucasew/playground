@@ -3,7 +3,7 @@ beautifulsoup4==4.12.3
 certifi==2024.8.30
 charset-normalizer==3.4.0
 click==8.1.7
-click-repl==0.3.0
+click-repl==0.4.1
 click-spinner==0.1.10
 colorama==0.4.6
 colorlog==6.8.2
