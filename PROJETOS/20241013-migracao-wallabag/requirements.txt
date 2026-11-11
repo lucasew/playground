@@ -10,7 +10,7 @@ colorlog==6.8.2
 Delorean==1.0.0
 humanize==4.11.0
 idna==3.10
-lxml==5.3.0
+lxml==5.4.0
 markdownify==0.13.1
 packaging==24.1
 pocket==0.3.6
