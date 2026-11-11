@@ -1,9 +1,9 @@
 module sqlc-atlas
 
-go 1.25.1
+go 1.26
 
 require (
-	github.com/go-json-experiment/json v0.0.0-20250910080747-cc2cfa0554c3
+	github.com/go-json-experiment/json v0.0.0-20260820222146-c27c302e5fc3
 	github.com/jackc/pgx/v5 v5.7.6
 )
 
