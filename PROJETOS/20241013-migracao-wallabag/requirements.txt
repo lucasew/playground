@@ -11,7 +11,7 @@ Delorean==1.0.0
 humanize==4.11.0
 idna==3.10
 lxml==5.3.0
-markdownify==0.13.1
+markdownify==0.14.1
 packaging==24.1
 pocket==0.3.6
 pockexport @ git+https://github.com/karlicoss/pockexport@35651edecbc45d06b1ef29fb044d431f0acabc4b
