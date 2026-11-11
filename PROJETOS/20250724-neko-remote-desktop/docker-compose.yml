@@ -1,6 +1,6 @@
 services:
   neko:
-    image: "ghcr.io/m1k1o/neko/nvidia-firefox:latest"
+    image: "ghcr.io/m1k1o/neko/nvidia-firefox:latest@sha256:80e31250852384d9a4b5e4815fe58eee6163a14b8d99c7c1a34e80fb8ad42125"
     restart: "unless-stopped"
     shm_size: "2gb"
     ports:

@@ -1,6 +1,6 @@
 services:
   livebook:
-    image: ghcr.io/livebook-dev/livebook:0.16.1-cuda12
+    image: ghcr.io/livebook-dev/livebook:0.16.1-cuda12@sha256:20711dc3468e20f01c6d50c5312858d077c2192d26569d6e92b16aa08896cb14
     ports:
       - 8092:8090
       - 8093:8091
