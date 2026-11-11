@@ -5,7 +5,7 @@ go 1.21.5
 require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/pkg/profile v1.7.0
-	github.com/tigerbeetle/tigerbeetle-go v0.14.179
+	github.com/tigerbeetle/tigerbeetle-go v0.17.10
 )
 
 require (
